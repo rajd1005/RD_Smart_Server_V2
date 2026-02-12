@@ -1,6 +1,7 @@
 const API_URL = '/api/trades'; 
 let allTrades = []; 
-const socket = io(); // Initialize Socket.io
+let isSelectionMode = false;
+const socket = io(); 
 
 window.onload = function() {
     setTodayDate();
@@ -9,7 +10,6 @@ window.onload = function() {
 
 // --- REAL-TIME LISTENER ---
 socket.on('trade_update', () => {
-    // When server says "Update", we re-fetch data instantly
     fetchTrades();
 });
 
@@ -19,9 +19,7 @@ function setTodayDate() {
 }
 
 async function fetchTrades() {
-    // 1. Save currently checked IDs to preserve selection
-    const checkedIds = Array.from(document.querySelectorAll('.trade-checkbox:checked')).map(cb => cb.value);
-
+    const checkedIds = getCheckedIds();
     try {
         const response = await fetch(API_URL);
         allTrades = await response.json();
@@ -50,20 +48,17 @@ function applyFilters(preserveIds = []) {
         return matchesDate && matchesSymbol && matchesStatus;
     });
 
-    renderTable(filtered, preserveIds);
+    renderTrades(filtered, preserveIds);
     calculateStats(filtered);
 }
 
-function renderTable(trades, preserveIds) {
-    const tbody = document.getElementById('tradeTableBody');
+// --- CARD RENDERING ENGINE ---
+function renderTrades(trades, preserveIds) {
+    const container = document.getElementById('tradeListContainer');
     const noDataMsg = document.getElementById('noDataMessage');
     
-    tbody.innerHTML = '';
+    container.innerHTML = '';
     
-    // Reset Select All (unless all are checked, but simplistic is fine)
-    const selectAll = document.getElementById('selectAll');
-    if(selectAll) selectAll.checked = false;
-
     if (trades.length === 0) {
         if(noDataMsg) noDataMsg.style.display = 'block';
         return;
@@ -77,75 +72,59 @@ function renderTable(trades, preserveIds) {
             timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true 
         });
 
-        let statusClass = 'text-secondary';
-        if (trade.status === 'ACTIVE') statusClass = 'status-active';
-        if (trade.status.includes('TP')) statusClass = 'status-tp';
-        if (trade.status.includes('SL')) statusClass = 'status-sl';
+        // Styles Logic
+        let statusClass = 'st-wait';
+        let profitClass = 'profit-neu';
+        let badgeClass = trade.type === 'BUY' ? 'badge-buy' : 'badge-sell';
+        
+        if (trade.status === 'ACTIVE') statusClass = 'st-active';
+        else if (trade.status.includes('TP')) { statusClass = 'st-tp'; profitClass = 'profit-pos'; }
+        else if (trade.status.includes('SL')) { statusClass = 'st-sl'; profitClass = 'profit-neg'; }
 
         let pts = parseFloat(trade.points_gained);
-        let ptsColor = pts > 0 ? 'text-success' : (pts < 0 ? 'text-danger' : 'text-muted');
+        // Force color if active trade has profit/loss
+        if (pts > 0) profitClass = 'profit-pos';
+        if (pts < 0) profitClass = 'profit-neg';
+
         let displayPts = Math.abs(pts) < 10 && Math.abs(pts) > 0 ? pts.toFixed(5) : pts.toFixed(2);
-
-        // Check if this ID was previously selected
         const isChecked = preserveIds.includes(trade.trade_id) ? 'checked' : '';
+        const checkDisplay = isSelectionMode ? 'block' : 'none';
 
-        const row = `
-            <tr>
-                <td><input type="checkbox" class="form-check-input trade-checkbox" value="${trade.trade_id}" ${isChecked}></td>
-                <td class="fw-bold text-muted">${index + 1}</td>
-                <td>${timeString}</td>
-                <td><b>${trade.symbol}</b></td>
-                <td><span class="badge ${trade.type === 'BUY' ? 'badge-buy' : 'badge-sell'}">${trade.type}</span></td>
-                <td class="${statusClass}">${trade.status}</td>
-                <td>${parseFloat(trade.entry_price).toFixed(5)}</td>
-                <td>${parseFloat(trade.sl_price).toFixed(5)}</td>
-                <td>${parseFloat(trade.tp1_price).toFixed(5)}</td>
-                <td>${parseFloat(trade.tp2_price).toFixed(5)}</td>
-                <td>${parseFloat(trade.tp3_price).toFixed(5)}</td>
-                <td class="fw-bold ${ptsColor}" style="font-size:1.1rem">${displayPts}</td>
-            </tr>
+        // --- CARD HTML ---
+        const cardHtml = `
+            <div class="trade-card">
+                <div class="status-pill ${statusClass}">${trade.status}</div>
+                
+                <div class="tc-header">
+                    <div class="d-flex align-items-center">
+                        <input type="checkbox" class="custom-check trade-checkbox" value="${trade.trade_id}" ${isChecked} style="display:${checkDisplay}">
+                        <div class="tc-symbol">${trade.symbol}</div>
+                        <div class="badge-type ${badgeClass} ms-2">${trade.type}</div>
+                    </div>
+                    <div class="tc-time">${timeString}</div>
+                </div>
+
+                <div class="tc-body">
+                    <div class="tc-details">
+                        <div class="tc-row">
+                            <span>Entry:</span> <span class="tc-val">${parseFloat(trade.entry_price).toFixed(5)}</span>
+                        </div>
+                        <div class="tc-row">
+                            <span>TP1:</span> <span class="tc-val text-muted">${parseFloat(trade.tp1_price).toFixed(5)}</span>
+                        </div>
+                         <div class="tc-row">
+                            <span>SL:</span> <span class="tc-val text-danger">${parseFloat(trade.sl_price).toFixed(5)}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="tc-profit ${profitClass}">
+                        ${pts > 0 ? '+' : ''}${displayPts}
+                    </div>
+                </div>
+            </div>
         `;
-        tbody.innerHTML += row;
+        container.innerHTML += cardHtml;
     });
-}
-
-function toggleSelectAll() {
-    const selectAllBox = document.getElementById('selectAll');
-    const checkboxes = document.querySelectorAll('.trade-checkbox');
-    checkboxes.forEach(cb => cb.checked = selectAllBox.checked);
-}
-
-async function deleteSelected() {
-    const checkedBoxes = document.querySelectorAll('.trade-checkbox:checked');
-    if (checkedBoxes.length === 0) {
-        alert("Please select at least one trade to delete.");
-        return;
-    }
-
-    if(!confirm(`⚠️ WARNING: Are you sure you want to PERMANENTLY delete ${checkedBoxes.length} trades?`)) {
-        return;
-    }
-
-    const tradeIdsToDelete = Array.from(checkedBoxes).map(cb => cb.value);
-
-    try {
-        const response = await fetch('/api/delete_trades', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ trade_ids: tradeIdsToDelete })
-        });
-
-        const result = await response.json();
-        if (result.success) {
-            document.getElementById('selectAll').checked = false;
-            // No need to call fetchTrades() here, the Socket event will trigger it automatically!
-        } else {
-            alert("Error deleting trades: " + result.msg);
-        }
-    } catch (err) {
-        console.error(err);
-        alert("Server error during deletion.");
-    }
 }
 
 function calculateStats(trades) {
@@ -174,6 +153,69 @@ function calculateStats(trades) {
     if(document.getElementById('totalPips')) document.getElementById('totalPips').innerText = displayTotal;
     
     if(document.getElementById('activeTrades')) document.getElementById('activeTrades').innerText = active;
+}
+
+// --- UTILS ---
+function toggleSelectionMode() {
+    isSelectionMode = !isSelectionMode;
+    const checkboxes = document.querySelectorAll('.trade-checkbox');
+    const icon = document.getElementById('selectIcon');
+    
+    checkboxes.forEach(cb => {
+        cb.style.display = isSelectionMode ? 'block' : 'none';
+    });
+
+    if (isSelectionMode) {
+        icon.innerText = "check_circle";
+        icon.style.color = "#3b82f6";
+    } else {
+        icon.innerText = "check_circle_outline";
+        icon.style.color = "";
+        // Uncheck all when exiting mode
+        checkboxes.forEach(cb => cb.checked = false);
+    }
+}
+
+function getCheckedIds() {
+    return Array.from(document.querySelectorAll('.trade-checkbox:checked')).map(cb => cb.value);
+}
+
+async function deleteSelected() {
+    // If not in selection mode, enter it first
+    if (!isSelectionMode) {
+        toggleSelectionMode();
+        alert("Select trades to delete, then click Delete again.");
+        return;
+    }
+
+    const tradeIdsToDelete = getCheckedIds();
+    
+    if (tradeIdsToDelete.length === 0) {
+        alert("Please select at least one trade to delete.");
+        return;
+    }
+
+    if(!confirm(`⚠️ Delete ${tradeIdsToDelete.length} trades permanently?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/delete_trades', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trade_ids: tradeIdsToDelete })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            toggleSelectionMode(); // Exit selection mode
+            // Socket will auto-refresh
+        } else {
+            alert("Error: " + result.msg);
+        }
+    } catch (err) {
+        console.error(err);
+    }
 }
 
 // Event Listeners
