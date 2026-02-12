@@ -149,6 +149,27 @@ app.post('/api/log_event', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// 6. BULK HARD DELETE TRADES
+app.post('/api/delete_trades', async (req, res) => {
+    const { trade_ids } = req.body; // Expecting an array of trade_id strings
+    
+    if (!trade_ids || !Array.isArray(trade_ids) || trade_ids.length === 0) {
+        return res.status(400).json({ success: false, msg: "No IDs provided" });
+    }
+
+    try {
+        // Postgres "ANY" allows matching an array of values
+        const query = "DELETE FROM trades WHERE trade_id = ANY($1)";
+        await pool.query(query, [trade_ids]);
+        
+        console.log(`🗑 Deleted ${trade_ids.length} trades.`);
+        res.json({ success: true });
+    } catch (err) { 
+        console.error(err); 
+        res.status(500).json({ error: err.message }); 
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 initDb().then(() => {
     app.listen(PORT, () => console.log(`🚀 Trade Manager (Standard Points) running on ${PORT}`));
