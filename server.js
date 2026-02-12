@@ -12,7 +12,7 @@ app.use(express.json());
 app.use(express.static('public')); 
 
 // --- CONFIG ---
-const DELETE_PASSWORD = process.env.DELETE_PASSWORD || "admin123"; 
+const DELETE_PASSWORD = process.env.DELETE_PASSWORD || "Lovesmells@123"; 
 
 // --- SOCKET.IO SETUP ---
 const server = http.createServer(app);
