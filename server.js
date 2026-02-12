@@ -12,7 +12,7 @@ app.use(express.json());
 app.use(express.static('public')); 
 
 // --- CONFIG ---
-const DELETE_PASSWORD = process.env.DELETE_PASSWORD || "admin123"; // <--- SET PASSWORD HERE
+const DELETE_PASSWORD = process.env.DELETE_PASSWORD || "admin123"; 
 
 // --- SOCKET.IO SETUP ---
 const server = http.createServer(app);
@@ -184,5 +184,5 @@ app.post('/api/delete_trades', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 initDb().then(() => {
     // IMPORTANT: Use server.listen instead of app.listen for Socket.io
-    server.listen(PORT, () => console.log(`🚀 Trade Manager (Socket.io) running on ${PORT}`));
+    server.listen(PORT, () => console.log(`🚀 RD Broker Server running on ${PORT}`));
 });
