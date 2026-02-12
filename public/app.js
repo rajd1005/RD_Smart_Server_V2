@@ -14,6 +14,7 @@ socket.on('trade_update', () => {
 });
 
 function setTodayDate() {
+    // Set Input to IST Date
     const istDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     document.getElementById('filterDate').value = istDate;
 }
@@ -52,7 +53,7 @@ function applyFilters(preserveIds = []) {
     calculateStats(filtered);
 }
 
-// --- CARD RENDERING ENGINE ---
+// --- CARD RENDERING ENGINE (FIXED) ---
 function renderTrades(trades, preserveIds) {
     const container = document.getElementById('tradeListContainer');
     const noDataMsg = document.getElementById('noDataMessage');
@@ -86,11 +87,13 @@ function renderTrades(trades, preserveIds) {
         if (pts > 0) profitClass = 'profit-pos';
         if (pts < 0) profitClass = 'profit-neg';
 
-        let displayPts = Math.abs(pts) < 10 && Math.abs(pts) > 0 ? pts.toFixed(5) : pts.toFixed(2);
+        // FIX: Always show 5 digits for precision (Removed the <10 logic)
+        let displayPts = pts.toFixed(5);
+        
         const isChecked = preserveIds.includes(trade.trade_id) ? 'checked' : '';
         const checkDisplay = isSelectionMode ? 'block' : 'none';
 
-        // --- CARD HTML ---
+        // --- CARD HTML (Added TP2 & TP3) ---
         const cardHtml = `
             <div class="trade-card">
                 <div class="status-pill ${statusClass}">${trade.status}</div>
@@ -105,20 +108,29 @@ function renderTrades(trades, preserveIds) {
                 </div>
 
                 <div class="tc-body">
-                    <div class="tc-details">
+                    <div class="tc-details" style="width: 60%;">
                         <div class="tc-row">
-                            <span>Entry:</span> <span class="tc-val">${parseFloat(trade.entry_price).toFixed(5)}</span>
+                            <span style="width: 40px;">Entry:</span> <span class="tc-val">${parseFloat(trade.entry_price).toFixed(5)}</span>
                         </div>
                         <div class="tc-row">
-                            <span>TP1:</span> <span class="tc-val text-muted">${parseFloat(trade.tp1_price).toFixed(5)}</span>
+                            <span style="width: 40px;">SL:</span> <span class="tc-val text-danger">${parseFloat(trade.sl_price).toFixed(5)}</span>
                         </div>
-                         <div class="tc-row">
-                            <span>SL:</span> <span class="tc-val text-danger">${parseFloat(trade.sl_price).toFixed(5)}</span>
+                        <div class="tc-row mt-2 border-top pt-1">
+                            <span style="width: 40px;">TP1:</span> <span class="tc-val text-muted">${parseFloat(trade.tp1_price).toFixed(5)}</span>
+                        </div>
+                        <div class="tc-row">
+                            <span style="width: 40px;">TP2:</span> <span class="tc-val text-muted">${parseFloat(trade.tp2_price).toFixed(5)}</span>
+                        </div>
+                        <div class="tc-row">
+                            <span style="width: 40px;">TP3:</span> <span class="tc-val text-muted">${parseFloat(trade.tp3_price).toFixed(5)}</span>
                         </div>
                     </div>
                     
-                    <div class="tc-profit ${profitClass}">
-                        ${pts > 0 ? '+' : ''}${displayPts}
+                    <div class="text-end">
+                        <div style="font-size:0.7rem; color:#94a3b8; margin-bottom:2px;">PROFIT</div>
+                        <div class="tc-profit ${profitClass}">
+                            ${pts > 0 ? '+' : ''}${displayPts}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -149,7 +161,8 @@ function calculateStats(trades) {
     if(document.getElementById('totalTrades')) document.getElementById('totalTrades').innerText = trades.length;
     if(document.getElementById('winRate')) document.getElementById('winRate').innerText = winRate + "%";
     
-    let displayTotal = Math.abs(totalPoints) < 10 && Math.abs(totalPoints) > 0 ? totalPoints.toFixed(5) : totalPoints.toFixed(2);
+    // Fix Stats Precision as well
+    let displayTotal = totalPoints.toFixed(5);
     if(document.getElementById('totalPips')) document.getElementById('totalPips').innerText = displayTotal;
     
     if(document.getElementById('activeTrades')) document.getElementById('activeTrades').innerText = active;
@@ -171,7 +184,6 @@ function toggleSelectionMode() {
     } else {
         icon.innerText = "check_circle_outline";
         icon.style.color = "";
-        // Uncheck all when exiting mode
         checkboxes.forEach(cb => cb.checked = false);
     }
 }
@@ -181,7 +193,6 @@ function getCheckedIds() {
 }
 
 async function deleteSelected() {
-    // If not in selection mode, enter it first
     if (!isSelectionMode) {
         toggleSelectionMode();
         alert("Select trades to delete, then click Delete again.");
@@ -208,8 +219,7 @@ async function deleteSelected() {
 
         const result = await response.json();
         if (result.success) {
-            toggleSelectionMode(); // Exit selection mode
-            // Socket will auto-refresh
+            toggleSelectionMode(); 
         } else {
             alert("Error: " + result.msg);
         }
