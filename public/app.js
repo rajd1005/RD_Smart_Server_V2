@@ -14,7 +14,6 @@ socket.on('trade_update', () => {
 });
 
 function setTodayDate() {
-    // Set Input to IST Date
     const istDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     document.getElementById('filterDate').value = istDate;
 }
@@ -33,6 +32,7 @@ async function fetchTrades() {
 function applyFilters(preserveIds = []) {
     const filterSymbol = document.getElementById('filterSymbol').value.toUpperCase();
     const filterStatus = document.getElementById('filterStatus').value;
+    const filterType = document.getElementById('filterType').value; // NEW FILTER
     const filterDateInput = document.getElementById('filterDate').value; 
 
     const filtered = allTrades.filter(trade => {
@@ -41,19 +41,24 @@ function applyFilters(preserveIds = []) {
 
         const matchesDate = (filterDateInput === "") || (tradeDateStr === filterDateInput);
         const matchesSymbol = trade.symbol.includes(filterSymbol);
+        
+        // Status Logic
         const matchesStatus = filterStatus === 'ALL' || 
                               (filterStatus === 'TP' && trade.status.includes('TP')) ||
                               (filterStatus === 'SL' && trade.status.includes('SL')) ||
                               (filterStatus === 'OPEN' && trade.status === 'ACTIVE');
+                              
+        // Type Logic
+        const matchesType = filterType === 'ALL' || trade.type === filterType;
 
-        return matchesDate && matchesSymbol && matchesStatus;
+        return matchesDate && matchesSymbol && matchesStatus && matchesType;
     });
 
     renderTrades(filtered, preserveIds);
     calculateStats(filtered);
 }
 
-// --- CARD RENDERING ENGINE (FIXED) ---
+// --- COMPACT CARD RENDERING ---
 function renderTrades(trades, preserveIds) {
     const container = document.getElementById('tradeListContainer');
     const noDataMsg = document.getElementById('noDataMessage');
@@ -75,62 +80,63 @@ function renderTrades(trades, preserveIds) {
 
         // Styles Logic
         let statusClass = 'st-wait';
+        let dotClass = 'dot-wait';
         let profitClass = 'profit-neu';
         let badgeClass = trade.type === 'BUY' ? 'badge-buy' : 'badge-sell';
         
-        if (trade.status === 'ACTIVE') statusClass = 'st-active';
-        else if (trade.status.includes('TP')) { statusClass = 'st-tp'; profitClass = 'profit-pos'; }
-        else if (trade.status.includes('SL')) { statusClass = 'st-sl'; profitClass = 'profit-neg'; }
+        if (trade.status === 'ACTIVE') { statusClass = 'st-active'; dotClass = 'dot-active'; }
+        else if (trade.status.includes('TP')) { statusClass = 'st-tp'; dotClass = 'dot-tp'; profitClass = 'profit-pos'; }
+        else if (trade.status.includes('SL')) { statusClass = 'st-sl'; dotClass = 'dot-sl'; profitClass = 'profit-neg'; }
 
         let pts = parseFloat(trade.points_gained);
-        // Force color if active trade has profit/loss
         if (pts > 0) profitClass = 'profit-pos';
         if (pts < 0) profitClass = 'profit-neg';
 
-        // FIX: Always show 5 digits for precision (Removed the <10 logic)
         let displayPts = pts.toFixed(5);
         
         const isChecked = preserveIds.includes(trade.trade_id) ? 'checked' : '';
         const checkDisplay = isSelectionMode ? 'block' : 'none';
 
-        // --- CARD HTML (Added TP2 & TP3) ---
+        // --- COMPACT HTML STRUCTURE ---
         const cardHtml = `
             <div class="trade-card">
-                <div class="status-pill ${statusClass}">${trade.status}</div>
-                
                 <div class="tc-header">
                     <div class="d-flex align-items-center">
                         <input type="checkbox" class="custom-check trade-checkbox" value="${trade.trade_id}" ${isChecked} style="display:${checkDisplay}">
                         <div class="tc-symbol">${trade.symbol}</div>
                         <div class="badge-type ${badgeClass} ms-2">${trade.type}</div>
                     </div>
-                    <div class="tc-time">${timeString}</div>
+                    <div class="status-text ${statusClass}">
+                        <span class="status-dot ${dotClass}"></span>
+                        ${trade.status.replace(' (Reversal)', '')}
+                    </div>
                 </div>
 
                 <div class="tc-body">
-                    <div class="tc-details" style="width: 60%;">
+                    <div class="tc-details">
                         <div class="tc-row">
-                            <span style="width: 40px;">Entry:</span> <span class="tc-val">${parseFloat(trade.entry_price).toFixed(5)}</span>
+                            <span class="tc-lbl">ENT:</span> <span class="tc-val">${parseFloat(trade.entry_price).toFixed(5)}</span>
                         </div>
                         <div class="tc-row">
-                            <span style="width: 40px;">SL:</span> <span class="tc-val text-danger">${parseFloat(trade.sl_price).toFixed(5)}</span>
+                            <span class="tc-lbl">SL:</span> <span class="tc-val tc-val-red">${parseFloat(trade.sl_price).toFixed(5)}</span>
                         </div>
-                        <div class="tc-row mt-2 border-top pt-1">
-                            <span style="width: 40px;">TP1:</span> <span class="tc-val text-muted">${parseFloat(trade.tp1_price).toFixed(5)}</span>
+                        <div class="tc-row mt-1" style="opacity:0.8">
+                            <span class="tc-lbl">TP1:</span> <span class="tc-val">${parseFloat(trade.tp1_price).toFixed(5)}</span>
                         </div>
-                        <div class="tc-row">
-                            <span style="width: 40px;">TP2:</span> <span class="tc-val text-muted">${parseFloat(trade.tp2_price).toFixed(5)}</span>
+                        <div class="tc-row" style="opacity:0.8">
+                            <span class="tc-lbl">TP2:</span> <span class="tc-val">${parseFloat(trade.tp2_price).toFixed(5)}</span>
                         </div>
-                        <div class="tc-row">
-                            <span style="width: 40px;">TP3:</span> <span class="tc-val text-muted">${parseFloat(trade.tp3_price).toFixed(5)}</span>
+                        <div class="tc-row" style="opacity:0.8">
+                            <span class="tc-lbl">TP3:</span> <span class="tc-val">${parseFloat(trade.tp3_price).toFixed(5)}</span>
                         </div>
                     </div>
                     
-                    <div class="text-end">
-                        <div style="font-size:0.7rem; color:#94a3b8; margin-bottom:2px;">PROFIT</div>
+                    <div class="profit-block">
+                        <div class="profit-lbl">Profit</div>
                         <div class="tc-profit ${profitClass}">
                             ${pts > 0 ? '+' : ''}${displayPts}
                         </div>
+                        <div class="tc-time mt-1">${timeString}</div>
                     </div>
                 </div>
             </div>
@@ -161,7 +167,6 @@ function calculateStats(trades) {
     if(document.getElementById('totalTrades')) document.getElementById('totalTrades').innerText = trades.length;
     if(document.getElementById('winRate')) document.getElementById('winRate').innerText = winRate + "%";
     
-    // Fix Stats Precision as well
     let displayTotal = totalPoints.toFixed(5);
     if(document.getElementById('totalPips')) document.getElementById('totalPips').innerText = displayTotal;
     
@@ -232,3 +237,4 @@ async function deleteSelected() {
 document.getElementById('filterDate').addEventListener('change', () => applyFilters());
 document.getElementById('filterSymbol').addEventListener('keyup', () => applyFilters());
 document.getElementById('filterStatus').addEventListener('change', () => applyFilters());
+document.getElementById('filterType').addEventListener('change', () => applyFilters()); // NEW LISTENER
