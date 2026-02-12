@@ -14,33 +14,20 @@
             font-size: 0.9rem; 
         }
         .table-responsive { overflow-x: auto; }
-        
-        /* Badges & Status Colors */
         .badge-buy { background-color: #0d6efd; }
         .badge-sell { background-color: #d63384; }
-        
         .status-active { color: #0d6efd; font-weight: 700; animation: pulse 2s infinite; }
         .status-tp { color: #198754; font-weight: 700; }
         .status-sl { color: #dc3545; font-weight: 700; }
-        
-        /* Stats Cards */
-        .stat-card {
-            border: none;
-            border-left: 4px solid #ddd;
-            transition: transform 0.2s;
-        }
+        .stat-card { border: none; border-left: 4px solid #ddd; transition: transform 0.2s; }
         .stat-card:hover { transform: translateY(-2px); }
         .stat-label { font-size: 0.75rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; }
         .stat-value { font-size: 1.5rem; font-weight: 700; color: #212529; }
-        
-        /* Table Tweaks */
         table thead { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
         
-        @keyframes pulse { 
-            0% { opacity: 1; } 
-            50% { opacity: 0.6; } 
-            100% { opacity: 1; } 
-        }
+        /* Checkbox Style */
+        .form-check-input { cursor: pointer; }
     </style>
 </head>
 <body>
@@ -95,8 +82,12 @@
                     <option value="SL">Loss (SL Hit)</option>
                 </select>
             </div>
+            <div class="col-md-auto">
+                 <button onclick="fetchTrades()" class="btn btn-sm btn-outline-primary">Refresh Data</button>
+            </div>
+            
             <div class="col text-end">
-                <button onclick="fetchTrades()" class="btn btn-sm btn-outline-primary">Refresh Data</button>
+                <button onclick="deleteSelected()" class="btn btn-sm btn-danger fw-bold">🗑 Delete Selected</button>
             </div>
         </div>
     </div>
@@ -106,6 +97,11 @@
             <table class="table table-hover mb-0 align-middle text-center">
                 <thead class="table-dark">
                     <tr>
+                        <th class="py-3" style="width: 40px;">
+                            <input type="checkbox" id="selectAll" class="form-check-input" onclick="toggleSelectAll()">
+                        </th>
+                        <th class="py-3" style="width: 60px;">#</th>
+                        
                         <th class="py-3">Time</th>
                         <th class="py-3">Symbol</th>
                         <th class="py-3">Type</th>
@@ -132,7 +128,6 @@
 
 <script src="app.js"></script>
 <script>
-    // Simple Clock
     setInterval(() => {
         document.getElementById('clock').innerText = new Date().toLocaleTimeString();
     }, 1000);
