@@ -55,8 +55,13 @@ app.post('/api/signal_detected', async (req, res) => {
     const dbTime = getDBTime(); 
 
     try {
-        const msg = `⚠️ **NEW SIGNAL**\nSymbol: ${symbol}\nType: ${type}\nTime: ${istTime}`;
-        const sentMsg = await bot.sendMessage(CHAT_ID, msg, { parse_mode: 'Markdown' });
+        // --- DESIGN: NEW SIGNAL ---
+        const msg = `🚨 <b>NEW SIGNAL DETECTED</b>\n\n` +
+                    `💎 <b>Symbol:</b> #${symbol}\n` +
+                    `📊 <b>Type:</b> ${type}\n` +
+                    `🕒 <b>Time:</b> ${istTime}`;
+
+        const sentMsg = await bot.sendMessage(CHAT_ID, msg, { parse_mode: 'HTML' });
         
         const query = `
             INSERT INTO trades (trade_id, symbol, type, telegram_msg_id, created_at, status)
@@ -65,7 +70,7 @@ app.post('/api/signal_detected', async (req, res) => {
         `;
         await pool.query(query, [trade_id, symbol, type, sentMsg.message_id, dbTime]);
 
-        io.emit('trade_update'); // <--- REAL-TIME UPDATE
+        io.emit('trade_update'); 
         res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
@@ -83,7 +88,8 @@ app.post('/api/setup_confirmed', async (req, res) => {
         for (const t of oldTrades.rows) {
             await pool.query("UPDATE trades SET status = 'CLOSED (Reversal)' WHERE trade_id = $1", [t.trade_id]);
             if(t.telegram_msg_id) {
-                bot.sendMessage(CHAT_ID, `🔄 **Trade Reversed**\nClosed by new signal.`, { reply_to_message_id: t.telegram_msg_id });
+                // --- DESIGN: REVERSAL ---
+                bot.sendMessage(CHAT_ID, `🔄 <b>Trade Reversed</b>\n❌ Closed by new signal.`, { reply_to_message_id: t.telegram_msg_id, parse_mode: 'HTML' });
             }
         }
 
@@ -101,13 +107,22 @@ app.post('/api/setup_confirmed', async (req, res) => {
         `;
         await pool.query(query, [trade_id, symbol, type, entry, sl, tp1, tp2, tp3, dbTime]);
 
-        const msg = `📋 **SETUP CONFIRMED**\nEntry: ${entry}\nSL: ${sl}\nTP1: ${tp1}\nTP2: ${tp2}\nTP3: ${tp3}`;
-        const opts = { parse_mode: 'Markdown' };
+        // --- DESIGN: SETUP CONFIRMED (Fixed Format & Added Symbol) ---
+        const msg = `✅ <b>SETUP CONFIRMED</b>\n\n` +
+                    `💎 <b>Symbol:</b> #${symbol}\n` +
+                    `🚀 <b>Type:</b> ${type}\n` +
+                    `🚪 <b>Entry:</b> ${entry}\n` +
+                    `🛑 <b>SL:</b> ${sl}\n\n` +
+                    `🎯 <b>TP1:</b> ${tp1}\n` +
+                    `🎯 <b>TP2:</b> ${tp2}\n` +
+                    `🎯 <b>TP3:</b> ${tp3}`;
+
+        const opts = { parse_mode: 'HTML' };
         if (msgId) opts.reply_to_message_id = msgId;
 
         await bot.sendMessage(CHAT_ID, msg, opts);
         
-        io.emit('trade_update'); // <--- REAL-TIME UPDATE
+        io.emit('trade_update'); 
         res.json({ success: true });
 
     } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
@@ -125,7 +140,6 @@ app.post('/api/price_update', async (req, res) => {
             
             await pool.query("UPDATE trades SET points_gained = $1 WHERE id = $2", [points, t.id]);
         }
-        // NOTE: We do NOT emit socket here to avoid spamming updates every second.
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -144,21 +158,24 @@ app.post('/api/log_event', async (req, res) => {
         
         await pool.query("UPDATE trades SET status = $1, points_gained = $2 WHERE trade_id = $3", [new_status, points, trade_id]);
 
-        // --- UPDATED MESSAGE: REMOVED PROFIT ---
-        const msg = `⚡ **UPDATE: ${new_status}**\nPrice: ${price}`;
+        // --- DESIGN: UPDATE EVENT (Added Symbol) ---
+        // Using HTML to ensure clean bolding and newlines
+        const msg = `⚡ <b>UPDATE: ${new_status}</b>\n\n` +
+                    `💎 <b>Symbol:</b> #${trade.symbol}\n` +
+                    `📉 <b>Price:</b> ${price}`;
         
-        const opts = { parse_mode: 'Markdown' };
+        const opts = { parse_mode: 'HTML' };
         if (trade.telegram_msg_id) opts.reply_to_message_id = trade.telegram_msg_id;
 
         await bot.sendMessage(CHAT_ID, msg, opts);
         
-        io.emit('trade_update'); // <--- REAL-TIME UPDATE
+        io.emit('trade_update'); 
         res.json({ success: true });
 
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- UPDATED DELETE ENDPOINT (WITH PASSWORD) ---
+// --- DELETE ENDPOINT (WITH PASSWORD) ---
 app.post('/api/delete_trades', async (req, res) => {
     const { trade_ids, password } = req.body; 
     
@@ -185,6 +202,5 @@ app.post('/api/delete_trades', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 initDb().then(() => {
-    // IMPORTANT: Use server.listen instead of app.listen for Socket.io
     server.listen(PORT, () => console.log(`🚀 RD Broker Server running on ${PORT}`));
 });
