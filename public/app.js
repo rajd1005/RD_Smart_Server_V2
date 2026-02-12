@@ -6,12 +6,8 @@ window.onload = function() {
     fetchTrades();
 };
 
-// --- FIX 1: Set Date Input to IST (YYYY-MM-DD) ---
 function setTodayDate() {
-    // 'en-CA' locale formats date as YYYY-MM-DD automatically
-    const istDate = new Date().toLocaleDateString('en-CA', { 
-        timeZone: 'Asia/Kolkata' 
-    });
+    const istDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     document.getElementById('filterDate').value = istDate;
 }
 
@@ -25,18 +21,14 @@ async function fetchTrades() {
     }
 }
 
-// --- FIX 2: Filter Logic using IST Dates ---
 function applyFilters() {
     const filterSymbol = document.getElementById('filterSymbol').value.toUpperCase();
     const filterStatus = document.getElementById('filterStatus').value;
     const filterDateInput = document.getElementById('filterDate').value; 
 
     const filtered = allTrades.filter(trade => {
-        // Convert the database time (UTC/ISO) to IST Date String (YYYY-MM-DD)
         const tradeDateObj = new Date(trade.created_at);
-        const tradeDateStr = tradeDateObj.toLocaleDateString('en-CA', { 
-            timeZone: 'Asia/Kolkata' 
-        });
+        const tradeDateStr = tradeDateObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
         const matchesDate = (filterDateInput === "") || (tradeDateStr === filterDateInput);
         const matchesSymbol = trade.symbol.includes(filterSymbol);
@@ -52,12 +44,58 @@ function applyFilters() {
     calculateStats(filtered);
 }
 
+// --- NEW FUNCTION: Toggle All Checkboxes ---
+function toggleSelectAll() {
+    const selectAllBox = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.trade-checkbox');
+    checkboxes.forEach(cb => cb.checked = selectAllBox.checked);
+}
+
+// --- NEW FUNCTION: Delete Selected Trades ---
+async function deleteSelected() {
+    const checkedBoxes = document.querySelectorAll('.trade-checkbox:checked');
+    if (checkedBoxes.length === 0) {
+        alert("Please select at least one trade to delete.");
+        return;
+    }
+
+    if(!confirm(`⚠️ WARNING: Are you sure you want to PERMANENTLY delete ${checkedBoxes.length} trades? This cannot be undone.`)) {
+        return;
+    }
+
+    const tradeIdsToDelete = Array.from(checkedBoxes).map(cb => cb.value);
+
+    try {
+        const response = await fetch('/api/delete_trades', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trade_ids: tradeIdsToDelete })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            // Uncheck master checkbox
+            document.getElementById('selectAll').checked = false;
+            fetchTrades(); // Refresh table
+        } else {
+            alert("Error deleting trades: " + result.msg);
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Server error during deletion.");
+    }
+}
+
 function renderTable(trades) {
     const tbody = document.getElementById('tradeTableBody');
     const noDataMsg = document.getElementById('noDataMessage');
     
     tbody.innerHTML = '';
     
+    // Reset Select All Checkbox on re-render
+    const selectAll = document.getElementById('selectAll');
+    if(selectAll) selectAll.checked = false;
+
     if (trades.length === 0) {
         if(noDataMsg) noDataMsg.style.display = 'block';
         return;
@@ -68,7 +106,6 @@ function renderTable(trades) {
     trades.forEach((trade, index) => {
         const dateObj = new Date(trade.created_at);
         
-        // --- FIX 3: Display Time in IST ---
         const timeString = dateObj.toLocaleTimeString('en-US', { 
             timeZone: 'Asia/Kolkata',
             hour: '2-digit', 
@@ -86,8 +123,11 @@ function renderTable(trades) {
         
         let displayPts = Math.abs(pts) < 10 && Math.abs(pts) > 0 ? pts.toFixed(5) : pts.toFixed(2);
 
+        // -- UPDATED ROW WITH CHECKBOX AND SERIAL NUMBER --
         const row = `
             <tr>
+                <td><input type="checkbox" class="form-check-input trade-checkbox" value="${trade.trade_id}"></td>
+                <td class="fw-bold text-muted">${index + 1}</td>
                 <td>${timeString}</td>
                 <td><b>${trade.symbol}</b></td>
                 <td><span class="badge ${trade.type === 'BUY' ? 'badge-buy' : 'badge-sell'}">${trade.type}</span></td>
