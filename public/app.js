@@ -1,10 +1,17 @@
 const API_URL = '/api/trades'; 
 let allTrades = []; 
+const socket = io(); // Initialize Socket.io
 
 window.onload = function() {
     setTodayDate();
     fetchTrades();
 };
+
+// --- REAL-TIME LISTENER ---
+socket.on('trade_update', () => {
+    // When server says "Update", we re-fetch data instantly
+    fetchTrades();
+});
 
 function setTodayDate() {
     const istDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
@@ -12,16 +19,19 @@ function setTodayDate() {
 }
 
 async function fetchTrades() {
+    // 1. Save currently checked IDs to preserve selection
+    const checkedIds = Array.from(document.querySelectorAll('.trade-checkbox:checked')).map(cb => cb.value);
+
     try {
         const response = await fetch(API_URL);
         allTrades = await response.json();
-        applyFilters(); 
+        applyFilters(checkedIds); 
     } catch (error) {
         console.error("Error fetching trades:", error);
     }
 }
 
-function applyFilters() {
+function applyFilters(preserveIds = []) {
     const filterSymbol = document.getElementById('filterSymbol').value.toUpperCase();
     const filterStatus = document.getElementById('filterStatus').value;
     const filterDateInput = document.getElementById('filterDate').value; 
@@ -40,59 +50,17 @@ function applyFilters() {
         return matchesDate && matchesSymbol && matchesStatus;
     });
 
-    renderTable(filtered);
+    renderTable(filtered, preserveIds);
     calculateStats(filtered);
 }
 
-// --- NEW FUNCTION: Toggle All Checkboxes ---
-function toggleSelectAll() {
-    const selectAllBox = document.getElementById('selectAll');
-    const checkboxes = document.querySelectorAll('.trade-checkbox');
-    checkboxes.forEach(cb => cb.checked = selectAllBox.checked);
-}
-
-// --- NEW FUNCTION: Delete Selected Trades ---
-async function deleteSelected() {
-    const checkedBoxes = document.querySelectorAll('.trade-checkbox:checked');
-    if (checkedBoxes.length === 0) {
-        alert("Please select at least one trade to delete.");
-        return;
-    }
-
-    if(!confirm(`⚠️ WARNING: Are you sure you want to PERMANENTLY delete ${checkedBoxes.length} trades? This cannot be undone.`)) {
-        return;
-    }
-
-    const tradeIdsToDelete = Array.from(checkedBoxes).map(cb => cb.value);
-
-    try {
-        const response = await fetch('/api/delete_trades', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ trade_ids: tradeIdsToDelete })
-        });
-
-        const result = await response.json();
-        if (result.success) {
-            // Uncheck master checkbox
-            document.getElementById('selectAll').checked = false;
-            fetchTrades(); // Refresh table
-        } else {
-            alert("Error deleting trades: " + result.msg);
-        }
-    } catch (err) {
-        console.error(err);
-        alert("Server error during deletion.");
-    }
-}
-
-function renderTable(trades) {
+function renderTable(trades, preserveIds) {
     const tbody = document.getElementById('tradeTableBody');
     const noDataMsg = document.getElementById('noDataMessage');
     
     tbody.innerHTML = '';
     
-    // Reset Select All Checkbox on re-render
+    // Reset Select All (unless all are checked, but simplistic is fine)
     const selectAll = document.getElementById('selectAll');
     if(selectAll) selectAll.checked = false;
 
@@ -105,12 +73,8 @@ function renderTable(trades) {
 
     trades.forEach((trade, index) => {
         const dateObj = new Date(trade.created_at);
-        
         const timeString = dateObj.toLocaleTimeString('en-US', { 
-            timeZone: 'Asia/Kolkata',
-            hour: '2-digit', 
-            minute: '2-digit', 
-            hour12: true 
+            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true 
         });
 
         let statusClass = 'text-secondary';
@@ -120,13 +84,14 @@ function renderTable(trades) {
 
         let pts = parseFloat(trade.points_gained);
         let ptsColor = pts > 0 ? 'text-success' : (pts < 0 ? 'text-danger' : 'text-muted');
-        
         let displayPts = Math.abs(pts) < 10 && Math.abs(pts) > 0 ? pts.toFixed(5) : pts.toFixed(2);
 
-        // -- UPDATED ROW WITH CHECKBOX AND SERIAL NUMBER --
+        // Check if this ID was previously selected
+        const isChecked = preserveIds.includes(trade.trade_id) ? 'checked' : '';
+
         const row = `
             <tr>
-                <td><input type="checkbox" class="form-check-input trade-checkbox" value="${trade.trade_id}"></td>
+                <td><input type="checkbox" class="form-check-input trade-checkbox" value="${trade.trade_id}" ${isChecked}></td>
                 <td class="fw-bold text-muted">${index + 1}</td>
                 <td>${timeString}</td>
                 <td><b>${trade.symbol}</b></td>
@@ -142,6 +107,45 @@ function renderTable(trades) {
         `;
         tbody.innerHTML += row;
     });
+}
+
+function toggleSelectAll() {
+    const selectAllBox = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.trade-checkbox');
+    checkboxes.forEach(cb => cb.checked = selectAllBox.checked);
+}
+
+async function deleteSelected() {
+    const checkedBoxes = document.querySelectorAll('.trade-checkbox:checked');
+    if (checkedBoxes.length === 0) {
+        alert("Please select at least one trade to delete.");
+        return;
+    }
+
+    if(!confirm(`⚠️ WARNING: Are you sure you want to PERMANENTLY delete ${checkedBoxes.length} trades?`)) {
+        return;
+    }
+
+    const tradeIdsToDelete = Array.from(checkedBoxes).map(cb => cb.value);
+
+    try {
+        const response = await fetch('/api/delete_trades', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trade_ids: tradeIdsToDelete })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            document.getElementById('selectAll').checked = false;
+            // No need to call fetchTrades() here, the Socket event will trigger it automatically!
+        } else {
+            alert("Error deleting trades: " + result.msg);
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Server error during deletion.");
+    }
 }
 
 function calculateStats(trades) {
@@ -173,6 +177,6 @@ function calculateStats(trades) {
 }
 
 // Event Listeners
-document.getElementById('filterDate').addEventListener('change', applyFilters);
-document.getElementById('filterSymbol').addEventListener('keyup', applyFilters);
-document.getElementById('filterStatus').addEventListener('change', applyFilters);
+document.getElementById('filterDate').addEventListener('change', () => applyFilters());
+document.getElementById('filterSymbol').addEventListener('keyup', () => applyFilters());
+document.getElementById('filterStatus').addEventListener('change', () => applyFilters());
