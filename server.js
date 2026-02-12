@@ -1,6 +1,6 @@
 const express = require('express');
-const http = require('http'); // Import HTTP
-const { Server } = require('socket.io'); // Import Socket.io
+const http = require('http'); 
+const { Server } = require('socket.io'); 
 const cors = require('cors');
 const TelegramBot = require('node-telegram-bot-api');
 const { pool, initDb } = require('./database');
@@ -38,6 +38,17 @@ function calculatePoints(type, entry, currentPrice) {
     return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice);
 }
 
+// --- CONVERTER: Fixes Underscores & Special Chars for Markdown ---
+// This function escapes characters that crash Telegram Markdown
+function toMarkdown(text) {
+    if (text === undefined || text === null) return "";
+    return String(text)
+        .replace(/_/g, "\\_")  // Fixes #Brent_Crude -> #Brent\_Crude
+        .replace(/\*/g, "\\*") // Fixes accidental bolding
+        .replace(/\[/g, "\\[") // Fixes broken links
+        .replace(/`/g, "\\`"); // Fixes code block errors
+}
+
 // --- API ENDPOINTS ---
 
 // 1. GET ALL TRADES
@@ -55,13 +66,15 @@ app.post('/api/signal_detected', async (req, res) => {
     const dbTime = getDBTime(); 
 
     try {
-        // --- DESIGN: NEW SIGNAL (With Symbol) ---
-        const msg = `🚨 <b>NEW SIGNAL DETECTED</b>\n\n` +
-                    `💎 <b>Symbol:</b> #${symbol}\n` +
-                    `📊 <b>Type:</b> ${type}\n` +
-                    `🕒 <b>Time:</b> ${istTime}`;
+        // ✅ FIXED: Using backticks for real newlines (No %0)
+        // ✅ FIXED: Using toMarkdown() to handle underscores safely
+        const msg = `🚨 *NEW SIGNAL DETECTED*
 
-        const sentMsg = await bot.sendMessage(CHAT_ID, msg, { parse_mode: 'HTML' });
+💎 *Symbol:* #${toMarkdown(symbol)}
+📊 *Type:* ${toMarkdown(type)}
+🕒 *Time:* ${toMarkdown(istTime)}`;
+
+        const sentMsg = await bot.sendMessage(CHAT_ID, msg, { parse_mode: 'Markdown' });
         
         const query = `
             INSERT INTO trades (trade_id, symbol, type, telegram_msg_id, created_at, status)
@@ -88,8 +101,9 @@ app.post('/api/setup_confirmed', async (req, res) => {
         for (const t of oldTrades.rows) {
             await pool.query("UPDATE trades SET status = 'CLOSED (Reversal)' WHERE trade_id = $1", [t.trade_id]);
             if(t.telegram_msg_id) {
-                // --- DESIGN: REVERSAL ---
-                bot.sendMessage(CHAT_ID, `🔄 <b>Trade Reversed</b>\n❌ Closed by new signal.`, { reply_to_message_id: t.telegram_msg_id, parse_mode: 'HTML' });
+                const revMsg = `🔄 *Trade Reversed*
+❌ Closed by new signal.`;
+                bot.sendMessage(CHAT_ID, revMsg, { reply_to_message_id: t.telegram_msg_id, parse_mode: 'Markdown' });
             }
         }
 
@@ -107,17 +121,19 @@ app.post('/api/setup_confirmed', async (req, res) => {
         `;
         await pool.query(query, [trade_id, symbol, type, entry, sl, tp1, tp2, tp3, dbTime]);
 
-        // --- DESIGN: SETUP CONFIRMED (With Symbol) ---
-        const msg = `✅ <b>SETUP CONFIRMED</b>\n\n` +
-                    `💎 <b>Symbol:</b> #${symbol}\n` +
-                    `🚀 <b>Type:</b> ${type}\n` +
-                    `🚪 <b>Entry:</b> ${entry}\n` +
-                    `🛑 <b>SL:</b> ${sl}\n\n` +
-                    `🎯 <b>TP1:</b> ${tp1}\n` +
-                    `🎯 <b>TP2:</b> ${tp2}\n` +
-                    `🎯 <b>TP3:</b> ${tp3}`;
+        // ✅ FIXED: Clean Markdown Message
+        const msg = `✅ *SETUP CONFIRMED*
 
-        const opts = { parse_mode: 'HTML' };
+💎 *Symbol:* #${toMarkdown(symbol)}
+🚀 *Type:* ${toMarkdown(type)}
+🚪 *Entry:* ${toMarkdown(entry)}
+🛑 *SL:* ${toMarkdown(sl)}
+
+🎯 *TP1:* ${toMarkdown(tp1)}
+🎯 *TP2:* ${toMarkdown(tp2)}
+🎯 *TP3:* ${toMarkdown(tp3)}`;
+
+        const opts = { parse_mode: 'Markdown' };
         if (msgId) opts.reply_to_message_id = msgId;
 
         await bot.sendMessage(CHAT_ID, msg, opts);
@@ -128,7 +144,7 @@ app.post('/api/setup_confirmed', async (req, res) => {
     } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
-// 4. PRICE UPDATE (Disabled in MT4, but keeping endpoint just in case)
+// 4. PRICE UPDATE
 app.post('/api/price_update', async (req, res) => {
     const { symbol, bid, ask } = req.body;
     try {
@@ -153,35 +169,28 @@ app.post('/api/log_event', async (req, res) => {
 
         const trade = result.rows[0];
 
-        // =========================================================================
-        // --- PROFIT LOCK LOGIC: PREVENT SL IF TARGET HIT ---
-        // =========================================================================
-        
-        // 1. If we are already in PROFIT (TP Hit), IGNORE any SL message.
+        // --- PROFIT LOCK LOGIC ---
         if (trade.status.includes('TP') && new_status === 'SL HIT') {
             console.log(`🛡️ Profit Locked for ${trade.symbol}. Ignoring SL Signal.`);
             return res.json({ success: true, msg: "Profit Locked: SL Ignored" });
         }
-
-        // 2. LOCK TARGETS (Do not downgrade from TP3 -> TP2, or TP2 -> TP1)
         if (trade.status === 'TP3 HIT' && (new_status === 'TP2 HIT' || new_status === 'TP1 HIT')) return res.json({ success: true });
         if (trade.status === 'TP2 HIT' && new_status === 'TP1 HIT') return res.json({ success: true });
 
         // Check if status is same (duplicate check)
         if (trade.status === new_status) return res.json({ success: true }); 
 
-        // =========================================================================
-
         let points = calculatePoints(trade.type, trade.entry_price, price);
         
         await pool.query("UPDATE trades SET status = $1, points_gained = $2 WHERE trade_id = $3", [new_status, points, trade_id]);
 
-        // --- DESIGN: UPDATE EVENT (With Symbol, No Profit) ---
-        const msg = `⚡ <b>UPDATE: ${new_status}</b>\n\n` +
-                    `💎 <b>Symbol:</b> #${trade.symbol}\n` +
-                    `📉 <b>Price:</b> ${price}`;
+        // ✅ FIXED: Clean Markdown Message
+        const msg = `⚡ *UPDATE: ${toMarkdown(new_status)}*
+
+💎 *Symbol:* #${toMarkdown(trade.symbol)}
+📉 *Price:* ${toMarkdown(price)}`;
         
-        const opts = { parse_mode: 'HTML' };
+        const opts = { parse_mode: 'Markdown' };
         if (trade.telegram_msg_id) opts.reply_to_message_id = trade.telegram_msg_id;
 
         await bot.sendMessage(CHAT_ID, msg, opts);
@@ -192,11 +201,10 @@ app.post('/api/log_event', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- DELETE ENDPOINT (WITH PASSWORD) ---
+// --- DELETE ENDPOINT ---
 app.post('/api/delete_trades', async (req, res) => {
     const { trade_ids, password } = req.body; 
     
-    // 1. Check Password
     if (password !== DELETE_PASSWORD) {
         return res.status(401).json({ success: false, msg: "❌ Incorrect Password!" });
     }
