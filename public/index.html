@@ -5,167 +5,176 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>RD Smart Trader</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     
     <style>
         :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
+            /* Light Theme Variables */
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-primary: #111827;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+            
             --accent-green: #10b981;
             --accent-red: #ef4444;
             --accent-blue: #3b82f6;
-            --gradient-profit: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            --gradient-loss: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
-            --gradient-active: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
         body { 
             background-color: var(--bg-color); 
-            font-family: 'Poppins', sans-serif;
+            font-family: 'Inter', sans-serif;
             color: var(--text-primary);
-            padding-bottom: 80px; /* Space for bottom bar */
+            padding-bottom: 70px; /* Space for compact bottom bar */
+            font-size: 0.85rem; /* Base compact size */
         }
 
-        /* --- APP HEADER --- */
+        /* --- COMPACT HEADER --- */
         .app-header {
             position: sticky;
             top: 0;
             z-index: 100;
-            background: rgba(15, 23, 42, 0.95);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 10px 15px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        .app-title { font-size: 1.2rem; font-weight: 700; background: linear-gradient(to right, #4facfe, #00f2fe); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .server-time { font-size: 0.8rem; color: var(--text-secondary); font-family: monospace; background: #334155; padding: 4px 8px; border-radius: 6px; }
+        .app-title { font-size: 1rem; font-weight: 700; color: #1e40af; letter-spacing: -0.5px; }
+        .server-time { font-size: 0.75rem; color: var(--text-secondary); font-family: monospace; background: #f1f5f9; padding: 3px 6px; border-radius: 4px; }
 
-        /* --- SCROLLABLE STATS --- */
+        /* --- COMPACT STATS --- */
         .stats-container {
             display: flex;
             overflow-x: auto;
-            gap: 15px;
-            padding: 20px;
+            gap: 10px;
+            padding: 10px 15px;
             scroll-behavior: smooth;
         }
         .stats-container::-webkit-scrollbar { display: none; }
         
         .stat-card {
-            min-width: 140px;
+            min-width: 110px;
             background: var(--card-bg);
-            padding: 15px;
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-sm);
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
         }
-        .stat-icon { font-size: 24px; margin-bottom: 5px; opacity: 0.8; }
-        .stat-value { font-size: 1.4rem; font-weight: 700; color: #fff; }
-        .stat-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
+        .stat-header { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
+        .stat-icon { font-size: 18px; }
+        .stat-value { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
+        .stat-label { font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; }
 
-        .stat-active { border-left: 4px solid #3b82f6; }
-        .stat-win { border-left: 4px solid #10b981; }
-        .stat-profit { border-left: 4px solid #f59e0b; }
+        .stat-active { border-left: 3px solid #3b82f6; }
+        .stat-profit { border-left: 3px solid #10b981; }
+        .stat-win { border-left: 3px solid #f59e0b; }
 
-        /* --- TRADE LIST --- */
-        .trade-list { padding: 0 15px; }
+        /* --- COMPACT TRADE LIST --- */
+        .trade-list { padding: 0 10px; }
         
         .trade-card {
             background: var(--card-bg);
-            border-radius: 16px;
-            padding: 16px;
-            margin-bottom: 15px;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 8px; /* Tighter spacing */
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-sm);
             position: relative;
-            border: 1px solid rgba(255,255,255,0.05);
-            transition: transform 0.2s;
         }
-        .trade-card:active { transform: scale(0.98); }
         
         /* Card Header */
-        .tc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .tc-symbol { font-size: 1.1rem; font-weight: 700; color: #fff; }
-        .tc-time { font-size: 0.75rem; color: var(--text-secondary); }
+        .tc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .tc-symbol { font-size: 0.95rem; font-weight: 700; color: #111827; }
+        .tc-time { font-size: 0.7rem; color: #9ca3af; }
         
         /* Badges */
-        .badge-type { padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
-        .badge-buy { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
-        .badge-sell { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge-type { padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        .badge-buy { background: #dbeafe; color: #1d4ed8; }
+        .badge-sell { background: #fee2e2; color: #b91c1c; }
 
         /* Card Body */
         .tc-body { display: flex; justify-content: space-between; align-items: flex-end; }
-        .tc-details { display: flex; flex-direction: column; gap: 4px; }
-        .tc-row { font-size: 0.85rem; color: var(--text-secondary); display: flex; gap: 8px; }
-        .tc-val { color: #e2e8f0; font-weight: 500; }
+        .tc-details { display: flex; flex-direction: column; gap: 2px; width: 65%; }
+        .tc-row { font-size: 0.75rem; color: var(--text-secondary); display: flex; align-items: center; }
+        .tc-lbl { width: 35px; font-weight: 500; font-size: 0.7rem; color: #9ca3af; }
+        .tc-val { font-weight: 600; color: #374151; font-family: 'Inter', monospace; }
+        .tc-val-red { color: #ef4444; }
 
-        /* Big Profit Number */
-        .tc-profit { font-size: 1.5rem; font-weight: 700; text-align: right; }
-        .profit-pos { color: #34d399; text-shadow: 0 0 10px rgba(16, 185, 129, 0.3); }
-        .profit-neg { color: #f87171; text-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
-        .profit-neu { color: #94a3b8; }
+        /* Profit Section */
+        .profit-block { text-align: right; }
+        .tc-profit { font-size: 1.2rem; font-weight: 700; line-height: 1; }
+        .profit-lbl { font-size: 0.6rem; color: #9ca3af; text-transform: uppercase; margin-bottom: 2px; }
+        
+        .profit-pos { color: #059669; }
+        .profit-neg { color: #dc2626; }
+        .profit-neu { color: #9ca3af; }
 
-        /* Status Pills */
-        .status-pill { 
-            position: absolute; top: -8px; right: 15px; 
-            padding: 4px 12px; border-radius: 20px; 
-            font-size: 0.7rem; font-weight: 700; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            text-transform: uppercase; letter-spacing: 0.5px;
-        }
-        .st-active { background: var(--gradient-active); color: white; animation: pulse 2s infinite; }
-        .st-tp { background: var(--gradient-profit); color: white; }
-        .st-sl { background: var(--gradient-loss); color: white; }
-        .st-wait { background: #475569; color: #cbd5e1; }
+        /* Status Pills (Compact) */
+        .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; }
+        .status-text { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; display: flex; align-items: center; }
+        
+        .st-active { color: #2563eb; }
+        .dot-active { background: #2563eb; animation: pulse 2s infinite; }
+        
+        .st-tp { color: #059669; } 
+        .dot-tp { background: #059669; }
+        
+        .st-sl { color: #dc2626; } 
+        .dot-sl { background: #dc2626; }
+        
+        .st-wait { color: #6b7280; } 
+        .dot-wait { background: #9ca3af; }
 
-        @keyframes pulse { 0% { opacity: 1; box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { opacity: 1; box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); } 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
-        /* --- BOTTOM BAR --- */
+        /* --- BOTTOM BAR (Compact) --- */
         .bottom-bar {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 400px;
-            background: rgba(30, 41, 59, 0.9); backdrop-filter: blur(12px);
-            border-radius: 24px;
-            padding: 10px 20px;
-            display: flex; justify-content: space-around; align-items: center;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(255,255,255,0.1);
+            position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%);
+            width: 95%; max-width: 380px;
+            background: #ffffff; 
+            border-radius: 16px;
+            padding: 8px 15px;
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid var(--border-color);
             z-index: 1000;
         }
         .nav-btn {
-            background: none; border: none; color: var(--text-secondary);
-            display: flex; flex-direction: column; align-items: center; gap: 4px;
-            font-size: 0.7rem; font-weight: 500;
+            background: none; border: none; color: #64748b;
+            display: flex; flex-direction: column; align-items: center; gap: 2px;
+            font-size: 0.65rem; font-weight: 500;
         }
-        .nav-btn .material-icons-round { font-size: 24px; transition: 0.2s; }
+        .nav-btn .material-icons-round { font-size: 20px; }
         .nav-btn.active-tab { color: #3b82f6; }
         .nav-btn.delete-tab { color: #ef4444; }
 
-        /* Checkbox Custom */
-        .custom-check {
-            width: 20px; height: 20px; border-radius: 5px;
-            border: 2px solid #475569; appearance: none;
-            background: transparent; margin-right: 10px;
-            cursor: pointer;
-        }
-        .custom-check:checked { background: #3b82f6; border-color: #3b82f6; }
-
-        /* Filter Modal */
-        .offcanvas-bottom { background-color: var(--card-bg); color: white; border-top: 1px solid rgba(255,255,255,0.1); height: auto !important; border-top-left-radius: 20px; border-top-right-radius: 20px; }
-        .form-control, .form-select { background-color: #0f172a; border: 1px solid #334155; color: white; }
-        .form-control:focus, .form-select:focus { background-color: #0f172a; color: white; border-color: #3b82f6; box-shadow: none; }
+        /* Filter Modal (Light) */
+        .offcanvas-bottom { background-color: #ffffff; border-top-left-radius: 20px; border-top-right-radius: 20px; }
+        .form-control, .form-select { background-color: #f9fafb; border: 1px solid #e5e7eb; color: #111827; font-size: 0.9rem; }
+        .form-control:focus, .form-select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        .form-label { font-size: 0.75rem; font-weight: 600; color: #4b5563; margin-bottom: 4px; }
         
-        #noDataMessage { padding: 40px; opacity: 0.5; }
+        /* Checkbox */
+        .custom-check { width: 18px; height: 18px; border-radius: 4px; margin-right: 8px; border: 2px solid #9ca3af; }
+        .custom-check:checked { background-color: #3b82f6; border-color: #3b82f6; }
+
+        #noDataMessage { padding: 40px; opacity: 0.6; color: var(--text-secondary); }
     </style>
 </head>
 <body>
 
     <header class="app-header">
         <div class="d-flex align-items-center gap-2">
-            <span class="material-icons-round text-primary">analytics</span>
+            <span class="material-icons-round text-primary" style="font-size: 20px;">pie_chart</span>
             <div class="app-title">RD SMART</div>
         </div>
         <div class="server-time" id="clock">--:--:--</div>
@@ -173,32 +182,32 @@
 
     <div class="stats-container">
         <div class="stat-card stat-active">
-            <span class="material-icons-round text-primary">bolt</span>
-            <div>
-                <div class="stat-value" id="activeTrades">0</div>
-                <div class="stat-label">Running</div>
+            <div class="stat-header">
+                <span class="material-icons-round text-primary stat-icon">bolt</span>
+                <span class="stat-label">RUNNING</span>
             </div>
+            <div class="stat-value" id="activeTrades">0</div>
         </div>
         <div class="stat-card stat-profit">
-            <span class="material-icons-round text-warning">savings</span>
-            <div>
-                <div class="stat-value" id="totalPips">0.00</div>
-                <div class="stat-label">Total Points</div>
+            <div class="stat-header">
+                <span class="material-icons-round text-success stat-icon">trending_up</span>
+                <span class="stat-label">POINTS</span>
             </div>
+            <div class="stat-value" id="totalPips">0.00</div>
         </div>
         <div class="stat-card stat-win">
-            <span class="material-icons-round text-success">emoji_events</span>
-            <div>
-                <div class="stat-value" id="winRate">0%</div>
-                <div class="stat-label">Win Rate</div>
+            <div class="stat-header">
+                <span class="material-icons-round text-warning stat-icon">emoji_events</span>
+                <span class="stat-label">WIN RATE</span>
             </div>
+            <div class="stat-value" id="winRate">0%</div>
         </div>
-        <div class="stat-card" style="border-left: 4px solid #94a3b8;">
-            <span class="material-icons-round text-secondary">history</span>
-            <div>
-                <div class="stat-value" id="totalTrades">0</div>
-                <div class="stat-label">Total Signals</div>
+        <div class="stat-card">
+            <div class="stat-header">
+                <span class="material-icons-round text-secondary stat-icon">history</span>
+                <span class="stat-label">SIGNALS</span>
             </div>
+            <div class="stat-value" id="totalTrades">0</div>
         </div>
     </div>
 
@@ -206,8 +215,8 @@
         </div>
 
     <div id="noDataMessage" class="text-center" style="display:none;">
-        <span class="material-icons-round" style="font-size: 48px;">inbox</span>
-        <p class="mt-2">No trades found. <br> Check filters or wait for signals.</p>
+        <span class="material-icons-round" style="font-size: 40px;">filter_alt_off</span>
+        <p class="mt-2 small">No trades found.</p>
     </div>
 
     <nav class="bottom-bar">
@@ -224,35 +233,46 @@
             Select
         </button>
         <button class="nav-btn delete-tab" onclick="deleteSelected()">
-            <span class="material-icons-round">delete</span>
+            <span class="material-icons-round">delete_outline</span>
             Delete
         </button>
     </nav>
 
     <div class="offcanvas offcanvas-bottom" tabindex="-1" id="filterSheet">
-        <div class="offcanvas-header">
-            <h5 class="offcanvas-title">Filter Trades</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+        <div class="offcanvas-header pb-0">
+            <h6 class="offcanvas-title fw-bold">Filter Trades</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
-        <div class="offcanvas-body">
-            <div class="mb-3">
-                <label class="form-label text-muted small">DATE</label>
-                <input type="date" id="filterDate" class="form-control">
+        <div class="offcanvas-body pt-2">
+            <div class="row g-2">
+                <div class="col-6">
+                    <label class="form-label">DATE</label>
+                    <input type="date" id="filterDate" class="form-control form-control-sm">
+                </div>
+                <div class="col-6">
+                    <label class="form-label">TYPE</label> <select id="filterType" class="form-select form-select-sm">
+                        <option value="ALL">All Types</option>
+                        <option value="BUY">Buy Only</option>
+                        <option value="SELL">Sell Only</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">SYMBOL</label>
+                    <input type="text" id="filterSymbol" class="form-control form-control-sm" placeholder="e.g. EURUSD">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">STATUS</label>
+                    <select id="filterStatus" class="form-select form-select-sm">
+                        <option value="ALL">All Status</option>
+                        <option value="OPEN">Running (Active)</option>
+                        <option value="TP">Profitable (TP Hit)</option>
+                        <option value="SL">Loss (SL Hit)</option>
+                    </select>
+                </div>
             </div>
-            <div class="mb-3">
-                <label class="form-label text-muted small">SYMBOL</label>
-                <input type="text" id="filterSymbol" class="form-control" placeholder="EURUSD...">
-            </div>
-            <div class="mb-3">
-                <label class="form-label text-muted small">STATUS</label>
-                <select id="filterStatus" class="form-select">
-                    <option value="ALL">All Trades</option>
-                    <option value="OPEN">Running (Active)</option>
-                    <option value="TP">Profitable (TP Hit)</option>
-                    <option value="SL">Loss (SL Hit)</option>
-                </select>
-            </div>
-            <button class="btn btn-primary w-100 py-2 rounded-pill fw-bold" data-bs-dismiss="offcanvas" onclick="applyFilters()">Apply Filters</button>
+            <button class="btn btn-primary w-100 mt-3 rounded-3 fw-bold" data-bs-dismiss="offcanvas" onclick="applyFilters()">
+                Apply Filters
+            </button>
         </div>
     </div>
 
@@ -260,7 +280,6 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="app.js"></script>
     <script>
-        // Simple Clock
         setInterval(() => {
             const now = new Date();
             document.getElementById('clock').innerText = now.toLocaleTimeString('en-US', {hour12: false});
