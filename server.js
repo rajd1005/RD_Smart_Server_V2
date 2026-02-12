@@ -12,7 +12,7 @@ app.use(express.json());
 app.use(express.static('public')); 
 
 // --- CONFIG ---
-const DELETE_PASSWORD = process.env.DELETE_PASSWORD || "Lovesmells@123"; 
+const DELETE_PASSWORD = process.env.DELETE_PASSWORD || "admin123"; 
 
 // --- SOCKET.IO SETUP ---
 const server = http.createServer(app);
@@ -144,7 +144,9 @@ app.post('/api/log_event', async (req, res) => {
         
         await pool.query("UPDATE trades SET status = $1, points_gained = $2 WHERE trade_id = $3", [new_status, points, trade_id]);
 
-        const msg = `⚡ **UPDATE: ${new_status}**\nPrice: ${price}\nProfit: ${points.toFixed(5)}`;
+        // --- UPDATED MESSAGE: REMOVED PROFIT ---
+        const msg = `⚡ **UPDATE: ${new_status}**\nPrice: ${price}`;
+        
         const opts = { parse_mode: 'Markdown' };
         if (trade.telegram_msg_id) opts.reply_to_message_id = trade.telegram_msg_id;
 
