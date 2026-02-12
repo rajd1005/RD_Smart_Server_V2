@@ -25,8 +25,6 @@
         .stat-value { font-size: 1.5rem; font-weight: 700; color: #212529; }
         table thead { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
-        
-        /* Checkbox Style */
         .form-check-input { cursor: pointer; border-color: #adb5bd; }
         .form-check-input:checked { background-color: #dc3545; border-color: #dc3545; }
     </style>
@@ -120,7 +118,6 @@
                     </tbody>
             </table>
         </div>
-        
         <div id="noDataMessage" class="text-center p-5 text-muted" style="display:none;">
             <h5>No trades found for this selection</h5>
             <small>Try changing the date filter or waiting for new signals.</small>
@@ -128,6 +125,7 @@
     </div>
 </div>
 
+<script src="/socket.io/socket.io.js"></script>
 <script src="app.js"></script>
 <script>
     setInterval(() => {
