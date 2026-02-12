@@ -27,7 +27,8 @@
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
         
         /* Checkbox Style */
-        .form-check-input { cursor: pointer; }
+        .form-check-input { cursor: pointer; border-color: #adb5bd; }
+        .form-check-input:checked { background-color: #dc3545; border-color: #dc3545; }
     </style>
 </head>
 <body>
@@ -39,7 +40,13 @@
             <h4 class="fw-bold mb-0">📊 RD Algo Dashboard</h4>
             <small class="text-muted">Live MT4 Trade Monitor</small>
         </div>
-        <span class="badge bg-dark p-2">Server Time: <span id="clock" class="font-monospace">--:--</span></span>
+        <div class="text-end">
+            <span class="badge bg-dark p-2 mb-1">Server Time: <span id="clock" class="font-monospace">--:--</span></span>
+            <br>
+            <button onclick="deleteSelected()" class="btn btn-sm btn-danger fw-bold mt-2 shadow-sm">
+                🗑 Delete Selected
+            </button>
+        </div>
     </div>
 
     <div class="row g-3 mb-4">
@@ -72,9 +79,9 @@
     <div class="card p-3 mb-3 shadow-sm border-0">
         <div class="row g-2 align-items-center">
             <div class="col-md-auto fw-bold text-secondary">FILTER:</div>
-            <div class="col-md-2"><input type="date" id="filterDate" class="form-control form-control-sm"></div>
-            <div class="col-md-2"><input type="text" id="filterSymbol" class="form-control form-control-sm" placeholder="Search Symbol..."></div>
-            <div class="col-md-2">
+            <div class="col-md-3"><input type="date" id="filterDate" class="form-control form-control-sm"></div>
+            <div class="col-md-3"><input type="text" id="filterSymbol" class="form-control form-control-sm" placeholder="Search Symbol..."></div>
+            <div class="col-md-3">
                 <select id="filterStatus" class="form-select form-select-sm">
                     <option value="ALL">All Status</option>
                     <option value="OPEN">Active / Running</option>
@@ -82,12 +89,8 @@
                     <option value="SL">Loss (SL Hit)</option>
                 </select>
             </div>
-            <div class="col-md-auto">
-                 <button onclick="fetchTrades()" class="btn btn-sm btn-outline-primary">Refresh Data</button>
-            </div>
-            
             <div class="col text-end">
-                <button onclick="deleteSelected()" class="btn btn-sm btn-danger fw-bold">🗑 Delete Selected</button>
+                <button onclick="fetchTrades()" class="btn btn-sm btn-outline-primary">Refresh Data</button>
             </div>
         </div>
     </div>
@@ -100,14 +103,13 @@
                         <th class="py-3" style="width: 40px;">
                             <input type="checkbox" id="selectAll" class="form-check-input" onclick="toggleSelectAll()">
                         </th>
-                        <th class="py-3" style="width: 60px;">#</th>
-                        
+                        <th class="py-3" style="width: 50px;">#</th>
                         <th class="py-3">Time</th>
                         <th class="py-3">Symbol</th>
                         <th class="py-3">Type</th>
                         <th class="py-3">Status</th>
                         <th class="py-3">Entry</th>
-                        <th class="py-3">Stop Loss</th>
+                        <th class="py-3">SL</th>
                         <th class="py-3">TP 1</th>
                         <th class="py-3">TP 2</th>
                         <th class="py-3">TP 3</th>
