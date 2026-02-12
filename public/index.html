@@ -3,275 +3,224 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RD Smart Trader</title>
+    <title>RD Broker View</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     
     <style>
         :root {
-            /* Light Theme Variables */
-            --bg-color: #f3f4f6;
+            --bg-color: #f0f2f5;
             --card-bg: #ffffff;
-            --text-primary: #111827;
-            --text-secondary: #6b7280;
-            --border-color: #e5e7eb;
+            --text-primary: #212529;
+            --text-secondary: #878a8d;
+            --border-color: #e9ecef;
             
-            --accent-green: #10b981;
-            --accent-red: #ef4444;
-            --accent-blue: #3b82f6;
-            
-            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --green: #00b346; /* Broker Green */
+            --red: #ff3b30;   /* Broker Red */
+            --blue: #007aff;
         }
 
         body { 
             background-color: var(--bg-color); 
-            font-family: 'Inter', sans-serif;
+            font-family: 'Roboto', sans-serif;
             color: var(--text-primary);
-            padding-bottom: 70px; /* Space for compact bottom bar */
-            font-size: 0.85rem; /* Base compact size */
+            padding-bottom: 60px; /* Minimal bottom space */
+            font-size: 13px; /* Broker app standard size */
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* --- COMPACT HEADER --- */
+        /* --- HEADER --- */
         .app-header {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(8px);
+            background: #fff;
             border-bottom: 1px solid var(--border-color);
-            padding: 10px 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            padding: 8px 15px;
+            display: flex; justify-content: space-between; align-items: center;
+            position: sticky; top: 0; z-index: 100;
         }
-        .app-title { font-size: 1rem; font-weight: 700; color: #1e40af; letter-spacing: -0.5px; }
-        .server-time { font-size: 0.75rem; color: var(--text-secondary); font-family: monospace; background: #f1f5f9; padding: 3px 6px; border-radius: 4px; }
+        .app-title { font-size: 16px; font-weight: 700; color: #000; letter-spacing: -0.5px; }
+        .server-time { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
 
-        /* --- COMPACT STATS --- */
-        .stats-container {
-            display: flex;
+        /* --- STATS BAR (Scrollable) --- */
+        .stats-bar {
+            background: #fff;
+            padding: 10px 15px;
+            display: flex; gap: 15px;
             overflow-x: auto;
-            gap: 10px;
-            padding: 10px 15px;
-            scroll-behavior: smooth;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 10px;
         }
-        .stats-container::-webkit-scrollbar { display: none; }
+        .stats-bar::-webkit-scrollbar { display: none; }
         
-        .stat-card {
-            min-width: 110px;
-            background: var(--card-bg);
-            padding: 10px;
-            border-radius: 10px;
-            border: 1px solid var(--border-color);
-            box-shadow: var(--shadow-sm);
-            display: flex;
-            flex-direction: column;
-        }
-        .stat-header { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
-        .stat-icon { font-size: 18px; }
-        .stat-value { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
-        .stat-label { font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; }
+        .stat-item { min-width: 80px; display: flex; flex-direction: column; }
+        .stat-lbl { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 500; }
+        .stat-val { font-size: 15px; font-weight: 700; color: #000; line-height: 1.1; }
+        .val-green { color: var(--green); }
 
-        .stat-active { border-left: 3px solid #3b82f6; }
-        .stat-profit { border-left: 3px solid #10b981; }
-        .stat-win { border-left: 3px solid #f59e0b; }
-
-        /* --- COMPACT TRADE LIST --- */
+        /* --- TRADE LIST --- */
         .trade-list { padding: 0 10px; }
         
         .trade-card {
-            background: var(--card-bg);
-            border-radius: 10px;
+            background: #fff;
+            border-radius: 8px;
             padding: 10px 12px;
-            margin-bottom: 8px; /* Tighter spacing */
-            border: 1px solid var(--border-color);
-            box-shadow: var(--shadow-sm);
+            margin-bottom: 6px; /* Very tight spacing */
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            border: 1px solid transparent;
             position: relative;
         }
         
-        /* Card Header */
-        .tc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-        .tc-symbol { font-size: 0.95rem; font-weight: 700; color: #111827; }
-        .tc-time { font-size: 0.7rem; color: #9ca3af; }
-        
-        /* Badges */
-        .badge-type { padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-        .badge-buy { background: #dbeafe; color: #1d4ed8; }
-        .badge-sell { background: #fee2e2; color: #b91c1c; }
-
-        /* Card Body */
-        .tc-body { display: flex; justify-content: space-between; align-items: flex-end; }
-        .tc-details { display: flex; flex-direction: column; gap: 2px; width: 65%; }
-        .tc-row { font-size: 0.75rem; color: var(--text-secondary); display: flex; align-items: center; }
-        .tc-lbl { width: 35px; font-weight: 500; font-size: 0.7rem; color: #9ca3af; }
-        .tc-val { font-weight: 600; color: #374151; font-family: 'Inter', monospace; }
-        .tc-val-red { color: #ef4444; }
-
-        /* Profit Section */
-        .profit-block { text-align: right; }
-        .tc-profit { font-size: 1.2rem; font-weight: 700; line-height: 1; }
-        .profit-lbl { font-size: 0.6rem; color: #9ca3af; text-transform: uppercase; margin-bottom: 2px; }
-        
-        .profit-pos { color: #059669; }
-        .profit-neg { color: #dc2626; }
-        .profit-neu { color: #9ca3af; }
-
-        /* Status Pills (Compact) */
-        .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; }
-        .status-text { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; display: flex; align-items: center; }
-        
-        .st-active { color: #2563eb; }
-        .dot-active { background: #2563eb; animation: pulse 2s infinite; }
-        
-        .st-tp { color: #059669; } 
-        .dot-tp { background: #059669; }
-        
-        .st-sl { color: #dc2626; } 
-        .dot-sl { background: #dc2626; }
-        
-        .st-wait { color: #6b7280; } 
-        .dot-wait { background: #9ca3af; }
-
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
-
-        /* --- BOTTOM BAR (Compact) --- */
-        .bottom-bar {
-            position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%);
-            width: 95%; max-width: 380px;
-            background: #ffffff; 
-            border-radius: 16px;
-            padding: 8px 15px;
-            display: flex; justify-content: space-between; align-items: center;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            border: 1px solid var(--border-color);
-            z-index: 1000;
+        /* Layout Grid */
+        .tc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .tc-mid { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .tc-bot { 
+            display: flex; justify-content: space-between; 
+            background: #f8f9fa; padding: 6px 8px; border-radius: 4px;
+            font-size: 11px;
         }
-        .nav-btn {
-            background: none; border: none; color: #64748b;
-            display: flex; flex-direction: column; align-items: center; gap: 2px;
-            font-size: 0.65rem; font-weight: 500;
-        }
-        .nav-btn .material-icons-round { font-size: 20px; }
-        .nav-btn.active-tab { color: #3b82f6; }
-        .nav-btn.delete-tab { color: #ef4444; }
 
-        /* Filter Modal (Light) */
-        .offcanvas-bottom { background-color: #ffffff; border-top-left-radius: 20px; border-top-right-radius: 20px; }
-        .form-control, .form-select { background-color: #f9fafb; border: 1px solid #e5e7eb; color: #111827; font-size: 0.9rem; }
-        .form-control:focus, .form-select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
-        .form-label { font-size: 0.75rem; font-weight: 600; color: #4b5563; margin-bottom: 4px; }
+        /* Typography */
+        .tc-symbol { font-size: 15px; font-weight: 700; color: #000; }
+        .tc-profit { font-size: 16px; font-weight: 700; text-align: right; }
+        .tc-time { font-size: 10px; color: var(--text-secondary); }
         
+        /* Colors */
+        .c-buy { color: var(--blue); }
+        .c-sell { color: var(--red); }
+        .c-green { color: var(--green); }
+        .c-red { color: var(--red); }
+        
+        /* Badges & Status */
+        .type-badge { 
+            font-size: 10px; font-weight: 700; text-transform: uppercase; 
+            padding: 2px 5px; border-radius: 3px; 
+        }
+        .bg-buy { background: #e3f2fd; color: var(--blue); }
+        .bg-sell { background: #ffebee; color: var(--red); }
+        
+        .status-txt { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* Bottom Details */
+        .detail-grp { display: flex; gap: 10px; }
+        .dt-item { display: flex; flex-direction: column; }
+        .dt-lbl { font-size: 9px; color: var(--text-secondary); margin-bottom: 1px; }
+        .dt-val { font-weight: 600; color: #333; }
+
+        /* --- BOTTOM NAV --- */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: #fff; border-top: 1px solid var(--border-color);
+            padding: 8px 0;
+            display: flex; justify-content: space-around;
+            z-index: 999;
+        }
+        .b-btn {
+            background: none; border: none; 
+            display: flex; flex-direction: column; align-items: center;
+            font-size: 10px; color: var(--text-secondary); font-weight: 500;
+        }
+        .b-btn .material-icons-round { font-size: 22px; margin-bottom: 2px; }
+        .b-active { color: var(--blue); }
+        .b-del { color: var(--red); }
+
+        /* Filter Modal */
+        .offcanvas-bottom { height: auto !important; border-radius: 15px 15px 0 0; }
+        .form-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 2px; }
+        .form-control, .form-select { font-size: 13px; padding: 8px; }
+
         /* Checkbox */
-        .custom-check { width: 18px; height: 18px; border-radius: 4px; margin-right: 8px; border: 2px solid #9ca3af; }
-        .custom-check:checked { background-color: #3b82f6; border-color: #3b82f6; }
+        .custom-check { width: 16px; height: 16px; margin-right: 8px; border-radius: 3px; }
 
-        #noDataMessage { padding: 40px; opacity: 0.6; color: var(--text-secondary); }
+        #noData { padding: 50px; text-align: center; color: var(--text-secondary); }
     </style>
 </head>
 <body>
 
     <header class="app-header">
-        <div class="d-flex align-items-center gap-2">
-            <span class="material-icons-round text-primary" style="font-size: 20px;">pie_chart</span>
-            <div class="app-title">RD SMART</div>
-        </div>
-        <div class="server-time" id="clock">--:--:--</div>
+        <div class="app-title">RD BROKER</div>
+        <div class="server-time" id="clock">00:00:00</div>
     </header>
 
-    <div class="stats-container">
-        <div class="stat-card stat-active">
-            <div class="stat-header">
-                <span class="material-icons-round text-primary stat-icon">bolt</span>
-                <span class="stat-label">RUNNING</span>
-            </div>
-            <div class="stat-value" id="activeTrades">0</div>
+    <div class="stats-bar">
+        <div class="stat-item">
+            <span class="stat-lbl">Points</span>
+            <span class="stat-val val-green" id="totalPips">0.00</span>
         </div>
-        <div class="stat-card stat-profit">
-            <div class="stat-header">
-                <span class="material-icons-round text-success stat-icon">trending_up</span>
-                <span class="stat-label">POINTS</span>
-            </div>
-            <div class="stat-value" id="totalPips">0.00</div>
+        <div class="stat-item">
+            <span class="stat-lbl">Active</span>
+            <span class="stat-val" id="activeTrades">0</span>
         </div>
-        <div class="stat-card stat-win">
-            <div class="stat-header">
-                <span class="material-icons-round text-warning stat-icon">emoji_events</span>
-                <span class="stat-label">WIN RATE</span>
-            </div>
-            <div class="stat-value" id="winRate">0%</div>
+        <div class="stat-item">
+            <span class="stat-lbl">Win Rate</span>
+            <span class="stat-val" id="winRate">0%</span>
         </div>
-        <div class="stat-card">
-            <div class="stat-header">
-                <span class="material-icons-round text-secondary stat-icon">history</span>
-                <span class="stat-label">SIGNALS</span>
-            </div>
-            <div class="stat-value" id="totalTrades">0</div>
+        <div class="stat-item">
+            <span class="stat-lbl">Signals</span>
+            <span class="stat-val" id="totalTrades">0</span>
         </div>
     </div>
 
-    <div class="trade-list" id="tradeListContainer">
-        </div>
+    <div class="trade-list" id="tradeListContainer"></div>
 
-    <div id="noDataMessage" class="text-center" style="display:none;">
-        <span class="material-icons-round" style="font-size: 40px;">filter_alt_off</span>
-        <p class="mt-2 small">No trades found.</p>
+    <div id="noData" style="display:none;">
+        <span class="material-icons-round" style="font-size:32px; opacity:0.3;">toc</span>
+        <div class="mt-2 text-muted small">No trades found</div>
     </div>
 
-    <nav class="bottom-bar">
-        <button class="nav-btn active-tab" onclick="fetchTrades()">
+    <nav class="bottom-nav">
+        <button class="b-btn b-active" onclick="fetchTrades()">
             <span class="material-icons-round">refresh</span>
             Refresh
         </button>
-        <button class="nav-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterSheet">
-            <span class="material-icons-round">tune</span>
+        <button class="b-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterSheet">
+            <span class="material-icons-round">filter_list</span>
             Filter
         </button>
-        <button class="nav-btn" onclick="toggleSelectionMode()">
-            <span class="material-icons-round" id="selectIcon">check_circle_outline</span>
+        <button class="b-btn" onclick="toggleSelectionMode()">
+            <span class="material-icons-round" id="selectIcon">check_circle</span>
             Select
         </button>
-        <button class="nav-btn delete-tab" onclick="deleteSelected()">
-            <span class="material-icons-round">delete_outline</span>
+        <button class="b-btn b-del" onclick="deleteSelected()">
+            <span class="material-icons-round">delete</span>
             Delete
         </button>
     </nav>
 
     <div class="offcanvas offcanvas-bottom" tabindex="-1" id="filterSheet">
         <div class="offcanvas-header pb-0">
-            <h6 class="offcanvas-title fw-bold">Filter Trades</h6>
-            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+            <h6 class="offcanvas-title fw-bold">Filter Options</h6>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body pt-2">
             <div class="row g-2">
                 <div class="col-6">
                     <label class="form-label">DATE</label>
-                    <input type="date" id="filterDate" class="form-control form-control-sm">
+                    <input type="date" id="filterDate" class="form-control">
                 </div>
                 <div class="col-6">
-                    <label class="form-label">TYPE</label> <select id="filterType" class="form-select form-select-sm">
-                        <option value="ALL">All Types</option>
-                        <option value="BUY">Buy Only</option>
-                        <option value="SELL">Sell Only</option>
+                    <label class="form-label">TYPE</label>
+                    <select id="filterType" class="form-select">
+                        <option value="ALL">All</option>
+                        <option value="BUY">Buy</option>
+                        <option value="SELL">Sell</option>
                     </select>
                 </div>
                 <div class="col-12">
                     <label class="form-label">SYMBOL</label>
-                    <input type="text" id="filterSymbol" class="form-control form-control-sm" placeholder="e.g. EURUSD">
+                    <input type="text" id="filterSymbol" class="form-control" placeholder="Search...">
                 </div>
                 <div class="col-12">
                     <label class="form-label">STATUS</label>
-                    <select id="filterStatus" class="form-select form-select-sm">
-                        <option value="ALL">All Status</option>
-                        <option value="OPEN">Running (Active)</option>
-                        <option value="TP">Profitable (TP Hit)</option>
-                        <option value="SL">Loss (SL Hit)</option>
+                    <select id="filterStatus" class="form-select">
+                        <option value="ALL">All</option>
+                        <option value="OPEN">Running</option>
+                        <option value="TP">Profitable</option>
+                        <option value="SL">Loss</option>
                     </select>
                 </div>
             </div>
-            <button class="btn btn-primary w-100 mt-3 rounded-3 fw-bold" data-bs-dismiss="offcanvas" onclick="applyFilters()">
-                Apply Filters
+            <button class="btn btn-primary w-100 mt-3 fw-bold" data-bs-dismiss="offcanvas" onclick="applyFilters()">
+                Apply
             </button>
         </div>
     </div>
@@ -281,8 +230,7 @@
     <script src="app.js"></script>
     <script>
         setInterval(() => {
-            const now = new Date();
-            document.getElementById('clock').innerText = now.toLocaleTimeString('en-US', {hour12: false});
+            document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-GB');
         }, 1000);
     </script>
 </body>
