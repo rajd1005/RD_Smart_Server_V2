@@ -55,7 +55,7 @@ app.post('/api/signal_detected', async (req, res) => {
     const dbTime = getDBTime(); 
 
     try {
-        // --- DESIGN: NEW SIGNAL ---
+        // --- DESIGN: NEW SIGNAL (With Symbol) ---
         const msg = `🚨 <b>NEW SIGNAL DETECTED</b>\n\n` +
                     `💎 <b>Symbol:</b> #${symbol}\n` +
                     `📊 <b>Type:</b> ${type}\n` +
@@ -107,7 +107,7 @@ app.post('/api/setup_confirmed', async (req, res) => {
         `;
         await pool.query(query, [trade_id, symbol, type, entry, sl, tp1, tp2, tp3, dbTime]);
 
-        // --- DESIGN: SETUP CONFIRMED (Fixed Format & Added Symbol) ---
+        // --- DESIGN: SETUP CONFIRMED (With Symbol) ---
         const msg = `✅ <b>SETUP CONFIRMED</b>\n\n` +
                     `💎 <b>Symbol:</b> #${symbol}\n` +
                     `🚀 <b>Type:</b> ${type}\n` +
@@ -152,14 +152,31 @@ app.post('/api/log_event', async (req, res) => {
         if (result.rows.length === 0) return res.json({ success: false, msg: "Trade not found" });
 
         const trade = result.rows[0];
+
+        // =========================================================================
+        // --- PROFIT LOCK LOGIC: PREVENT SL IF TARGET HIT ---
+        // =========================================================================
+        
+        // 1. If we are already in PROFIT (TP Hit), IGNORE any SL message.
+        if (trade.status.includes('TP') && new_status === 'SL HIT') {
+            console.log(`🛡️ Profit Locked for ${trade.symbol}. Ignoring SL Signal.`);
+            return res.json({ success: true, msg: "Profit Locked: SL Ignored" });
+        }
+
+        // 2. LOCK TARGETS (Do not downgrade from TP3 -> TP2, or TP2 -> TP1)
+        if (trade.status === 'TP3 HIT' && (new_status === 'TP2 HIT' || new_status === 'TP1 HIT')) return res.json({ success: true });
+        if (trade.status === 'TP2 HIT' && new_status === 'TP1 HIT') return res.json({ success: true });
+
+        // Check if status is same (duplicate check)
         if (trade.status === new_status) return res.json({ success: true }); 
+
+        // =========================================================================
 
         let points = calculatePoints(trade.type, trade.entry_price, price);
         
         await pool.query("UPDATE trades SET status = $1, points_gained = $2 WHERE trade_id = $3", [new_status, points, trade_id]);
 
-        // --- DESIGN: UPDATE EVENT (Added Symbol) ---
-        // Using HTML to ensure clean bolding and newlines
+        // --- DESIGN: UPDATE EVENT (With Symbol, No Profit) ---
         const msg = `⚡ <b>UPDATE: ${new_status}</b>\n\n` +
                     `💎 <b>Symbol:</b> #${trade.symbol}\n` +
                     `📉 <b>Price:</b> ${price}`;
