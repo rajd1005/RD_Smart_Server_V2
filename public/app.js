@@ -8,10 +8,7 @@ window.onload = function() {
     fetchTrades();
 };
 
-// --- REAL-TIME LISTENER ---
-socket.on('trade_update', () => {
-    fetchTrades();
-});
+socket.on('trade_update', () => { fetchTrades(); });
 
 function setTodayDate() {
     const istDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
@@ -24,44 +21,36 @@ async function fetchTrades() {
         const response = await fetch(API_URL);
         allTrades = await response.json();
         applyFilters(checkedIds); 
-    } catch (error) {
-        console.error("Error fetching trades:", error);
-    }
+    } catch (error) { console.error(error); }
 }
 
 function applyFilters(preserveIds = []) {
     const filterSymbol = document.getElementById('filterSymbol').value.toUpperCase();
     const filterStatus = document.getElementById('filterStatus').value;
-    const filterType = document.getElementById('filterType').value; // NEW FILTER
+    const filterType = document.getElementById('filterType').value;
     const filterDateInput = document.getElementById('filterDate').value; 
 
     const filtered = allTrades.filter(trade => {
         const tradeDateObj = new Date(trade.created_at);
         const tradeDateStr = tradeDateObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
-        const matchesDate = (filterDateInput === "") || (tradeDateStr === filterDateInput);
-        const matchesSymbol = trade.symbol.includes(filterSymbol);
-        
-        // Status Logic
-        const matchesStatus = filterStatus === 'ALL' || 
-                              (filterStatus === 'TP' && trade.status.includes('TP')) ||
-                              (filterStatus === 'SL' && trade.status.includes('SL')) ||
-                              (filterStatus === 'OPEN' && trade.status === 'ACTIVE');
-                              
-        // Type Logic
-        const matchesType = filterType === 'ALL' || trade.type === filterType;
-
-        return matchesDate && matchesSymbol && matchesStatus && matchesType;
+        return ((filterDateInput === "") || (tradeDateStr === filterDateInput)) &&
+               (trade.symbol.includes(filterSymbol)) &&
+               (filterType === 'ALL' || trade.type === filterType) &&
+               (filterStatus === 'ALL' || 
+               (filterStatus === 'TP' && trade.status.includes('TP')) ||
+               (filterStatus === 'SL' && trade.status.includes('SL')) ||
+               (filterStatus === 'OPEN' && trade.status === 'ACTIVE'));
     });
 
     renderTrades(filtered, preserveIds);
     calculateStats(filtered);
 }
 
-// --- COMPACT CARD RENDERING ---
+// --- ULTRA COMPACT RENDERER ---
 function renderTrades(trades, preserveIds) {
     const container = document.getElementById('tradeListContainer');
-    const noDataMsg = document.getElementById('noDataMessage');
+    const noDataMsg = document.getElementById('noData');
     
     container.innerHTML = '';
     
@@ -72,76 +61,77 @@ function renderTrades(trades, preserveIds) {
         if(noDataMsg) noDataMsg.style.display = 'none';
     }
 
-    trades.forEach((trade, index) => {
+    trades.forEach((trade) => {
         const dateObj = new Date(trade.created_at);
         const timeString = dateObj.toLocaleTimeString('en-US', { 
-            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true 
+            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false 
         });
 
-        // Styles Logic
-        let statusClass = 'st-wait';
-        let dotClass = 'dot-wait';
-        let profitClass = 'profit-neu';
-        let badgeClass = trade.type === 'BUY' ? 'badge-buy' : 'badge-sell';
-        
-        if (trade.status === 'ACTIVE') { statusClass = 'st-active'; dotClass = 'dot-active'; }
-        else if (trade.status.includes('TP')) { statusClass = 'st-tp'; dotClass = 'dot-tp'; profitClass = 'profit-pos'; }
-        else if (trade.status.includes('SL')) { statusClass = 'st-sl'; dotClass = 'dot-sl'; profitClass = 'profit-neg'; }
+        // 2 Decimal Logic Everywhere
+        const entry = parseFloat(trade.entry_price).toFixed(2);
+        const sl = parseFloat(trade.sl_price).toFixed(2);
+        const tp1 = parseFloat(trade.tp1_price).toFixed(2);
+        const tp2 = parseFloat(trade.tp2_price).toFixed(2);
+        const tp3 = parseFloat(trade.tp3_price).toFixed(2);
+        const pts = parseFloat(trade.points_gained);
+        const displayPts = pts.toFixed(2);
 
-        let pts = parseFloat(trade.points_gained);
-        if (pts > 0) profitClass = 'profit-pos';
-        if (pts < 0) profitClass = 'profit-neg';
-
-        let displayPts = pts.toFixed(5);
+        // Styling
+        let profitColor = 'text-muted';
+        let statusColor = '#878a8d';
+        let statusText = trade.status.replace(' (Reversal)', '');
         
+        if (trade.status === 'ACTIVE') { statusColor = '#007aff'; }
+        else if (trade.status.includes('TP')) { statusColor = '#00b346'; profitColor = 'c-green'; }
+        else if (trade.status.includes('SL')) { statusColor = '#ff3b30'; profitColor = 'c-red'; }
+        else if (pts > 0) { profitColor = 'c-green'; }
+        else if (pts < 0) { profitColor = 'c-red'; }
+
+        const badgeClass = trade.type === 'BUY' ? 'bg-buy' : 'bg-sell';
         const isChecked = preserveIds.includes(trade.trade_id) ? 'checked' : '';
         const checkDisplay = isSelectionMode ? 'block' : 'none';
 
-        // --- COMPACT HTML STRUCTURE ---
-        const cardHtml = `
+        const html = `
             <div class="trade-card">
-                <div class="tc-header">
+                <div class="tc-top">
                     <div class="d-flex align-items-center">
                         <input type="checkbox" class="custom-check trade-checkbox" value="${trade.trade_id}" ${isChecked} style="display:${checkDisplay}">
                         <div class="tc-symbol">${trade.symbol}</div>
-                        <div class="badge-type ${badgeClass} ms-2">${trade.type}</div>
                     </div>
-                    <div class="status-text ${statusClass}">
-                        <span class="status-dot ${dotClass}"></span>
-                        ${trade.status.replace(' (Reversal)', '')}
-                    </div>
+                    <div class="tc-profit ${profitColor}">${pts > 0 ? '+' : ''}${displayPts}</div>
                 </div>
 
-                <div class="tc-body">
-                    <div class="tc-details">
-                        <div class="tc-row">
-                            <span class="tc-lbl">ENT:</span> <span class="tc-val">${parseFloat(trade.entry_price).toFixed(5)}</span>
-                        </div>
-                        <div class="tc-row">
-                            <span class="tc-lbl">SL:</span> <span class="tc-val tc-val-red">${parseFloat(trade.sl_price).toFixed(5)}</span>
-                        </div>
-                        <div class="tc-row mt-1" style="opacity:0.8">
-                            <span class="tc-lbl">TP1:</span> <span class="tc-val">${parseFloat(trade.tp1_price).toFixed(5)}</span>
-                        </div>
-                        <div class="tc-row" style="opacity:0.8">
-                            <span class="tc-lbl">TP2:</span> <span class="tc-val">${parseFloat(trade.tp2_price).toFixed(5)}</span>
-                        </div>
-                        <div class="tc-row" style="opacity:0.8">
-                            <span class="tc-lbl">TP3:</span> <span class="tc-val">${parseFloat(trade.tp3_price).toFixed(5)}</span>
-                        </div>
+                <div class="tc-mid">
+                    <span class="type-badge ${badgeClass}">${trade.type}</span>
+                    <span class="tc-time">${timeString}</span>
+                    <span class="status-txt ms-auto" style="color:${statusColor}">${statusText}</span>
+                </div>
+
+                <div class="tc-bot">
+                    <div class="dt-item">
+                        <span class="dt-lbl">ENTRY</span>
+                        <span class="dt-val">${entry}</span>
                     </div>
-                    
-                    <div class="profit-block">
-                        <div class="profit-lbl">Profit</div>
-                        <div class="tc-profit ${profitClass}">
-                            ${pts > 0 ? '+' : ''}${displayPts}
-                        </div>
-                        <div class="tc-time mt-1">${timeString}</div>
+                    <div class="dt-item">
+                        <span class="dt-lbl">SL</span>
+                        <span class="dt-val c-red">${sl}</span>
+                    </div>
+                    <div class="dt-item">
+                        <span class="dt-lbl">TP1</span>
+                        <span class="dt-val">${tp1}</span>
+                    </div>
+                    <div class="dt-item">
+                        <span class="dt-lbl">TP2</span>
+                        <span class="dt-val">${tp2}</span>
+                    </div>
+                    <div class="dt-item">
+                        <span class="dt-lbl">TP3</span>
+                        <span class="dt-val">${tp3}</span>
                     </div>
                 </div>
             </div>
         `;
-        container.innerHTML += cardHtml;
+        container.innerHTML += html;
     });
 }
 
@@ -164,13 +154,15 @@ function calculateStats(trades) {
     const totalClosed = wins + losses;
     const winRate = totalClosed === 0 ? 0 : Math.round((wins / totalClosed) * 100);
 
+    // Update Stats with 2 Decimals
     if(document.getElementById('totalTrades')) document.getElementById('totalTrades').innerText = trades.length;
     if(document.getElementById('winRate')) document.getElementById('winRate').innerText = winRate + "%";
-    
-    let displayTotal = totalPoints.toFixed(5);
-    if(document.getElementById('totalPips')) document.getElementById('totalPips').innerText = displayTotal;
-    
+    if(document.getElementById('totalPips')) document.getElementById('totalPips').innerText = totalPoints.toFixed(2);
     if(document.getElementById('activeTrades')) document.getElementById('activeTrades').innerText = active;
+    
+    // Color the total points
+    const pipsEl = document.getElementById('totalPips');
+    pipsEl.className = totalPoints >= 0 ? 'stat-val val-green' : 'stat-val c-red';
 }
 
 // --- UTILS ---
@@ -179,18 +171,9 @@ function toggleSelectionMode() {
     const checkboxes = document.querySelectorAll('.trade-checkbox');
     const icon = document.getElementById('selectIcon');
     
-    checkboxes.forEach(cb => {
-        cb.style.display = isSelectionMode ? 'block' : 'none';
-    });
-
-    if (isSelectionMode) {
-        icon.innerText = "check_circle";
-        icon.style.color = "#3b82f6";
-    } else {
-        icon.innerText = "check_circle_outline";
-        icon.style.color = "";
-        checkboxes.forEach(cb => cb.checked = false);
-    }
+    checkboxes.forEach(cb => cb.style.display = isSelectionMode ? 'block' : 'none');
+    icon.style.color = isSelectionMode ? '#007aff' : '';
+    if(!isSelectionMode) checkboxes.forEach(cb => cb.checked = false);
 }
 
 function getCheckedIds() {
@@ -198,43 +181,25 @@ function getCheckedIds() {
 }
 
 async function deleteSelected() {
-    if (!isSelectionMode) {
-        toggleSelectionMode();
-        alert("Select trades to delete, then click Delete again.");
-        return;
-    }
-
-    const tradeIdsToDelete = getCheckedIds();
+    if (!isSelectionMode) { toggleSelectionMode(); return; }
+    const ids = getCheckedIds();
+    if (ids.length === 0) return;
     
-    if (tradeIdsToDelete.length === 0) {
-        alert("Please select at least one trade to delete.");
-        return;
-    }
-
-    if(!confirm(`⚠️ Delete ${tradeIdsToDelete.length} trades permanently?`)) {
-        return;
-    }
+    if(!confirm(`Delete ${ids.length} trades?`)) return;
 
     try {
-        const response = await fetch('/api/delete_trades', {
+        const res = await fetch('/api/delete_trades', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ trade_ids: tradeIdsToDelete })
+            body: JSON.stringify({ trade_ids: ids })
         });
-
-        const result = await response.json();
-        if (result.success) {
-            toggleSelectionMode(); 
-        } else {
-            alert("Error: " + result.msg);
-        }
-    } catch (err) {
-        console.error(err);
-    }
+        const result = await res.json();
+        if (result.success) toggleSelectionMode();
+    } catch (err) { console.error(err); }
 }
 
-// Event Listeners
+// Listeners
 document.getElementById('filterDate').addEventListener('change', () => applyFilters());
 document.getElementById('filterSymbol').addEventListener('keyup', () => applyFilters());
 document.getElementById('filterStatus').addEventListener('change', () => applyFilters());
-document.getElementById('filterType').addEventListener('change', () => applyFilters()); // NEW LISTENER
+document.getElementById('filterType').addEventListener('change', () => applyFilters());
