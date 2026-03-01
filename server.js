@@ -51,10 +51,16 @@ function toMarkdown(text) {
 
 // --- API ENDPOINTS ---
 
-// 1. GET ALL TRADES
+// 1. GET ALL TRADES (Last 30 Days)
 app.get('/api/trades', async (req, res) => {
     try {
-        const result = await pool.query("SELECT * FROM trades ORDER BY id DESC LIMIT 100");
+        // Fetch trades from the last 30 days
+        const query = `
+            SELECT * FROM trades 
+            WHERE CAST(created_at AS TIMESTAMP) >= NOW() - INTERVAL '30 days' 
+            ORDER BY id DESC
+        `;
+        const result = await pool.query(query);
         res.json(result.rows);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
