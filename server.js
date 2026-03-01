@@ -94,6 +94,27 @@ function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
+// --- SYSTEM SETTINGS API ---
+app.get('/api/settings', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM system_settings");
+        const settings = {};
+        result.rows.forEach(r => settings[r.setting_key] = r.setting_value);
+        res.json(settings);
+    } catch (err) { res.status(500).json({ error: "Server Error" }); }
+});
+
+app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
+    const { accordion_state } = req.body;
+    try {
+        await pool.query(
+            "INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value",
+            [accordion_state]
+        );
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
 app.get('/api/public/courses', async (req, res) => {
     try {
         const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order FROM learning_modules ORDER BY display_order ASC");
@@ -191,10 +212,6 @@ app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
 });
 
-// ==========================================
-// --- ADMIN LMS MANAGEMENT API ---
-// ==========================================
-
 app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
     const { title, description, required_level, display_order, lock_notice } = req.body;
     try {
@@ -232,14 +249,12 @@ app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// MULTIPART FORM WITH VIDEO AND THUMBNAIL
 app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name: 'video_file', maxCount: 1 }, { name: 'thumbnail_file', maxCount: 1 }]), async (req, res) => {
     const { module_id, title, description, display_order } = req.body;
     
     if (!req.files || !req.files['video_file']) return res.status(400).json({ success: false, msg: "Video file is required." });
     const videoFile = req.files['video_file'][0];
 
-    // Process Thumbnail File
     let thumbUrl = '';
     if (req.files['thumbnail_file']) {
         const thumbFile = req.files['thumbnail_file'][0];
@@ -280,7 +295,6 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
     res.json({ success: true, msg: "Video Uploaded. System is converting it in the background." });
 });
 
-// EDIT LESSON WITH MULTIPART FOR THUMBNAIL UPDATE
 app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, upload.single('thumbnail_file'), async (req, res) => {
     const { title, description, display_order } = req.body;
     try {
@@ -313,7 +327,6 @@ app.delete('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// --- ORIGINAL TRADING API ---
 app.get('/api/trades', authenticateToken, async (req, res) => {
     try { res.json((await pool.query(`SELECT * FROM trades WHERE CAST(created_at AS TIMESTAMP) >= NOW() - INTERVAL '30 days' ORDER BY id DESC`)).rows); } catch (err) { res.status(500).json({ error: err.message }); }
 });
