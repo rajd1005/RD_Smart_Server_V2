@@ -161,12 +161,24 @@ async function openSecureVideo(lessonId) {
         const data = await response.json();
         
         videoPlayer.src({ src: data.hlsUrl, type: 'application/x-mpegURL' });
-        document.getElementById('videoPlayerContainer').style.display = 'block';
         
-        // --- MOBILE AUTO-ROTATE (Forces Landscape Mode) ---
+        const playerContainer = document.getElementById('videoPlayerContainer');
+        playerContainer.style.display = 'block';
+        
+        // 1. FIRST: Request Native Fullscreen (Required by browsers to allow rotation)
+        if (playerContainer.requestFullscreen) {
+            await playerContainer.requestFullscreen().catch(e => console.warn(e));
+        } else if (playerContainer.webkitRequestFullscreen) { /* Safari */
+            await playerContainer.webkitRequestFullscreen().catch(e => console.warn(e));
+        }
+
+        // 2. THEN: Force Auto-Rotate to Landscape
         if (screen.orientation && screen.orientation.lock) {
-            try { await screen.orientation.lock("landscape"); } 
-            catch (e) { console.warn("Auto-rotate blocked by browser logic. User may need to manually tilt phone."); }
+            try { 
+                await screen.orientation.lock("landscape"); 
+            } catch (e) { 
+                console.warn("Auto-rotate blocked by browser. User may need to tilt phone manually."); 
+            }
         }
 
         startWatermark();
@@ -178,9 +190,18 @@ async function openSecureVideo(lessonId) {
 function closeVideoPlayer() {
     if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
     
-    // --- UNLOCK MOBILE ROTATION ---
+    // 1. Unlock Mobile Rotation
     if (screen.orientation && screen.orientation.unlock) {
         try { screen.orientation.unlock(); } catch (e) {}
+    }
+    
+    // 2. Exit Native Fullscreen
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+        if (document.exitFullscreen) {
+            document.exitFullscreen().catch(e => console.warn(e));
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen().catch(e => console.warn(e));
+        }
     }
     
     stopWatermark();
