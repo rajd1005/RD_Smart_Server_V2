@@ -1,15 +1,18 @@
+// --- API ENDPOINTS ---
 const API_URL = '/api/trades'; 
 const API_URL_COURSES = '/api/courses'; 
 const API_URL_LESSON = '/api/lesson/';
 
+// --- GLOBAL STATE ---
 let allTrades = []; 
-let globalModules = []; // Store courses for dropdowns
+let globalModules = []; 
 let isSelectionMode = false;
 const socket = io(); 
 let datePicker;
 let videoPlayer = null; 
 let watermarkInterval = null; 
 
+// --- USER DATA ---
 const userData = {
     email: localStorage.getItem('userEmail'),
     phone: localStorage.getItem('userPhone'),
@@ -22,7 +25,10 @@ window.onload = function() {
     applyRoleRestrictions(); 
 };
 
+// ==========================================
 // --- NAVIGATION LOGIC ---
+// ==========================================
+
 function switchSection(section) {
     if (section === 'trade') {
         document.getElementById('tradeSection').style.display = 'block';
@@ -47,12 +53,17 @@ function switchSection(section) {
     }
 }
 
-// --- LMS LOGIC ---
+// ==========================================
+// --- LMS COURSE LOGIC ---
+// ==========================================
+
 async function fetchCourses() {
     const container = document.getElementById('courseModuleContainer');
+    if (!container) return;
+    
     container.innerHTML = '<div class="p-4 text-center text-muted">Loading courses...</div>';
     try {
-        const response = await fetch(API_URL_COURSES);
+        const response = await fetch(API_URL_COURSES, { credentials: 'same-origin' });
         if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
         
         globalModules = await response.json();
@@ -65,14 +76,16 @@ async function fetchCourses() {
         // Populate Admin Dropdown instantly
         if (userData.role === 'admin') {
             const selectEl = document.getElementById('lessonModuleId');
-            selectEl.innerHTML = '<option value="">Select a Module...</option>';
-            globalModules.forEach(m => selectEl.innerHTML += `<option value="${m.id}">${m.title}</option>`);
+            if (selectEl) {
+                selectEl.innerHTML = '<option value="">Select a Module...</option>';
+                globalModules.forEach(m => selectEl.innerHTML += `<option value="${m.id}">${m.title}</option>`);
+            }
         }
 
         globalModules.forEach(mod => {
             const isLocked = userData.role !== 'admin' && accessLevels[mod.required_level] !== 'Yes';
             const levelBadge = isLocked ? '<span class="module-level-badge badge-locked">LOCKED</span>' : '<span class="module-level-badge badge-unlocked">UNLOCKED</span>';
-            const delModBtn = userData.role === 'admin' ? `<button class="admin-del-btn" style="display:inline-block;" onclick="deleteModule(${mod.id})"><span class="material-icons-round">delete</span></button>` : '';
+            const delModBtn = userData.role === 'admin' ? `<button class="admin-del-btn" style="display:inline-block; margin-left: 10px;" onclick="deleteModule(${mod.id})"><span class="material-icons-round">delete</span></button>` : '';
 
             let lessonHtml = '';
             if (isLocked) {
@@ -84,7 +97,10 @@ async function fetchCourses() {
                         <div class="lesson-item" onclick="openSecureVideo(${l.id})">
                             <div class="d-flex align-items-center">
                                 <span class="material-icons-round lesson-icon">play_circle_filled</span>
-                                <div><div class="fw-bold">${l.title}</div><div class="text-muted small">${l.description || ''}</div></div>
+                                <div>
+                                    <div class="fw-bold">${l.title}</div>
+                                    ${l.description ? `<div class="text-muted small">${l.description}</div>` : ''}
+                                </div>
                             </div>
                             ${delLessonBtn}
                         </div>`;
@@ -96,14 +112,17 @@ async function fetchCourses() {
             htmlContent += `
                 <div class="course-module ${isLocked ? 'module-locked' : ''}">
                     <div class="module-header">
-                        <div><h6 class="module-title">${mod.title}</h6>${delModBtn}</div>
+                        <div class="d-flex align-items-center"><h6 class="module-title mb-0">${mod.title}</h6>${delModBtn}</div>
                         ${levelBadge}
                     </div>
                     <div>${lessonHtml}</div>
                 </div>`;
         });
         container.innerHTML = htmlContent || '<div class="p-4 text-center text-muted">No courses found.</div>';
-    } catch (err) { container.innerHTML = `<div class="p-3 text-danger text-center">❌ Error loading courses.</div>`; }
+    } catch (err) { 
+        console.error(err);
+        container.innerHTML = `<div class="p-3 text-danger text-center">❌ Error loading courses.</div>`; 
+    }
 }
 
 async function openSecureVideo(lessonId) {
@@ -115,7 +134,7 @@ async function openSecureVideo(lessonId) {
     videoPlayer.reset(); stopWatermark();
     
     try {
-        const response = await fetch(`${API_URL_LESSON}${lessonId}`);
+        const response = await fetch(`${API_URL_LESSON}${lessonId}`, { credentials: 'same-origin' });
         if (response.status === 403) { alert("❌ ACCESS DENIED."); return; }
         const data = await response.json();
         
@@ -138,10 +157,12 @@ function startWatermark() {
     moveWatermark();
     watermarkInterval = setInterval(moveWatermark, 4000); 
 }
+
 function stopWatermark() {
     if (watermarkInterval) clearInterval(watermarkInterval);
     document.getElementById('dynamicWatermark').style.display = 'none';
 }
+
 function moveWatermark() {
     const wmEl = document.getElementById('dynamicWatermark');
     const container = document.getElementById('videoPlayerContainer');
@@ -152,42 +173,74 @@ function moveWatermark() {
 }
 
 // ==========================================
-// --- NEW: ADMIN COURSE MANAGEMENT LOGIC ---
+// --- ADMIN COURSE MANAGEMENT FORMS ---
 // ==========================================
 
-document.getElementById('formAddModule').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const data = {
-        title: document.getElementById('modTitle').value,
-        description: document.getElementById('modDesc').value,
-        required_level: document.getElementById('modLevel').value
-    };
-    try {
-        const res = await fetch('/api/admin/modules', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
-        if(res.ok) { alert("Module Added!"); document.getElementById('formAddModule').reset(); fetchCourses(); }
-        else alert("Error adding module");
-    } catch(e) { console.error(e); }
-});
+const formAddModule = document.getElementById('formAddModule');
+if (formAddModule) {
+    formAddModule.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            title: document.getElementById('modTitle').value,
+            description: document.getElementById('modDesc').value,
+            required_level: document.getElementById('modLevel').value
+        };
+        try {
+            const res = await fetch('/api/admin/modules', { 
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                credentials: 'same-origin',
+                body: JSON.stringify(data) 
+            });
+            if(res.ok) { alert("Module Added!"); formAddModule.reset(); fetchCourses(); }
+            else alert("Error adding module");
+        } catch(e) { console.error(e); }
+    });
+}
 
-document.getElementById('formAddLesson').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const data = {
-        module_id: document.getElementById('lessonModuleId').value,
-        title: document.getElementById('lessonTitle').value,
-        description: document.getElementById('lessonDesc').value,
-        hls_manifest_url: document.getElementById('lessonUrl').value
-    };
-    try {
-        const res = await fetch('/api/admin/lessons', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
-        if(res.ok) { alert("Video Added!"); document.getElementById('formAddLesson').reset(); fetchCourses(); }
-        else alert("Error adding video");
-    } catch(e) { console.error(e); }
-});
+const formAddLesson = document.getElementById('formAddLesson');
+if (formAddLesson) {
+    formAddLesson.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData();
+        formData.append('module_id', document.getElementById('lessonModuleId').value);
+        formData.append('title', document.getElementById('lessonTitle').value);
+        formData.append('description', document.getElementById('lessonDesc').value);
+        formData.append('video_file', document.getElementById('lessonVideoFile').files[0]);
+
+        const btn = e.target.querySelector('button');
+        btn.innerText = "⏳ Uploading & Encrypting... Please Wait";
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/admin/lessons', {
+                method: 'POST',
+                credentials: 'same-origin', // MUST BE HERE FOR AUTH
+                body: formData 
+            });
+            
+            const data = await res.json();
+            if(res.ok) { 
+                alert(data.msg); 
+                formAddLesson.reset(); 
+            } else {
+                alert(data.msg || "Error uploading video.");
+            }
+        } catch(err) { 
+            console.error(err); 
+            alert("Server connection failed during upload.");
+        } finally {
+            btn.innerText = "Upload Video File";
+            btn.disabled = false;
+        }
+    });
+}
 
 async function deleteModule(id) {
     if(!confirm("⚠️ Delete this entire module AND all its videos?")) return;
     try {
-        const res = await fetch(`/api/admin/modules/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/admin/modules/${id}`, { method: 'DELETE', credentials: 'same-origin' });
         if(res.ok) fetchCourses();
     } catch(e) { console.error(e); }
 }
@@ -196,13 +249,16 @@ async function deleteLesson(e, id) {
     e.stopPropagation(); // Prevents the video from playing when clicking delete
     if(!confirm("⚠️ Delete this video?")) return;
     try {
-        const res = await fetch(`/api/admin/lessons/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/admin/lessons/${id}`, { method: 'DELETE', credentials: 'same-origin' });
         if(res.ok) fetchCourses();
     } catch(e) { console.error(e); }
 }
 
 
-// --- ORIGINAL TRADE LOGIC ---
+// ==========================================
+// --- ORIGINAL TRADE LOGIC (100% RESTORED) ---
+// ==========================================
+
 function applyRoleRestrictions() {
     const role = localStorage.getItem('userRole');
     if (role === 'admin') {
@@ -210,13 +266,23 @@ function applyRoleRestrictions() {
         document.getElementById('btnSelect').style.display = 'flex';
         document.getElementById('btnDelete').style.display = 'flex';
         // LMS Admin Button
-        document.getElementById('btnAdminCourseManager').style.display = 'inline-block';
+        const btnAdminCourseManager = document.getElementById('btnAdminCourseManager');
+        if (btnAdminCourseManager) btnAdminCourseManager.style.display = 'inline-block';
     }
 }
 
 function initDatePicker() {
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    datePicker = flatpickr("#filterDateRange", { mode: "range", dateFormat: "Y-m-d", defaultDate: today, onChange: function() { applyFilters(); } });
+    
+    // Initialize Flatpickr in range mode
+    datePicker = flatpickr("#filterDateRange", {
+        mode: "range",
+        dateFormat: "Y-m-d",
+        defaultDate: today, 
+        onChange: function() {
+            applyFilters(); 
+        }
+    });
 }
 
 socket.on('trade_update', () => { fetchTrades(); });
@@ -224,22 +290,39 @@ socket.on('trade_update', () => { fetchTrades(); });
 async function fetchTrades() {
     const checkedIds = getCheckedIds();
     try {
-        const response = await fetch(API_URL);
-        if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
+        // Credentials required for protected API fetch
+        const response = await fetch(API_URL, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin' 
+        });
+        
+        if (response.status === 401 || response.status === 403) {
+            window.location.href = '/login.html'; 
+            return;
+        }
+        
         allTrades = await response.json();
+        
         populateSymbolFilter(allTrades);
         applyFilters(checkedIds); 
-    } catch (error) { console.error(error); }
+    } catch (error) { 
+        console.error(error); 
+        const container = document.getElementById('tradeListContainer');
+        if (container) container.innerHTML = `<div class="p-3 text-danger text-center fw-bold">❌ Connection Error. Please refresh.</div>`;
+    }
 }
 
 function populateSymbolFilter(trades) {
     const symbolSelect = document.getElementById('filterSymbol');
     const currentVal = symbolSelect.value;
     const uniqueSymbols = [...new Set(trades.map(t => t.symbol))].sort();
+    
     symbolSelect.innerHTML = '<option value="">All Symbols</option>';
     uniqueSymbols.forEach(sym => {
         const option = document.createElement('option');
-        option.value = sym; option.text = sym;
+        option.value = sym;
+        option.text = sym;
         symbolSelect.appendChild(option);
     });
     if(uniqueSymbols.includes(currentVal)) symbolSelect.value = currentVal;
@@ -250,19 +333,28 @@ function applyFilters(preserveIds = []) {
     const filterStatus = document.getElementById('filterStatus').value;
     const filterType = document.getElementById('filterType').value;
     
-    let startDate = ""; let endDate = "";
+    let startDate = "";
+    let endDate = "";
     if (datePicker && datePicker.selectedDates.length > 0) {
         const formatOpts = { timeZone: 'Asia/Kolkata' };
         startDate = datePicker.selectedDates[0].toLocaleDateString('en-CA', formatOpts);
-        endDate = datePicker.selectedDates.length === 2 ? datePicker.selectedDates[1].toLocaleDateString('en-CA', formatOpts) : startDate;
+        endDate = datePicker.selectedDates.length === 2 
+            ? datePicker.selectedDates[1].toLocaleDateString('en-CA', formatOpts) 
+            : startDate;
     }
 
     const dateDisplay = document.getElementById('activeDateDisplay');
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     
-    if (!startDate && !endDate) dateDisplay.innerText = "All Time";
-    else if (startDate === endDate) dateDisplay.innerText = (startDate === todayStr) ? "Today" : startDate;
-    else dateDisplay.innerText = `${startDate.substring(5)} to ${endDate.substring(5)}`;
+    if (!startDate && !endDate) {
+        dateDisplay.innerText = "All Time";
+    } else if (startDate === endDate) {
+        dateDisplay.innerText = (startDate === todayStr) ? "Today" : startDate;
+    } else {
+        const startText = startDate ? startDate.substring(5) : "Past"; 
+        const endText = endDate ? endDate.substring(5) : "Now";
+        dateDisplay.innerText = `${startText} to ${endText}`;
+    }
 
     const filtered = allTrades.reduce((acc, trade) => {
         const tradeDateObj = new Date(trade.created_at);
@@ -294,7 +386,10 @@ function applyFilters(preserveIds = []) {
         else if (filterStatus === 'SL') statusMatch = (displayStatus.includes('SL') || displayStatus.includes('LOSS'));
         else if (filterStatus === 'OPEN') statusMatch = isVisuallyActive;
 
-        if (typeMatch && symbolMatch && statusMatch) { acc.push({ ...trade, displayStatus, isVisuallyActive, tradeDateObj }); }
+        if (typeMatch && symbolMatch && statusMatch) {
+            acc.push({ ...trade, displayStatus, isVisuallyActive, tradeDateObj });
+        }
+        
         return acc;
     }, []);
 
@@ -306,10 +401,16 @@ function renderTrades(trades, preserveIds) {
     const container = document.getElementById('tradeListContainer');
     const noDataMsg = document.getElementById('noData');
     
-    if (trades.length === 0) { container.innerHTML = ''; if(noDataMsg) noDataMsg.style.display = 'block'; return; }
-    else { if(noDataMsg) noDataMsg.style.display = 'none'; }
+    if (trades.length === 0) {
+        container.innerHTML = '';
+        if(noDataMsg) noDataMsg.style.display = 'block';
+        return;
+    } else {
+        if(noDataMsg) noDataMsg.style.display = 'none';
+    }
 
     let htmlContent = '';
+
     trades.forEach((trade) => {
         const dateString = trade.tradeDateObj.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }); 
         const timeString = trade.tradeDateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -322,7 +423,9 @@ function renderTrades(trades, preserveIds) {
         const pts = parseFloat(trade.points_gained);
         const displayPts = pts.toFixed(2);
 
-        let profitColor = 'text-muted'; let statusColor = '#878a8d'; let statusText = trade.displayStatus.replace(' (Reversal)', '');
+        let profitColor = 'text-muted';
+        let statusColor = '#878a8d';
+        let statusText = trade.displayStatus.replace(' (Reversal)', '');
         
         if (trade.isVisuallyActive) { statusColor = '#007aff'; }
         else if (statusText.includes('TP') || statusText.includes('PROFIT')) { statusColor = '#00b346'; profitColor = 'c-green'; }
@@ -334,6 +437,7 @@ function renderTrades(trades, preserveIds) {
         const isChecked = preserveIds.includes(trade.trade_id) ? 'checked' : '';
         const checkDisplay = isSelectionMode ? 'block' : 'none';
 
+        // ✅ FIXED: Checkboxes perfectly restored in HTML below
         htmlContent += `
             <div class="trade-card">
                 <div class="tc-top">
@@ -357,14 +461,20 @@ function renderTrades(trades, preserveIds) {
                 </div>
             </div>`;
     });
+    
     container.innerHTML = htmlContent;
 }
 
 function calculateStats(trades) {
     let totalPoints = 0; let wins = 0; let losses = 0; let active = 0;
     trades.forEach(t => {
-        if (t.isVisuallyActive) { active++; } 
-        else { const pts = parseFloat(t.points_gained); totalPoints += pts; if (pts > 0) wins++; else if (pts < 0) losses++; }
+        if (t.isVisuallyActive) {
+            active++;
+        } else {
+            const pts = parseFloat(t.points_gained);
+            totalPoints += pts;
+            if (pts > 0) wins++; else if (pts < 0) losses++;
+        }
     });
     const totalClosed = wins + losses;
     const winRate = totalClosed === 0 ? 0 : Math.round((wins / totalClosed) * 100);
@@ -385,8 +495,15 @@ function toggleSelectionMode() {
     const navDefault = document.getElementById('navDefault');
     const navSelection = document.getElementById('navSelection');
 
-    if(isSelectionMode) { navDefault.style.display = 'none'; navSelection.style.display = 'flex'; } 
-    else { navDefault.style.display = 'flex'; navSelection.style.display = 'none'; checkboxes.forEach(cb => cb.checked = false); }
+    if(isSelectionMode) {
+        navDefault.style.display = 'none';
+        navSelection.style.display = 'flex';
+    } else {
+        navDefault.style.display = 'flex';
+        navSelection.style.display = 'none';
+        checkboxes.forEach(cb => cb.checked = false);
+    }
+
     checkboxes.forEach(cb => cb.style.display = isSelectionMode ? 'block' : 'none');
 }
 
@@ -408,19 +525,30 @@ async function deleteSelected() {
 
     try {
         const res = await fetch('/api/delete_trades', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trade_ids: ids, password: password }) 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin', // MUST BE HERE FOR ADMIN
+            body: JSON.stringify({ trade_ids: ids, password: password }) 
         });
         const result = await res.json();
-        if (result.success) { toggleSelectionMode(); alert("✅ Deleted Successfully"); } else { alert(result.msg || "❌ Error Deleting"); }
+        
+        if (result.success) {
+            toggleSelectionMode(); 
+            alert("✅ Deleted Successfully");
+        } else {
+            alert(result.msg || "❌ Error Deleting");
+        }
     } catch (err) { console.error(err); }
 }
 
 async function logout() {
     try {
-        await fetch('/api/logout', { method: 'POST' });
+        await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
         localStorage.clear();
         window.location.href = '/login.html';
-    } catch (err) { console.error("Logout failed", err); }
+    } catch (err) {
+        console.error("Logout failed", err);
+    }
 }
 
 document.getElementById('filterSymbol').addEventListener('change', () => applyFilters());
