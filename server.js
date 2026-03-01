@@ -3,16 +3,66 @@ const http = require('http');
 const { Server } = require('socket.io'); 
 const cors = require('cors');
 const TelegramBot = require('node-telegram-bot-api');
+const cookieParser = require('cookie-parser');
+const jwt = require('jsonwebtoken');
 const { pool, initDb } = require('./database');
+const authPool = require('./authDb'); // Import MySQL connection
 require('dotenv').config();
 
 const app = express();
+
+// Trust proxy is required to get real IPs if hosting on Railway/Heroku
+app.set('trust proxy', true); 
+
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); 
+app.use(cookieParser()); // Initialize cookie parser
 
 // --- CONFIG ---
 const DELETE_PASSWORD = process.env.DELETE_PASSWORD || "admin123"; 
+const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_123";
+
+// --- AUTHENTICATION MIDDLEWARE ---
+const authenticateToken = (req, res, next) => {
+    const token = req.cookies.authToken;
+    if (!token) return res.status(401).json({ success: false, msg: "Not authenticated" });
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        
+        // Block access if IP has changed (One student per system rule)
+        if (decoded.ip !== req.ip) {
+            res.clearCookie('authToken');
+            return res.status(403).json({ success: false, msg: "IP changed. Please login again." });
+        }
+        
+        req.user = decoded;
+        next();
+    } catch (err) {
+        res.clearCookie('authToken');
+        return res.status(403).json({ success: false, msg: "Session expired" });
+    }
+};
+
+// --- PROTECT STATIC FILES (Dashboard) ---
+app.use((req, res, next) => {
+    if (req.path === '/' || req.path === '/index.html') {
+        const token = req.cookies.authToken;
+        if (!token) return res.redirect('/login.html');
+
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            if (decoded.ip !== req.ip) return res.redirect('/login.html');
+            next(); // Allow access to dashboard
+        } catch (err) {
+            return res.redirect('/login.html');
+        }
+    } else {
+        next(); // Allow other files like css, js, login.html
+    }
+});
+
+app.use(express.static('public')); 
 
 // --- SOCKET.IO SETUP ---
 const server = http.createServer(app);
@@ -51,8 +101,59 @@ function toMarkdown(text) {
 
 // --- API ENDPOINTS ---
 
-// 1. GET ALL TRADES (Last 30 Days)
-app.get('/api/trades', async (req, res) => {
+// --- LOGIN API ---
+app.post('/api/login', async (req, res) => {
+    const { email, password, rememberMe } = req.body;
+    
+    try {
+        // Fetch user from remote MySQL database
+        const [rows] = await authPool.query(
+            "SELECT * FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?",
+            [email, password]
+        );
+
+        if (rows.length === 0) {
+            return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
+        }
+
+        const student = rows[0];
+
+        // Check Expiry Date
+        const expiryDate = new Date(student.student_expiry_date);
+        const today = new Date();
+        if (expiryDate < today) {
+            return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." });
+        }
+
+        // Generate JWT Token encoding the user's IP
+        const token = jwt.sign(
+            { email: student.student_email, ip: req.ip }, 
+            JWT_SECRET, 
+            { expiresIn: rememberMe ? '30d' : '1d' } // 30 days if remember me checked
+        );
+
+        // Set Cookie
+        res.cookie('authToken', token, {
+            httpOnly: true, // Prevents XSS attacks
+            secure: process.env.NODE_ENV === 'production', 
+            maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 
+        });
+
+        res.json({ success: true, msg: "Login successful" });
+    } catch (error) {
+        console.error("Login Error:", error);
+        res.status(500).json({ success: false, msg: "Database connection error" });
+    }
+});
+
+// --- LOGOUT API ---
+app.post('/api/logout', (req, res) => {
+    res.clearCookie('authToken');
+    res.json({ success: true });
+});
+
+// 1. GET ALL TRADES (Last 30 Days) - Protected for dashboard viewing
+app.get('/api/trades', authenticateToken, async (req, res) => {
     try {
         // Fetch trades from the last 30 days
         const query = `
@@ -212,7 +313,7 @@ app.post('/api/log_event', async (req, res) => {
 });
 
 // --- DELETE ENDPOINT ---
-app.post('/api/delete_trades', async (req, res) => {
+app.post('/api/delete_trades', authenticateToken, async (req, res) => {
     const { trade_ids, password } = req.body; 
     
     if (password !== DELETE_PASSWORD) {
