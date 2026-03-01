@@ -12,7 +12,7 @@ require('dotenv').config();
 const app = express();
 
 // Trust proxy is required to get real IPs if hosting on Railway/Heroku
-app.set('trust proxy', true); 
+app.set('trust proxy', 1); 
 
 app.use(cors());
 app.use(express.json());
@@ -30,8 +30,13 @@ const authenticateToken = (req, res, next) => {
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         
+        // Fix for IPv4/IPv6 proxy mapping differences on Railway
+        const tokenIp = decoded.ip.replace('::ffff:', '');
+        const currentIp = req.ip.replace('::ffff:', '');
+
         // Block access if IP has changed (One student per system rule)
-        if (decoded.ip !== req.ip) {
+        if (tokenIp !== currentIp) {
+            console.log(`[API REJECTED] IP changed. Old: ${tokenIp} | New: ${currentIp}`);
             res.clearCookie('authToken');
             return res.status(403).json({ success: false, msg: "IP changed. Please login again." });
         }
@@ -47,14 +52,32 @@ const authenticateToken = (req, res, next) => {
 // --- PROTECT STATIC FILES (Dashboard) ---
 app.use((req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
+        console.log(`\n[PAGE REQUEST] Someone is trying to access the Dashboard. IP: ${req.ip}`);
         const token = req.cookies.authToken;
-        if (!token) return res.redirect('/login.html');
+        
+        if (!token) {
+            console.log(`[PAGE REJECTED] ❌ No cookie found. Sending back to Login.`);
+            return res.redirect('/login.html');
+        }
 
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            if (decoded.ip !== req.ip) return res.redirect('/login.html');
+            
+            // Fix for IPv4/IPv6 proxy mapping differences
+            const tokenIp = decoded.ip.replace('::ffff:', '');
+            const currentIp = req.ip.replace('::ffff:', '');
+
+            if (tokenIp !== currentIp) {
+                console.log(`[PAGE REJECTED] ❌ IP Mismatch! Logged in IP: ${tokenIp} | Current IP: ${currentIp}`);
+                res.clearCookie('authToken');
+                return res.redirect('/login.html');
+            }
+            
+            console.log(`[PAGE SUCCESS] ✅ Dashboard access granted to: ${decoded.email}`);
             next(); // Allow access to dashboard
         } catch (err) {
+            console.log(`[PAGE REJECTED] ❌ Invalid or expired token: ${err.message}`);
+            res.clearCookie('authToken');
             return res.redirect('/login.html');
         }
     } else {
@@ -108,57 +131,45 @@ app.post('/api/login', async (req, res) => {
     console.log(`\n[LOGIN ATTEMPT] Email: ${email} | IP: ${req.ip}`);
     
     try {
-        console.log(`[DB INFO] Connecting to MySQL Host: ${process.env.MYSQL_HOST} | DB: ${process.env.MYSQL_DATABASE}`);
-
-        // Fetch user from remote MySQL database
         const [rows] = await authPool.query(
             "SELECT * FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?",
             [email, password]
         );
 
         if (rows.length === 0) {
-            console.log(`[LOGIN FAILED] ❌ Invalid credentials for email: ${email}`);
+            console.log(`[LOGIN FAILED] ❌ Invalid credentials`);
             return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
         }
 
         const student = rows[0];
-        console.log(`[LOGIN INFO] ✅ User found in DB. Checking expiry...`);
 
         // Check Expiry Date
         const expiryDate = new Date(student.student_expiry_date);
         const today = new Date();
         
         if (expiryDate < today) {
-            console.log(`[LOGIN FAILED] ❌ Account Expired for: ${email}. Expiry Date: ${expiryDate}, Today: ${today}`);
+            console.log(`[LOGIN FAILED] ❌ Account Expired.`);
             return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." });
         }
 
-        console.log(`[LOGIN SUCCESS] 🎉 Access granted for: ${email}`);
+        console.log(`[LOGIN SUCCESS] 🎉 Access granted. Creating secure session...`);
 
         // Generate JWT Token encoding the user's IP
         const token = jwt.sign(
             { email: student.student_email, ip: req.ip }, 
             JWT_SECRET, 
-            { expiresIn: rememberMe ? '30d' : '1d' } // 30 days if remember me checked
+            { expiresIn: rememberMe ? '30d' : '1d' } 
         );
 
-        // Set Cookie
+        // Set Cookie (Removed secure flag to ensure it works smoothly behind Railway's proxy)
         res.cookie('authToken', token, {
-            httpOnly: true, // Prevents XSS attacks
-            secure: process.env.NODE_ENV === 'production', 
+            httpOnly: true, 
             maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 
         });
 
         res.json({ success: true, msg: "Login successful" });
     } catch (error) {
-        console.error(`\n[LOGIN SYSTEM ERROR] 🚨🚨🚨`);
-        console.error(`Error Code: ${error.code}`);
-        console.error(`Error Message: ${error.message}`);
-        if (error.sqlMessage) {
-            console.error(`SQL Specific Error: ${error.sqlMessage}`);
-        }
-        console.error(`----------------------------------------\n`);
-        
+        console.error(`\n[LOGIN SYSTEM ERROR] 🚨 ${error.message}`);
         res.status(500).json({ success: false, msg: "Database connection error" });
     }
 });
