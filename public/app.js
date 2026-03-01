@@ -73,7 +73,6 @@ async function fetchCourses() {
 
         let htmlContent = '';
         
-        // Populate Admin Dropdown instantly
         if (userData.role === 'admin') {
             const selectEl = document.getElementById('lessonModuleId');
             if (selectEl) {
@@ -125,13 +124,35 @@ async function fetchCourses() {
     }
 }
 
+// ==========================================
+// --- SECURE VIDEO PLAYER & WATERMARK LOGIC ---
+// ==========================================
+
+// Global block to absolutely prevent right-click in the video area
+document.getElementById('videoPlayerContainer').addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+});
+
 async function openSecureVideo(lessonId) {
     if (!videoPlayer) {
-        videoPlayer = videojs('my-video', { hls: { overrideNative: true }, html5: { vhs: { overrideNative: true } } });
-        videoPlayer.on('play', () => { document.getElementById('dynamicWatermark').style.display = 'block'; startWatermark(); });
-        videoPlayer.on(['pause', 'ended', 'waiting'], stopWatermark);
+        // Initialize Video.js with strict restrictions
+        videoPlayer = videojs('my-video', { 
+            hls: { overrideNative: true }, 
+            html5: { vhs: { overrideNative: true } },
+            controlBar: {
+                fullscreenToggle: false, // Removes Fullscreen Button
+                pictureInPictureToggle: false // Removes PiP Button
+            }
+        });
+        
+        // Prevent right click natively within the player instance
+        videoPlayer.el().addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        });
     }
-    videoPlayer.reset(); stopWatermark();
+    
+    videoPlayer.reset(); 
+    stopWatermark();
     
     try {
         const response = await fetch(`${API_URL_LESSON}${lessonId}`, { credentials: 'same-origin' });
@@ -140,34 +161,50 @@ async function openSecureVideo(lessonId) {
         
         videoPlayer.src({ src: data.hlsUrl, type: 'application/x-mpegURL' });
         document.getElementById('videoPlayerContainer').style.display = 'block';
+        
+        // Ensure watermark ALWAYS starts when video is opened
+        startWatermark();
         videoPlayer.play();
+        
     } catch(err) { alert("🚨 Error loading video stream."); }
 }
 
 function closeVideoPlayer() {
     if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
+    
+    // Watermark ONLY stops when the player container is entirely closed
     stopWatermark();
     document.getElementById('videoPlayerContainer').style.display = 'none';
 }
 
 function startWatermark() {
     const wmEl = document.getElementById('dynamicWatermark');
-    wmEl.innerText = `${userData.email} • ${userData.phone} • RD ALGO`;
+    
+    // FORMAT: 3 Lines with standard HTML breaks
+    wmEl.innerHTML = `${userData.email || 'Email'}<br>${userData.phone || 'Phone'}<br>Rdalgo.in`;
+    wmEl.style.display = 'block'; // Always visible
+    
     if (watermarkInterval) clearInterval(watermarkInterval);
     moveWatermark();
-    watermarkInterval = setInterval(moveWatermark, 4000); 
+    
+    // Interval sets the pace of the floating transition
+    watermarkInterval = setInterval(moveWatermark, 3000); 
 }
 
 function stopWatermark() {
     if (watermarkInterval) clearInterval(watermarkInterval);
+    watermarkInterval = null;
     document.getElementById('dynamicWatermark').style.display = 'none';
 }
 
 function moveWatermark() {
     const wmEl = document.getElementById('dynamicWatermark');
     const container = document.getElementById('videoPlayerContainer');
+    
+    // Calculate bounds so text doesn't flow off-screen
     const maxX = Math.max(0, container.clientWidth - wmEl.clientWidth - 20);
     const maxY = Math.max(0, container.clientHeight - wmEl.clientHeight - 80);
+    
     wmEl.style.left = Math.floor(Math.random() * maxX) + 'px';
     wmEl.style.top = (Math.floor(Math.random() * maxY) + 50) + 'px';
 }
@@ -216,7 +253,7 @@ if (formAddLesson) {
         try {
             const res = await fetch('/api/admin/lessons', {
                 method: 'POST',
-                credentials: 'same-origin', // MUST BE HERE FOR AUTH
+                credentials: 'same-origin',
                 body: formData 
             });
             
@@ -246,7 +283,7 @@ async function deleteModule(id) {
 }
 
 async function deleteLesson(e, id) {
-    e.stopPropagation(); // Prevents the video from playing when clicking delete
+    e.stopPropagation(); 
     if(!confirm("⚠️ Delete this video?")) return;
     try {
         const res = await fetch(`/api/admin/lessons/${id}`, { method: 'DELETE', credentials: 'same-origin' });
@@ -262,10 +299,8 @@ async function deleteLesson(e, id) {
 function applyRoleRestrictions() {
     const role = localStorage.getItem('userRole');
     if (role === 'admin') {
-        // Trade Admin Buttons
         document.getElementById('btnSelect').style.display = 'flex';
         document.getElementById('btnDelete').style.display = 'flex';
-        // LMS Admin Button
         const btnAdminCourseManager = document.getElementById('btnAdminCourseManager');
         if (btnAdminCourseManager) btnAdminCourseManager.style.display = 'inline-block';
     }
@@ -274,7 +309,6 @@ function applyRoleRestrictions() {
 function initDatePicker() {
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     
-    // Initialize Flatpickr in range mode
     datePicker = flatpickr("#filterDateRange", {
         mode: "range",
         dateFormat: "Y-m-d",
@@ -290,7 +324,6 @@ socket.on('trade_update', () => { fetchTrades(); });
 async function fetchTrades() {
     const checkedIds = getCheckedIds();
     try {
-        // Credentials required for protected API fetch
         const response = await fetch(API_URL, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
@@ -437,7 +470,6 @@ function renderTrades(trades, preserveIds) {
         const isChecked = preserveIds.includes(trade.trade_id) ? 'checked' : '';
         const checkDisplay = isSelectionMode ? 'block' : 'none';
 
-        // ✅ FIXED: Checkboxes perfectly restored in HTML below
         htmlContent += `
             <div class="trade-card">
                 <div class="tc-top">
@@ -527,7 +559,7 @@ async function deleteSelected() {
         const res = await fetch('/api/delete_trades', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin', // MUST BE HERE FOR ADMIN
+            credentials: 'same-origin', 
             body: JSON.stringify({ trade_ids: ids, password: password }) 
         });
         const result = await res.json();
