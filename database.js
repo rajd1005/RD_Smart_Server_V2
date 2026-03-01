@@ -35,20 +35,11 @@ const initDb = async () => {
         display_order INT DEFAULT 0, thumbnail_url TEXT
     );`;
 
-    // --- NEW: Global Settings Table for Accordion State ---
     const querySettings = `
     CREATE TABLE IF NOT EXISTS system_settings (
         setting_key VARCHAR(50) PRIMARY KEY,
         setting_value VARCHAR(255)
     );`;
-
-    const populateDefaultModules = `
-    INSERT INTO learning_modules (title, description, required_level, display_order) VALUES 
-    ('Level 1: Foundations', 'Basic trading concepts.', 'level_1_status', 1),
-    ('Level 2: Advanced Strategy', 'Mastering the RD system.', 'level_2_status', 2),
-    ('Level 3: Pro Risk Management', 'Protecting your capital.', 'level_3_status', 3),
-    ('Level 4: Mastering Psychology', 'The trader''s mindset.', 'level_4_status', 4)
-    ON CONFLICT (title) DO NOTHING;`;
 
     const populateDefaultSettings = `
     INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', 'first')
@@ -66,7 +57,6 @@ const initDb = async () => {
         await pool.query(queryLessonVideos); 
         await pool.query(upgradeLessonsTable); 
         await pool.query(querySettings);
-        await pool.query(populateDefaultModules); 
         await pool.query(populateDefaultSettings);
         console.log("✅ Database Tables Verified/Created (Trades + LMS + Settings)");
     } catch (err) {
