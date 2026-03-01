@@ -3,7 +3,6 @@ const API_URL = '/api/trades';
 const API_URL_COURSES = '/api/courses'; 
 const API_URL_LESSON = '/api/lesson/';
 
-// --- GLOBAL STATE ---
 let allTrades = []; 
 let globalModules = []; 
 let isSelectionMode = false;
@@ -12,7 +11,6 @@ let datePicker;
 let videoPlayer = null; 
 let watermarkInterval = null; 
 
-// --- USER DATA ---
 const userData = {
     email: localStorage.getItem('userEmail'),
     phone: localStorage.getItem('userPhone'),
@@ -25,17 +23,12 @@ window.onload = function() {
     applyRoleRestrictions(); 
 };
 
-// ==========================================
-// --- NAVIGATION LOGIC ---
-// ==========================================
-
 function switchSection(section) {
     if (section === 'trade') {
         document.getElementById('tradeSection').style.display = 'block';
         document.getElementById('learningSection').style.display = 'none';
         document.getElementById('navTradeBtn').classList.add('b-active');
         document.getElementById('navLearnBtn').classList.remove('b-active');
-        
         document.getElementById('btnRefresh').style.display = 'flex';
         document.getElementById('btnFilter').style.display = 'flex';
         applyRoleRestrictions(); 
@@ -44,7 +37,6 @@ function switchSection(section) {
         document.getElementById('learningSection').style.display = 'block';
         document.getElementById('navLearnBtn').classList.add('b-active');
         document.getElementById('navTradeBtn').classList.remove('b-active');
-        
         document.getElementById('btnRefresh').style.display = 'none';
         document.getElementById('btnFilter').style.display = 'none';
         document.getElementById('btnSelect').style.display = 'none';
@@ -60,14 +52,13 @@ function switchSection(section) {
 async function fetchCourses() {
     const container = document.getElementById('courseModuleContainer');
     if (!container) return;
-    
     container.innerHTML = '<div class="p-4 text-center text-muted">Loading courses...</div>';
+    
     try {
         const response = await fetch(API_URL_COURSES, { credentials: 'same-origin' });
         if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
         
         globalModules = await response.json();
-        
         let accessLevels = {};
         try { accessLevels = JSON.parse(localStorage.getItem('accessLevels')) || {}; } catch(e) {}
 
@@ -84,24 +75,40 @@ async function fetchCourses() {
         globalModules.forEach(mod => {
             const isLocked = userData.role !== 'admin' && accessLevels[mod.required_level] !== 'Yes';
             const levelBadge = isLocked ? '<span class="module-level-badge badge-locked">LOCKED</span>' : '<span class="module-level-badge badge-unlocked">UNLOCKED</span>';
-            const delModBtn = userData.role === 'admin' ? `<button class="admin-del-btn" style="display:inline-block; margin-left: 10px;" onclick="deleteModule(${mod.id})"><span class="material-icons-round">delete</span></button>` : '';
+            
+            // Clean Strings to safely pass into edit functions
+            const safeTitle = (mod.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const safeDesc = (mod.description || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            
+            const adminBtnsMod = userData.role === 'admin' ? `
+                <div class="d-flex align-items-center ms-2">
+                    <button class="admin-edit-btn" onclick="openEditModule(${mod.id}, '${safeTitle}', '${safeDesc}', '${mod.required_level}')"><span class="material-icons-round" style="font-size: 18px;">edit</span></button>
+                    <button class="admin-del-btn" onclick="deleteModule(${mod.id})"><span class="material-icons-round" style="font-size: 18px;">delete</span></button>
+                </div>` : '';
 
             let lessonHtml = '';
             if (isLocked) {
                 lessonHtml = `<div class="lock-notice">⚠️ Your WP Level Status restricts access. Contact Admin.</div>`;
             } else if (mod.lessons && mod.lessons.length > 0) {
                 mod.lessons.forEach(l => {
-                    const delLessonBtn = userData.role === 'admin' ? `<button class="admin-del-btn" style="display:inline-block;" onclick="deleteLesson(event, ${l.id})"><span class="material-icons-round">delete</span></button>` : '';
+                    const safeLT = (l.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    const safeLD = (l.description || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    const adminBtnsLess = userData.role === 'admin' ? `
+                        <div class="d-flex align-items-center ms-2">
+                            <button class="admin-edit-btn" onclick="openEditLesson(event, ${l.id}, '${safeLT}', '${safeLD}')"><span class="material-icons-round" style="font-size: 18px;">edit</span></button>
+                            <button class="admin-del-btn" onclick="deleteLesson(event, ${l.id})"><span class="material-icons-round" style="font-size: 18px;">delete</span></button>
+                        </div>` : '';
+
                     lessonHtml += `
                         <div class="lesson-item" onclick="openSecureVideo(${l.id})">
-                            <div class="d-flex align-items-center">
+                            <div class="d-flex align-items-center w-100">
                                 <span class="material-icons-round lesson-icon">play_circle_filled</span>
-                                <div>
+                                <div class="flex-grow-1">
                                     <div class="fw-bold">${l.title}</div>
                                     ${l.description ? `<div class="text-muted small">${l.description}</div>` : ''}
                                 </div>
+                                ${adminBtnsLess}
                             </div>
-                            ${delLessonBtn}
                         </div>`;
                 });
             } else {
@@ -111,7 +118,7 @@ async function fetchCourses() {
             htmlContent += `
                 <div class="course-module ${isLocked ? 'module-locked' : ''}">
                     <div class="module-header">
-                        <div class="d-flex align-items-center"><h6 class="module-title mb-0">${mod.title}</h6>${delModBtn}</div>
+                        <div class="d-flex align-items-center"><h6 class="module-title mb-0">${mod.title}</h6>${adminBtnsMod}</div>
                         ${levelBadge}
                     </div>
                     <div>${lessonHtml}</div>
@@ -128,27 +135,21 @@ async function fetchCourses() {
 // --- SECURE VIDEO PLAYER & WATERMARK LOGIC ---
 // ==========================================
 
-// Global block to absolutely prevent right-click in the video area
 document.getElementById('videoPlayerContainer').addEventListener('contextmenu', function(e) {
     e.preventDefault();
 });
 
 async function openSecureVideo(lessonId) {
     if (!videoPlayer) {
-        // Initialize Video.js with strict restrictions
         videoPlayer = videojs('my-video', { 
             hls: { overrideNative: true }, 
             html5: { vhs: { overrideNative: true } },
             controlBar: {
-                fullscreenToggle: false, // Removes Fullscreen Button
-                pictureInPictureToggle: false // Removes PiP Button
+                fullscreenToggle: false, 
+                pictureInPictureToggle: false 
             }
         });
-        
-        // Prevent right click natively within the player instance
-        videoPlayer.el().addEventListener('contextmenu', function(e) {
-            e.preventDefault();
-        });
+        videoPlayer.el().addEventListener('contextmenu', function(e) { e.preventDefault(); });
     }
     
     videoPlayer.reset(); 
@@ -162,7 +163,12 @@ async function openSecureVideo(lessonId) {
         videoPlayer.src({ src: data.hlsUrl, type: 'application/x-mpegURL' });
         document.getElementById('videoPlayerContainer').style.display = 'block';
         
-        // Ensure watermark ALWAYS starts when video is opened
+        // --- MOBILE AUTO-ROTATE (Forces Landscape Mode) ---
+        if (screen.orientation && screen.orientation.lock) {
+            try { await screen.orientation.lock("landscape"); } 
+            catch (e) { console.warn("Auto-rotate blocked by browser logic. User may need to manually tilt phone."); }
+        }
+
         startWatermark();
         videoPlayer.play();
         
@@ -172,22 +178,22 @@ async function openSecureVideo(lessonId) {
 function closeVideoPlayer() {
     if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
     
-    // Watermark ONLY stops when the player container is entirely closed
+    // --- UNLOCK MOBILE ROTATION ---
+    if (screen.orientation && screen.orientation.unlock) {
+        try { screen.orientation.unlock(); } catch (e) {}
+    }
+    
     stopWatermark();
     document.getElementById('videoPlayerContainer').style.display = 'none';
 }
 
 function startWatermark() {
     const wmEl = document.getElementById('dynamicWatermark');
-    
-    // FORMAT: 3 Lines with standard HTML breaks
     wmEl.innerHTML = `${userData.email || 'Email'}<br>${userData.phone || 'Phone'}<br>Rdalgo.in`;
-    wmEl.style.display = 'block'; // Always visible
+    wmEl.style.display = 'block';
     
     if (watermarkInterval) clearInterval(watermarkInterval);
     moveWatermark();
-    
-    // Interval sets the pace of the floating transition
     watermarkInterval = setInterval(moveWatermark, 3000); 
 }
 
@@ -200,11 +206,8 @@ function stopWatermark() {
 function moveWatermark() {
     const wmEl = document.getElementById('dynamicWatermark');
     const container = document.getElementById('videoPlayerContainer');
-    
-    // Calculate bounds so text doesn't flow off-screen
     const maxX = Math.max(0, container.clientWidth - wmEl.clientWidth - 20);
     const maxY = Math.max(0, container.clientHeight - wmEl.clientHeight - 80);
-    
     wmEl.style.left = Math.floor(Math.random() * maxX) + 'px';
     wmEl.style.top = (Math.floor(Math.random() * maxY) + 50) + 'px';
 }
@@ -218,19 +221,11 @@ if (formAddModule) {
     formAddModule.addEventListener('submit', async (e) => {
         e.preventDefault();
         const data = {
-            title: document.getElementById('modTitle').value,
-            description: document.getElementById('modDesc').value,
-            required_level: document.getElementById('modLevel').value
+            title: document.getElementById('modTitle').value, description: document.getElementById('modDesc').value, required_level: document.getElementById('modLevel').value
         };
         try {
-            const res = await fetch('/api/admin/modules', { 
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'}, 
-                credentials: 'same-origin',
-                body: JSON.stringify(data) 
-            });
-            if(res.ok) { alert("Module Added!"); formAddModule.reset(); fetchCourses(); }
-            else alert("Error adding module");
+            const res = await fetch('/api/admin/modules', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
+            if(res.ok) { alert("Module Added!"); formAddModule.reset(); fetchCourses(); } else alert("Error adding module");
         } catch(e) { console.error(e); }
     });
 }
@@ -239,38 +234,19 @@ const formAddLesson = document.getElementById('formAddLesson');
 if (formAddLesson) {
     formAddLesson.addEventListener('submit', async (e) => {
         e.preventDefault();
-        
         const formData = new FormData();
         formData.append('module_id', document.getElementById('lessonModuleId').value);
         formData.append('title', document.getElementById('lessonTitle').value);
         formData.append('description', document.getElementById('lessonDesc').value);
         formData.append('video_file', document.getElementById('lessonVideoFile').files[0]);
 
-        const btn = e.target.querySelector('button');
-        btn.innerText = "⏳ Uploading & Encrypting... Please Wait";
-        btn.disabled = true;
-
+        const btn = e.target.querySelector('button'); btn.innerText = "⏳ Uploading & Encrypting..."; btn.disabled = true;
         try {
-            const res = await fetch('/api/admin/lessons', {
-                method: 'POST',
-                credentials: 'same-origin',
-                body: formData 
-            });
-            
+            const res = await fetch('/api/admin/lessons', { method: 'POST', credentials: 'same-origin', body: formData });
             const data = await res.json();
-            if(res.ok) { 
-                alert(data.msg); 
-                formAddLesson.reset(); 
-            } else {
-                alert(data.msg || "Error uploading video.");
-            }
-        } catch(err) { 
-            console.error(err); 
-            alert("Server connection failed during upload.");
-        } finally {
-            btn.innerText = "Upload Video File";
-            btn.disabled = false;
-        }
+            if(res.ok) { alert(data.msg); formAddLesson.reset(); } else { alert(data.msg || "Error uploading video."); }
+        } catch(err) { alert("Server connection failed."); } 
+        finally { btn.innerText = "Upload Video File"; btn.disabled = false; }
     });
 }
 
@@ -291,6 +267,54 @@ async function deleteLesson(e, id) {
     } catch(e) { console.error(e); }
 }
 
+// --- NEW: EDIT LOGIC ---
+function openEditModule(id, title, desc, level) {
+    document.getElementById('editModId').value = id;
+    document.getElementById('editModTitle').value = title;
+    document.getElementById('editModDesc').value = (desc !== 'null' && desc !== 'undefined') ? desc : '';
+    document.getElementById('editModLevel').value = level;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('editModuleModal')).show();
+}
+
+function openEditLesson(e, id, title, desc) {
+    e.stopPropagation();
+    document.getElementById('editLessonId').value = id;
+    document.getElementById('editLessonTitle').value = title;
+    document.getElementById('editLessonDesc').value = (desc !== 'null' && desc !== 'undefined') ? desc : '';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('editLessonModal')).show();
+}
+
+const formEditModule = document.getElementById('formEditModule');
+if (formEditModule) {
+    formEditModule.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('editModId').value;
+        const data = {
+            title: document.getElementById('editModTitle').value,
+            description: document.getElementById('editModDesc').value,
+            required_level: document.getElementById('editModLevel').value
+        };
+        try {
+            const res = await fetch(`/api/admin/modules/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
+            if(res.ok) { bootstrap.Modal.getInstance(document.getElementById('editModuleModal')).hide(); fetchCourses(); } 
+            else { alert("Error updating module"); }
+        } catch(err) { console.error(err); }
+    });
+}
+
+const formEditLesson = document.getElementById('formEditLesson');
+if (formEditLesson) {
+    formEditLesson.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('editLessonId').value;
+        const data = { title: document.getElementById('editLessonTitle').value, description: document.getElementById('editLessonDesc').value };
+        try {
+            const res = await fetch(`/api/admin/lessons/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
+            if(res.ok) { bootstrap.Modal.getInstance(document.getElementById('editLessonModal')).hide(); fetchCourses(); } 
+            else { alert("Error updating lesson"); }
+        } catch(err) { console.error(err); }
+    });
+}
 
 // ==========================================
 // --- ORIGINAL TRADE LOGIC (100% RESTORED) ---
@@ -308,15 +332,7 @@ function applyRoleRestrictions() {
 
 function initDatePicker() {
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    
-    datePicker = flatpickr("#filterDateRange", {
-        mode: "range",
-        dateFormat: "Y-m-d",
-        defaultDate: today, 
-        onChange: function() {
-            applyFilters(); 
-        }
-    });
+    datePicker = flatpickr("#filterDateRange", { mode: "range", dateFormat: "Y-m-d", defaultDate: today, onChange: function() { applyFilters(); } });
 }
 
 socket.on('trade_update', () => { fetchTrades(); });
@@ -324,19 +340,9 @@ socket.on('trade_update', () => { fetchTrades(); });
 async function fetchTrades() {
     const checkedIds = getCheckedIds();
     try {
-        const response = await fetch(API_URL, {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin' 
-        });
-        
-        if (response.status === 401 || response.status === 403) {
-            window.location.href = '/login.html'; 
-            return;
-        }
-        
+        const response = await fetch(API_URL, { method: 'GET', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin' });
+        if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
         allTrades = await response.json();
-        
         populateSymbolFilter(allTrades);
         applyFilters(checkedIds); 
     } catch (error) { 
@@ -350,14 +356,8 @@ function populateSymbolFilter(trades) {
     const symbolSelect = document.getElementById('filterSymbol');
     const currentVal = symbolSelect.value;
     const uniqueSymbols = [...new Set(trades.map(t => t.symbol))].sort();
-    
     symbolSelect.innerHTML = '<option value="">All Symbols</option>';
-    uniqueSymbols.forEach(sym => {
-        const option = document.createElement('option');
-        option.value = sym;
-        option.text = sym;
-        symbolSelect.appendChild(option);
-    });
+    uniqueSymbols.forEach(sym => { const option = document.createElement('option'); option.value = sym; option.text = sym; symbolSelect.appendChild(option); });
     if(uniqueSymbols.includes(currentVal)) symbolSelect.value = currentVal;
 }
 
@@ -365,44 +365,29 @@ function applyFilters(preserveIds = []) {
     const filterSymbol = document.getElementById('filterSymbol').value;
     const filterStatus = document.getElementById('filterStatus').value;
     const filterType = document.getElementById('filterType').value;
-    
-    let startDate = "";
-    let endDate = "";
+    let startDate = ""; let endDate = "";
     if (datePicker && datePicker.selectedDates.length > 0) {
         const formatOpts = { timeZone: 'Asia/Kolkata' };
         startDate = datePicker.selectedDates[0].toLocaleDateString('en-CA', formatOpts);
-        endDate = datePicker.selectedDates.length === 2 
-            ? datePicker.selectedDates[1].toLocaleDateString('en-CA', formatOpts) 
-            : startDate;
+        endDate = datePicker.selectedDates.length === 2 ? datePicker.selectedDates[1].toLocaleDateString('en-CA', formatOpts) : startDate;
     }
-
     const dateDisplay = document.getElementById('activeDateDisplay');
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    
-    if (!startDate && !endDate) {
-        dateDisplay.innerText = "All Time";
-    } else if (startDate === endDate) {
-        dateDisplay.innerText = (startDate === todayStr) ? "Today" : startDate;
-    } else {
-        const startText = startDate ? startDate.substring(5) : "Past"; 
-        const endText = endDate ? endDate.substring(5) : "Now";
-        dateDisplay.innerText = `${startText} to ${endText}`;
-    }
+    if (!startDate && !endDate) { dateDisplay.innerText = "All Time"; } 
+    else if (startDate === endDate) { dateDisplay.innerText = (startDate === todayStr) ? "Today" : startDate; } 
+    else { dateDisplay.innerText = `${startDate.substring(5)} to ${endDate.substring(5)}`; }
 
     const filtered = allTrades.reduce((acc, trade) => {
         const tradeDateObj = new Date(trade.created_at);
         const tradeDateStr = tradeDateObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-
         let dateMatch = true;
         if (startDate && endDate) dateMatch = (tradeDateStr >= startDate && tradeDateStr <= endDate);
         else if (startDate) dateMatch = (tradeDateStr >= startDate);
         else if (endDate) dateMatch = (tradeDateStr <= endDate);
-
         if (!dateMatch) return acc;
 
         let displayStatus = trade.status;
         let isVisuallyActive = (trade.status === 'ACTIVE' || trade.status === 'SETUP');
-        
         if (isVisuallyActive && tradeDateStr < todayStr) {
             isVisuallyActive = false; 
             const pts = parseFloat(trade.points_gained || 0);
@@ -413,16 +398,12 @@ function applyFilters(preserveIds = []) {
 
         const typeMatch = (filterType === 'ALL' || trade.type === filterType);
         const symbolMatch = (filterSymbol === "" || trade.symbol === filterSymbol);
-        
         let statusMatch = true;
         if (filterStatus === 'TP') statusMatch = (displayStatus.includes('TP') || displayStatus.includes('PROFIT'));
         else if (filterStatus === 'SL') statusMatch = (displayStatus.includes('SL') || displayStatus.includes('LOSS'));
         else if (filterStatus === 'OPEN') statusMatch = isVisuallyActive;
 
-        if (typeMatch && symbolMatch && statusMatch) {
-            acc.push({ ...trade, displayStatus, isVisuallyActive, tradeDateObj });
-        }
-        
+        if (typeMatch && symbolMatch && statusMatch) { acc.push({ ...trade, displayStatus, isVisuallyActive, tradeDateObj }); }
         return acc;
     }, []);
 
@@ -433,21 +414,13 @@ function applyFilters(preserveIds = []) {
 function renderTrades(trades, preserveIds) {
     const container = document.getElementById('tradeListContainer');
     const noDataMsg = document.getElementById('noData');
-    
-    if (trades.length === 0) {
-        container.innerHTML = '';
-        if(noDataMsg) noDataMsg.style.display = 'block';
-        return;
-    } else {
-        if(noDataMsg) noDataMsg.style.display = 'none';
-    }
+    if (trades.length === 0) { container.innerHTML = ''; if(noDataMsg) noDataMsg.style.display = 'block'; return; } 
+    else { if(noDataMsg) noDataMsg.style.display = 'none'; }
 
     let htmlContent = '';
-
     trades.forEach((trade) => {
         const dateString = trade.tradeDateObj.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }); 
         const timeString = trade.tradeDateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
-        
         const entry = parseFloat(trade.entry_price).toFixed(2);
         const sl = parseFloat(trade.sl_price).toFixed(2);
         const tp1 = parseFloat(trade.tp1_price).toFixed(2);
@@ -456,10 +429,7 @@ function renderTrades(trades, preserveIds) {
         const pts = parseFloat(trade.points_gained);
         const displayPts = pts.toFixed(2);
 
-        let profitColor = 'text-muted';
-        let statusColor = '#878a8d';
-        let statusText = trade.displayStatus.replace(' (Reversal)', '');
-        
+        let profitColor = 'text-muted'; let statusColor = '#878a8d'; let statusText = trade.displayStatus.replace(' (Reversal)', '');
         if (trade.isVisuallyActive) { statusColor = '#007aff'; }
         else if (statusText.includes('TP') || statusText.includes('PROFIT')) { statusColor = '#00b346'; profitColor = 'c-green'; }
         else if (statusText.includes('SL') || statusText.includes('LOSS')) { statusColor = '#ff3b30'; profitColor = 'c-red'; }
@@ -493,20 +463,14 @@ function renderTrades(trades, preserveIds) {
                 </div>
             </div>`;
     });
-    
     container.innerHTML = htmlContent;
 }
 
 function calculateStats(trades) {
     let totalPoints = 0; let wins = 0; let losses = 0; let active = 0;
     trades.forEach(t => {
-        if (t.isVisuallyActive) {
-            active++;
-        } else {
-            const pts = parseFloat(t.points_gained);
-            totalPoints += pts;
-            if (pts > 0) wins++; else if (pts < 0) losses++;
-        }
+        if (t.isVisuallyActive) { active++; } 
+        else { const pts = parseFloat(t.points_gained); totalPoints += pts; if (pts > 0) wins++; else if (pts < 0) losses++; }
     });
     const totalClosed = wins + losses;
     const winRate = totalClosed === 0 ? 0 : Math.round((wins / totalClosed) * 100);
@@ -526,16 +490,8 @@ function toggleSelectionMode() {
     const checkboxes = document.querySelectorAll('.trade-checkbox');
     const navDefault = document.getElementById('navDefault');
     const navSelection = document.getElementById('navSelection');
-
-    if(isSelectionMode) {
-        navDefault.style.display = 'none';
-        navSelection.style.display = 'flex';
-    } else {
-        navDefault.style.display = 'flex';
-        navSelection.style.display = 'none';
-        checkboxes.forEach(cb => cb.checked = false);
-    }
-
+    if(isSelectionMode) { navDefault.style.display = 'none'; navSelection.style.display = 'flex'; } 
+    else { navDefault.style.display = 'flex'; navSelection.style.display = 'none'; checkboxes.forEach(cb => cb.checked = false); }
     checkboxes.forEach(cb => cb.style.display = isSelectionMode ? 'block' : 'none');
 }
 
@@ -551,25 +507,14 @@ async function deleteSelected() {
     if (!isSelectionMode) { toggleSelectionMode(); return; }
     const ids = getCheckedIds();
     if (ids.length === 0) return;
-    
     const password = prompt("🔒 Enter Admin Password to delete:");
     if (!password) return; 
-
     try {
         const res = await fetch('/api/delete_trades', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin', 
-            body: JSON.stringify({ trade_ids: ids, password: password }) 
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ trade_ids: ids, password: password }) 
         });
         const result = await res.json();
-        
-        if (result.success) {
-            toggleSelectionMode(); 
-            alert("✅ Deleted Successfully");
-        } else {
-            alert(result.msg || "❌ Error Deleting");
-        }
+        if (result.success) { toggleSelectionMode(); alert("✅ Deleted Successfully"); } else { alert(result.msg || "❌ Error Deleting"); }
     } catch (err) { console.error(err); }
 }
 
@@ -578,9 +523,7 @@ async function logout() {
         await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
         localStorage.clear();
         window.location.href = '/login.html';
-    } catch (err) {
-        console.error("Logout failed", err);
-    }
+    } catch (err) { console.error("Logout failed", err); }
 }
 
 document.getElementById('filterSymbol').addEventListener('change', () => applyFilters());
