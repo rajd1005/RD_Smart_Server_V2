@@ -11,8 +11,8 @@ window.onload = function() {
 socket.on('trade_update', () => { fetchTrades(); });
 
 function setTodayDate() {
-    const istDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    document.getElementById('filterDate').value = istDate;
+    // Leave the date filter blank by default to show all 30 days
+    document.getElementById('filterDate').value = '';
 }
 
 async function fetchTrades() {
