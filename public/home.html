@@ -7,6 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
 
     <style>
         :root {
@@ -39,6 +40,19 @@
         .lesson-icon { color: var(--text-secondary); margin-right: 15px; font-size: 24px; opacity: 0.6; }
         
         .footer { text-align: center; padding: 30px 20px; color: var(--text-secondary); font-size: 12px; margin-top: 40px; border-top: 1px solid var(--border-color); background: #fff; }
+
+        /* VIDEO PLAYER */
+        #videoPlayerContainer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; display: none; }
+        .video-js { width: 100% !important; height: 100% !important; }
+        .close-video { position: absolute; top: 15px; right: 15px; z-index: 2010; color: #fff; background: rgba(0,0,0,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
+        
+        #dynamicWatermark {
+            position: absolute; color: rgba(255, 0, 0, 0.85); font-family: 'Roboto', sans-serif;
+            font-size: clamp(11px, 3.5vmin, 24px); font-weight: 900; text-align: center;
+            line-height: 1.3; pointer-events: none; z-index: 2005; white-space: nowrap; display: none;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.9), -1px -1px 3px rgba(255,255,255,0.4); 
+            transition: top 3s ease-in-out, left 3s ease-in-out; 
+        }
     </style>
 </head>
 <body>
@@ -66,11 +80,24 @@
         Access restricted to verified students.
     </div>
 
+    <div id="videoPlayerContainer">
+        <button class="close-video" onclick="closeVideoPlayer()"><span class="material-icons-round">close</span></button>
+        <div id="dynamicWatermark"></div>
+        <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" disablePictureInPicture controlsList="nodownload nofullscreen noremoteplayback"></video>
+    </div>
+
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
     <script>
+        let videoPlayer = null; 
+        let watermarkInterval = null; 
+
+        document.getElementById('videoPlayerContainer').addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        });
+
         async function fetchPublicCourses() {
             const container = document.getElementById('publicCourseContainer');
             try {
-                // Fetching safe public layout without encryption keys
                 const response = await fetch('/api/public/courses');
                 const modules = await response.json();
 
@@ -81,26 +108,39 @@
 
                 let htmlContent = '';
                 modules.forEach(mod => {
+                    const isDemo = mod.required_level === 'demo';
+                    const lvlBadge = isDemo ? 'FREE DEMO' : (mod.required_level.split('_')[1] ? `LEVEL ${mod.required_level.split('_')[1]}` : 'ACCESS');
+
                     let lessonHtml = '';
                     if (mod.lessons && mod.lessons.length > 0) {
                         mod.lessons.forEach(l => {
-                            lessonHtml += `
-                                <div class="lesson-item" onclick="window.location.href='/login.html'">
-                                    <div class="d-flex align-items-center w-100">
-                                        <span class="material-icons-round lesson-icon">lock</span>
-                                        <div class="flex-grow-1">
-                                            <div class="fw-bold" style="color: #333;">${l.title}</div>
-                                            ${l.description ? `<div class="text-muted small mt-1">${l.description}</div>` : ''}
+                            if (isDemo) {
+                                lessonHtml += `
+                                    <div class="lesson-item" onclick="openDemoVideo(${l.id})">
+                                        <div class="d-flex align-items-center w-100">
+                                            <span class="material-icons-round lesson-icon" style="color: var(--blue); opacity: 1;">play_circle_filled</span>
+                                            <div class="flex-grow-1">
+                                                <div class="fw-bold" style="color: #333;">${l.title}</div>
+                                                ${l.description ? `<div class="text-muted small mt-1">${l.description}</div>` : ''}
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>`;
+                                    </div>`;
+                            } else {
+                                lessonHtml += `
+                                    <div class="lesson-item" onclick="window.location.href='/login.html'">
+                                        <div class="d-flex align-items-center w-100">
+                                            <span class="material-icons-round lesson-icon">lock</span>
+                                            <div class="flex-grow-1">
+                                                <div class="fw-bold" style="color: #666;">${l.title}</div>
+                                                ${l.description ? `<div class="text-muted small mt-1">${l.description}</div>` : ''}
+                                            </div>
+                                        </div>
+                                    </div>`;
+                            }
                         });
                     } else {
                         lessonHtml = '<div class="text-muted small p-3 text-center">Lessons coming soon.</div>';
                     }
-
-                    // Format level string cleanly (e.g. 'level_2_status' -> 'LEVEL 2')
-                    const lvlBadge = mod.required_level.split('_')[1] ? `LEVEL ${mod.required_level.split('_')[1]}` : 'ACCESS';
 
                     htmlContent += `
                         <div class="course-module">
@@ -120,7 +160,126 @@
             }
         }
         
-        // Load instantly
+        async function openDemoVideo(lessonId) {
+            if (!videoPlayer) {
+                videoPlayer = videojs('my-video', { 
+                    hls: { overrideNative: true }, 
+                    html5: { vhs: { overrideNative: true } },
+                    controlBar: { fullscreenToggle: false, pictureInPictureToggle: false }
+                });
+                videoPlayer.el().addEventListener('contextmenu', function(e) { e.preventDefault(); });
+
+                videoPlayer.on('loadedmetadata', async function() {
+                    const vw = videoPlayer.videoWidth();
+                    const vh = videoPlayer.videoHeight();
+                    if (screen.orientation && screen.orientation.lock) {
+                        try { 
+                            if (vw > vh) { await screen.orientation.lock("landscape"); } 
+                            else { await screen.orientation.lock("portrait"); }
+                        } catch (e) { }
+                    }
+                });
+            }
+            
+            videoPlayer.reset(); 
+            stopWatermark();
+            
+            try {
+                const response = await fetch(`/api/public/lesson/${lessonId}`);
+                if (!response.ok) { alert("❌ Failed to load demo."); return; }
+                const data = await response.json();
+                
+                videoPlayer.src({ src: data.hlsUrl, type: 'application/x-mpegURL' });
+                
+                const playerContainer = document.getElementById('videoPlayerContainer');
+                playerContainer.style.display = 'block';
+                
+                if (playerContainer.requestFullscreen) {
+                    await playerContainer.requestFullscreen().catch(e => console.warn(e));
+                } else if (playerContainer.webkitRequestFullscreen) { 
+                    await playerContainer.webkitRequestFullscreen().catch(e => console.warn(e));
+                }
+
+                startWatermark();
+                videoPlayer.play();
+                
+            } catch(err) { alert("🚨 Error loading video stream."); }
+        }
+
+        function closeVideoPlayer() {
+            if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
+            
+            if (screen.orientation && screen.orientation.unlock) {
+                try { screen.orientation.unlock(); } catch (e) {}
+            }
+            
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                if (document.exitFullscreen) { document.exitFullscreen().catch(e => console.warn(e)); } 
+                else if (document.webkitExitFullscreen) { document.webkitExitFullscreen().catch(e => console.warn(e)); }
+            }
+            
+            stopWatermark();
+            document.getElementById('videoPlayerContainer').style.display = 'none';
+        }
+
+        function startWatermark() {
+            const wmEl = document.getElementById('dynamicWatermark');
+            wmEl.innerHTML = `RD ALGO DEMO<br>Register to Unlock<br>Rdalgo.in`;
+            wmEl.style.display = 'block';
+            
+            if (watermarkInterval) clearInterval(watermarkInterval);
+            moveWatermark();
+            watermarkInterval = setInterval(moveWatermark, 3000); 
+        }
+
+        function stopWatermark() {
+            if (watermarkInterval) clearInterval(watermarkInterval);
+            watermarkInterval = null;
+            const wmEl = document.getElementById('dynamicWatermark');
+            if (wmEl) wmEl.style.display = 'none';
+        }
+
+        function moveWatermark() {
+            const wmEl = document.getElementById('dynamicWatermark');
+            const container = document.getElementById('videoPlayerContainer');
+            if (!videoPlayer) return;
+
+            const vw = videoPlayer.videoWidth();
+            const vh = videoPlayer.videoHeight();
+            
+            if (!vw || !vh) {
+                wmEl.style.left = '50%'; wmEl.style.top = '50%'; wmEl.style.transform = 'translate(-50%, -50%)'; return;
+            } else {
+                wmEl.style.transform = 'none'; 
+            }
+
+            const cw = container.clientWidth;
+            const ch = container.clientHeight;
+            const videoRatio = vw / vh;
+            const containerRatio = cw / ch;
+
+            let renderedWidth, renderedHeight, offsetX, offsetY;
+
+            if (videoRatio > containerRatio) {
+                renderedWidth = cw; renderedHeight = cw / videoRatio;
+                offsetX = 0; offsetY = (ch - renderedHeight) / 2;
+            } else {
+                renderedHeight = ch; renderedWidth = ch * videoRatio;
+                offsetX = (cw - renderedWidth) / 2; offsetY = 0;
+            }
+
+            const minX = offsetX + 10; 
+            const maxX = Math.max(minX, offsetX + renderedWidth - wmEl.clientWidth - 10);
+            const minY = offsetY + 50; 
+            const maxY = Math.max(minY, offsetY + renderedHeight - wmEl.clientHeight - 20);
+
+            const randomX = Math.floor(Math.random() * (maxX - minX + 1)) + minX;
+            const randomY = Math.floor(Math.random() * (maxY - minY + 1)) + minY;
+
+            wmEl.style.left = randomX + 'px';
+            wmEl.style.top = randomY + 'px';
+        }
+
         fetchPublicCourses();
     </script>
 </body>
