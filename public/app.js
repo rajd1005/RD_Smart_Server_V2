@@ -145,8 +145,8 @@ async function fetchCourses() {
                     const pointerEv = isLocked ? 'not-allowed' : 'pointer';
 
                     const thumbnailImg = l.thumbnail_url 
-                        ? `<div class="thumb-wrapper"><img src="${l.thumbnail_url}"><div class="thumb-play-overlay"><span class="material-icons-round">${overlayIcon}</span></div></div>` 
-                        : `<span class="material-icons-round" style="font-size:32px; color:${iconColor}; margin-right:15px; flex-shrink:0;">${overlayIcon}</span>`;
+                        ? `<div class="thumb-wrapper-compact"><img src="${l.thumbnail_url}"><div class="thumb-play-overlay-compact"><span class="material-icons-round">${overlayIcon}</span></div></div>` 
+                        : `<span class="material-icons-round lesson-icon-compact" style="color:${iconColor};">${overlayIcon}</span>`;
 
                     const onClickAction = isLocked ? '' : `onclick="openSecureVideo(${l.id})"`;
 
@@ -154,16 +154,16 @@ async function fetchCourses() {
                         <div class="accordion-item lesson-accordion-item">
                             <h2 class="accordion-header" id="hLsn${l.id}">
                                 <button class="accordion-button collapsed lesson-accordion-btn" type="button" data-bs-toggle="collapse" data-bs-target="#cLsn${l.id}" aria-expanded="false" aria-controls="cLsn${l.id}">
-                                    <span class="material-icons-round" style="font-size:18px; margin-right:8px; color:${iconColor};">${overlayIcon}</span>
+                                    <span class="material-icons-round" style="font-size:16px; margin-right:8px; color:${iconColor};">${overlayIcon}</span>
                                     <span style="color: ${textColor};">${l.title}</span>
                                 </button>
                             </h2>
                             <div id="cLsn${l.id}" class="accordion-collapse collapse lesson-collapse" aria-labelledby="hLsn${l.id}" data-bs-parent="#accLsn${mod.id}">
-                                <div class="accordion-body p-2" style="background: #fafafa;">
+                                <div class="accordion-body p-0" style="background: #fafafa;">
                                     <div class="lesson-item-content d-flex align-items-center w-100" style="opacity: ${opacityLvl}; cursor: ${pointerEv};" ${onClickAction}>
                                         ${thumbnailImg}
                                         <div class="flex-grow-1">
-                                            ${l.description ? `<div class="text-muted small">${l.description}</div>` : ''}
+                                            ${l.description ? `<div class="text-muted" style="font-size: 11px; margin-bottom: 4px; line-height: 1.3;">${l.description}</div>` : ''}
                                         </div>
                                         ${!isLocked ? adminBtnsLess : ''}
                                     </div>
@@ -174,7 +174,7 @@ async function fetchCourses() {
                 
                 lessonHtml += `</div>`;
             } else {
-                lessonHtml += '<div class="text-muted small p-3 text-center">No videos yet.</div>';
+                lessonHtml += '<div class="text-muted p-3 text-center" style="font-size:12px;">No videos yet.</div>';
             }
 
             htmlContent += `
@@ -182,7 +182,7 @@ async function fetchCourses() {
                     <h2 class="accordion-header" id="heading${mod.id}">
                         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${mod.id}" aria-expanded="false" aria-controls="collapse${mod.id}">
                             <div class="d-flex align-items-center flex-grow-1">
-                                <h6 class="mb-0 fw-bold">${mod.title}</h6>
+                                <h6 class="mb-0 fw-bold" style="font-size:14px;">${mod.title}</h6>
                                 ${levelBadge}
                             </div>
                             ${adminBtnsMod}
@@ -299,6 +299,7 @@ function moveWatermark() {
     wmEl.style.left = Math.floor(Math.random() * (maxX - minX + 1)) + minX + 'px';
     wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
 }
+
 
 const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
@@ -419,7 +420,6 @@ async function deleteLesson(e, id) {
     if(!confirm("⚠️ Delete this video?")) return;
     try { const res = await fetch(`/api/admin/lessons/${id}`, { method: 'DELETE', credentials: 'same-origin' }); if(res.ok) fetchCourses(); } catch(e) {}
 }
-
 
 function applyRoleRestrictions() {
     const role = localStorage.getItem('userRole');
