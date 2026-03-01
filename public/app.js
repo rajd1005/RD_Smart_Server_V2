@@ -76,7 +76,6 @@ async function fetchCourses() {
             const isLocked = userData.role !== 'admin' && accessLevels[mod.required_level] !== 'Yes';
             const levelBadge = isLocked ? '<span class="module-level-badge badge-locked">LOCKED</span>' : '<span class="module-level-badge badge-unlocked">UNLOCKED</span>';
             
-            // Clean Strings to safely pass into edit functions
             const safeTitle = (mod.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             const safeDesc = (mod.description || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             
@@ -150,6 +149,27 @@ async function openSecureVideo(lessonId) {
             }
         });
         videoPlayer.el().addEventListener('contextmenu', function(e) { e.preventDefault(); });
+
+        // --- NEW: DYNAMIC ASPECT RATIO & AUTO-ROTATE ---
+        videoPlayer.on('loadedmetadata', async function() {
+            const vw = videoPlayer.videoWidth();
+            const vh = videoPlayer.videoHeight();
+            
+            // Check if device supports rotation locks
+            if (screen.orientation && screen.orientation.lock) {
+                try { 
+                    if (vw > vh) {
+                        // Wide video: Force Landscape
+                        await screen.orientation.lock("landscape"); 
+                    } else {
+                        // Tall video (Shorts): Force Portrait
+                        await screen.orientation.lock("portrait"); 
+                    }
+                } catch (e) { 
+                    console.warn("Auto-rotate blocked by browser logic."); 
+                }
+            }
+        });
     }
     
     videoPlayer.reset(); 
@@ -165,20 +185,11 @@ async function openSecureVideo(lessonId) {
         const playerContainer = document.getElementById('videoPlayerContainer');
         playerContainer.style.display = 'block';
         
-        // 1. FIRST: Request Native Fullscreen (Required by browsers to allow rotation)
+        // Request Fullscreen first so rotation is permitted by the browser
         if (playerContainer.requestFullscreen) {
             await playerContainer.requestFullscreen().catch(e => console.warn(e));
-        } else if (playerContainer.webkitRequestFullscreen) { /* Safari */
+        } else if (playerContainer.webkitRequestFullscreen) { 
             await playerContainer.webkitRequestFullscreen().catch(e => console.warn(e));
-        }
-
-        // 2. THEN: Force Auto-Rotate to Landscape
-        if (screen.orientation && screen.orientation.lock) {
-            try { 
-                await screen.orientation.lock("landscape"); 
-            } catch (e) { 
-                console.warn("Auto-rotate blocked by browser. User may need to tilt phone manually."); 
-            }
         }
 
         startWatermark();
@@ -190,12 +201,10 @@ async function openSecureVideo(lessonId) {
 function closeVideoPlayer() {
     if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
     
-    // 1. Unlock Mobile Rotation
     if (screen.orientation && screen.orientation.unlock) {
         try { screen.orientation.unlock(); } catch (e) {}
     }
     
-    // 2. Exit Native Fullscreen
     if (document.fullscreenElement || document.webkitFullscreenElement) {
         if (document.exitFullscreen) {
             document.exitFullscreen().catch(e => console.warn(e));
@@ -221,16 +230,65 @@ function startWatermark() {
 function stopWatermark() {
     if (watermarkInterval) clearInterval(watermarkInterval);
     watermarkInterval = null;
-    document.getElementById('dynamicWatermark').style.display = 'none';
+    const wmEl = document.getElementById('dynamicWatermark');
+    if (wmEl) wmEl.style.display = 'none';
 }
 
+// --- NEW: CONFINED WATERMARK CALCULATION ---
 function moveWatermark() {
     const wmEl = document.getElementById('dynamicWatermark');
     const container = document.getElementById('videoPlayerContainer');
-    const maxX = Math.max(0, container.clientWidth - wmEl.clientWidth - 20);
-    const maxY = Math.max(0, container.clientHeight - wmEl.clientHeight - 80);
-    wmEl.style.left = Math.floor(Math.random() * maxX) + 'px';
-    wmEl.style.top = (Math.floor(Math.random() * maxY) + 50) + 'px';
+    
+    if (!videoPlayer) return;
+
+    const vw = videoPlayer.videoWidth();
+    const vh = videoPlayer.videoHeight();
+    
+    // If metadata isn't loaded yet, default to center of screen
+    if (!vw || !vh) {
+        wmEl.style.left = '50%';
+        wmEl.style.top = '50%';
+        wmEl.style.transform = 'translate(-50%, -50%)';
+        return;
+    } else {
+        wmEl.style.transform = 'none'; // Clear center transform once loaded
+    }
+
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+
+    const videoRatio = vw / vh;
+    const containerRatio = cw / ch;
+
+    let renderedWidth, renderedHeight, offsetX, offsetY;
+
+    // Calculate actual playing video boundaries to avoid black bars
+    if (videoRatio > containerRatio) {
+        // Video has black bars on Top and Bottom (Letterboxing)
+        renderedWidth = cw;
+        renderedHeight = cw / videoRatio;
+        offsetX = 0;
+        offsetY = (ch - renderedHeight) / 2;
+    } else {
+        // Video has black bars on Left and Right (Pillarboxing)
+        renderedHeight = ch;
+        renderedWidth = ch * videoRatio;
+        offsetX = (cw - renderedWidth) / 2;
+        offsetY = 0;
+    }
+
+    // Set Min/Max bounds strictly inside the rendered video area
+    const minX = offsetX + 10; 
+    const maxX = Math.max(minX, offsetX + renderedWidth - wmEl.clientWidth - 10);
+    
+    const minY = offsetY + 50; // Leave 50px buffer at the top to avoid the close button
+    const maxY = Math.max(minY, offsetY + renderedHeight - wmEl.clientHeight - 20);
+
+    const randomX = Math.floor(Math.random() * (maxX - minX + 1)) + minX;
+    const randomY = Math.floor(Math.random() * (maxY - minY + 1)) + minY;
+
+    wmEl.style.left = randomX + 'px';
+    wmEl.style.top = randomY + 'px';
 }
 
 // ==========================================
@@ -288,7 +346,6 @@ async function deleteLesson(e, id) {
     } catch(e) { console.error(e); }
 }
 
-// --- NEW: EDIT LOGIC ---
 function openEditModule(id, title, desc, level) {
     document.getElementById('editModId').value = id;
     document.getElementById('editModTitle').value = title;
