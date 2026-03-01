@@ -241,11 +241,29 @@ app.put('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) =
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+// --- UPDATED: MODULE DELETE WITH FILE SYSTEM CLEANUP ---
 app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
-    try { await pool.query("DELETE FROM learning_modules WHERE id = $1", [req.params.id]); res.json({ success: true }); } 
+    try { 
+        const videos = await pool.query("SELECT hls_manifest_url FROM lesson_videos WHERE module_id = $1", [req.params.id]);
+        
+        videos.rows.forEach(row => {
+            const manifestUrl = row.hls_manifest_url; 
+            const parts = manifestUrl.split('/');
+            if (parts.length >= 3) {
+                const folderId = parts[2];
+                const folderPath = path.join(hlsDir, folderId);
+                if (fs.existsSync(folderPath)) {
+                    fs.rmSync(folderPath, { recursive: true, force: true });
+                    console.log(`[FILE SYSTEM] Cleaned up video folder: ${folderId}`);
+                }
+            }
+        });
+
+        await pool.query("DELETE FROM learning_modules WHERE id = $1", [req.params.id]); 
+        res.json({ success: true }); 
+    } 
     catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
-
 
 app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.single('video_file'), async (req, res) => {
     const { module_id, title, description, display_order } = req.body;
@@ -312,8 +330,29 @@ app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res) =
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+// --- UPDATED: LESSON DELETE WITH FILE SYSTEM CLEANUP ---
 app.delete('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res) => {
-    try { await pool.query("DELETE FROM lesson_videos WHERE id = $1", [req.params.id]); res.json({ success: true }); } 
+    try { 
+        const result = await pool.query("SELECT hls_manifest_url FROM lesson_videos WHERE id = $1", [req.params.id]);
+        
+        if (result.rows.length > 0) {
+            const manifestUrl = result.rows[0].hls_manifest_url; 
+            const parts = manifestUrl.split('/');
+            
+            if (parts.length >= 3) {
+                const folderId = parts[2]; 
+                const folderPath = path.join(hlsDir, folderId);
+                
+                if (fs.existsSync(folderPath)) {
+                    fs.rmSync(folderPath, { recursive: true, force: true });
+                    console.log(`[FILE SYSTEM] Successfully deleted video files from server: ${folderId}`);
+                }
+            }
+        }
+
+        await pool.query("DELETE FROM lesson_videos WHERE id = $1", [req.params.id]); 
+        res.json({ success: true }); 
+    } 
     catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
