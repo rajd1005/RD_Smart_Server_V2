@@ -8,7 +8,6 @@ const pool = new Pool({
 });
 
 const initDb = async () => {
-    // 1. Trading Table (Untouched)
     const queryTrades = `
     CREATE TABLE IF NOT EXISTS trades (
         id SERIAL PRIMARY KEY, trade_id VARCHAR(50) UNIQUE NOT NULL, symbol VARCHAR(20) NOT NULL, type VARCHAR(10) NOT NULL,
@@ -17,21 +16,18 @@ const initDb = async () => {
         telegram_msg_id BIGINT, created_at VARCHAR(50), updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`;
 
-    // 2. Login Tracking Table (Untouched)
     const queryLogs = `
     CREATE TABLE IF NOT EXISTS login_logs (
         id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL, session_id VARCHAR(255) NOT NULL,
         ip_address VARCHAR(255), login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`;
 
-    // 3. NEW: Learning Modules (Course Categories)
     const queryLearningModules = `
     CREATE TABLE IF NOT EXISTS learning_modules (
         id SERIAL PRIMARY KEY, title VARCHAR(255) UNIQUE NOT NULL, description TEXT,
-        required_level VARCHAR(20) NOT NULL, display_order INT DEFAULT 0
+        required_level VARCHAR(20) NOT NULL, display_order INT DEFAULT 0, lock_notice TEXT
     );`;
 
-    // 4. NEW: Individual Lesson Videos
     const queryLessonVideos = `
     CREATE TABLE IF NOT EXISTS lesson_videos (
         id SERIAL PRIMARY KEY, module_id INT REFERENCES learning_modules(id) ON DELETE CASCADE,
@@ -39,7 +35,6 @@ const initDb = async () => {
         display_order INT DEFAULT 0
     );`;
 
-    // 5. NEW: Auto-populate default levels
     const populateDefaultModules = `
     INSERT INTO learning_modules (title, description, required_level, display_order) VALUES 
     ('Level 1: Foundations', 'Basic trading concepts.', 'level_1_status', 1),
@@ -48,13 +43,17 @@ const initDb = async () => {
     ('Level 4: Mastering Psychology', 'The trader''s mindset.', 'level_4_status', 4)
     ON CONFLICT (title) DO NOTHING;`;
 
+    // Safely upgrade existing tables if they don't have the new column yet
+    const upgradeModulesTable = `ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS lock_notice TEXT;`;
+
     try {
         await pool.query(queryTrades);
         await pool.query(queryLogs); 
         await pool.query(queryLearningModules); 
+        await pool.query(upgradeModulesTable); // UPGRADES DB AUTOMATICALLY
         await pool.query(queryLessonVideos); 
         await pool.query(populateDefaultModules); 
-        console.log("✅ Database Tables Verified/Created (Trades + LMS)");
+        console.log("✅ Database Tables Verified/Created (Trades + LMS with Lock Notices)");
     } catch (err) {
         console.error("❌ Database Error:", err);
     }
