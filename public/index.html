@@ -56,8 +56,6 @@
         .b-active { color: var(--blue); } .b-del { color: var(--red); }
         
         .offcanvas-bottom { height: auto !important; border-radius: 15px 15px 0 0; left: 0; right: 0; margin: 0 auto; max-width: 800px; }
-        .form-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 2px; }
-        .form-control, .form-select { font-size: 13px; padding: 8px; }
         .custom-check { width: 18px; height: 18px; margin-right: 10px; border-radius: 4px; border: 2px solid #ccc; }
         .custom-check:checked { background-color: var(--blue); border-color: var(--blue); }
         
@@ -98,6 +96,14 @@
         
         .lock-notice { background-color: #fff3cd; color: #856404; padding: 6px 12px; font-size: 11px; font-weight: 600; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
         .lock-notice a { color: #0056b3; text-decoration: underline; }
+
+        /* COMPACT FORMS & MODALS */
+        .form-control, .form-select { font-size: 13px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-color); }
+        .form-control:focus, .form-select:focus { border-color: var(--blue); box-shadow: 0 0 0 0.2rem rgba(0, 122, 255, 0.15); }
+        .modal-content { border-radius: 8px; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+        .modal-header { padding: 12px 15px 0; border-bottom: none; }
+        .modal-title { font-size: 15px; font-weight: 700; color: #000; }
+        .modal-body { padding: 15px; }
 
         /* VIDEO PLAYER */
         #videoPlayerContainer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; display: none; }
@@ -181,60 +187,84 @@
     </div>
 
     <div class="modal fade" id="adminCourseModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 380px;">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold">Admin Course Manager</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title mb-0">Admin Course Manager</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
                 </div>
-                <div class="modal-body" style="font-size: 13px;">
-                    <h6 class="fw-bold text-primary border-bottom pb-2">1. Add New Category/Module</h6>
+                <div class="modal-body">
+                    <h6 class="fw-bold text-primary border-bottom pb-2" style="font-size: 13px;">1. Add New Module</h6>
                     <form id="formAddModule" class="mb-4">
-                        <div class="mb-2"><input type="text" id="modTitle" class="form-control" placeholder="Module Title (e.g. Level 5)" required></div>
-                        <div class="mb-2"><input type="text" id="modDesc" class="form-control" placeholder="Short Description"></div>
                         <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Module Title</label>
+                            <input type="text" id="modTitle" class="form-control" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Short Description</label>
+                            <input type="text" id="modDesc" class="form-control">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Access Level</label>
                             <select id="modLevel" class="form-select" required>
-                                <option value="demo">Demo / Public (No Login Required)</option>
+                                <option value="demo">Demo / Public</option>
                                 <option value="level_1_status">Level 1 (All Access)</option>
-                                <option value="level_2_status">Requires Level 2 Access</option>
-                                <option value="level_3_status">Requires Level 3 Access</option>
-                                <option value="level_4_status">Requires Level 4 Access</option>
+                                <option value="level_2_status">Requires Level 2</option>
+                                <option value="level_3_status">Requires Level 3</option>
+                                <option value="level_4_status">Requires Level 4</option>
                             </select>
                         </div>
-                        <div class="mb-2"><input type="number" id="modDisplayOrder" class="form-control" placeholder="Display Order (e.g. 1, 2, 3)" value="0" required></div>
-                        <div class="mb-3"><label class="form-label text-muted small">Custom Lock Notice (HTML/Links allowed)</label><input type="text" id="modLockNotice" class="form-control" placeholder='⚠️ Locked. &lt;a href="https://rdalgo.in" target="_blank"&gt;Upgrade Here&lt;/a&gt;'></div>
-                        <button type="submit" class="btn btn-sm btn-primary w-100">Create Module</button>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
+                            <input type="number" id="modDisplayOrder" class="form-control" value="0" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Custom Lock Notice (HTML Allowed)</label>
+                            <input type="text" id="modLockNotice" class="form-control">
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Create Module</button>
                     </form>
 
-                    <h6 class="fw-bold text-primary border-bottom pb-2">2. Add New Video Lesson</h6>
+                    <h6 class="fw-bold text-primary border-bottom pb-2" style="font-size: 13px;">2. Add New Video Lesson</h6>
                     <form id="formAddLesson" class="mb-4">
-                        <div class="mb-2"><select id="lessonModuleId" class="form-select" required><option value="">Select a Module first...</option></select></div>
-                        <div class="mb-2"><input type="text" id="lessonTitle" class="form-control" placeholder="Video Title" required></div>
-                        <div class="mb-2"><input type="text" id="lessonDesc" class="form-control" placeholder="Video Description"></div>
-                        <div class="mb-2"><input type="number" id="lessonDisplayOrder" class="form-control" placeholder="Display Order (e.g. 1, 2, 3)" value="0" required></div>
-                        
                         <div class="mb-2">
-                            <label class="text-muted small fw-bold">Upload Thumbnail Image</label>
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Select Module</label>
+                            <select id="lessonModuleId" class="form-select" required><option value="">Select...</option></select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Video Title</label>
+                            <input type="text" id="lessonTitle" class="form-control" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
+                            <input type="text" id="lessonDesc" class="form-control">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
+                            <input type="number" id="lessonDisplayOrder" class="form-control" value="0" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Upload Thumbnail (Optional)</label>
                             <input type="file" id="lessonThumbnailFile" class="form-control" accept="image/*">
                         </div>
                         <div class="mb-3">
-                            <label class="text-muted small fw-bold">Upload MP4 Video</label>
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Upload MP4 Video</label>
                             <input type="file" id="lessonVideoFile" class="form-control" accept="video/mp4,video/x-m4v,video/*" required>
                         </div>
-                        <button type="submit" class="btn btn-sm btn-success w-100">Upload Video File</button>
+                        <button type="submit" class="btn btn-sm btn-success w-100" style="padding:8px; border-radius:4px;">Upload Video</button>
                     </form>
 
-                    <h6 class="fw-bold text-primary border-bottom pb-2">3. Global View Settings</h6>
+                    <h6 class="fw-bold text-primary border-bottom pb-2" style="font-size: 13px;">3. Global View Settings</h6>
                     <form id="formAdminSettings">
                         <div class="mb-2">
-                            <label class="form-label text-muted small">Default Accordion State (For All Users)</label>
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Default Accordion State</label>
                             <select id="adminAccordionState" class="form-select" required>
                                 <option value="first">Open 1st Module & 1st Video</option>
                                 <option value="all">Open All Modules & Videos</option>
                                 <option value="none">Close All</option>
                             </select>
                         </div>
-                        <button type="submit" class="btn btn-sm btn-warning w-100 fw-bold">Save Settings</button>
+                        <button type="submit" class="btn btn-sm btn-warning w-100 fw-bold" style="padding:8px; border-radius:4px;">Save Settings</button>
                     </form>
                 </div>
             </div>
@@ -242,30 +272,42 @@
     </div>
 
     <div class="modal fade" id="editModuleModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 320px;">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold">Edit Category/Module</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title mb-0">Edit Module</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
                 </div>
-                <div class="modal-body" style="font-size: 13px;">
+                <div class="modal-body">
                     <form id="formEditModule">
                         <input type="hidden" id="editModId">
-                        <div class="mb-2"><label class="form-label text-muted small">Module Title</label><input type="text" id="editModTitle" class="form-control" required></div>
-                        <div class="mb-2"><label class="form-label text-muted small">Description</label><input type="text" id="editModDesc" class="form-control"></div>
                         <div class="mb-2">
-                            <label class="form-label text-muted small">Required Access Level</label>
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Module Title</label>
+                            <input type="text" id="editModTitle" class="form-control" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
+                            <input type="text" id="editModDesc" class="form-control">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Access Level</label>
                             <select id="editModLevel" class="form-select" required>
-                                <option value="demo">Demo / Public (No Login Required)</option>
+                                <option value="demo">Demo / Public</option>
                                 <option value="level_1_status">Level 1 (All Access)</option>
-                                <option value="level_2_status">Requires Level 2 Access</option>
-                                <option value="level_3_status">Requires Level 3 Access</option>
-                                <option value="level_4_status">Requires Level 4 Access</option>
+                                <option value="level_2_status">Requires Level 2</option>
+                                <option value="level_3_status">Requires Level 3</option>
+                                <option value="level_4_status">Requires Level 4</option>
                             </select>
                         </div>
-                        <div class="mb-2"><label class="form-label text-muted small">Display Order (Placement)</label><input type="number" id="editModDisplayOrder" class="form-control" required></div>
-                        <div class="mb-3"><label class="form-label text-muted small">Custom Lock Notice (HTML/Links allowed)</label><input type="text" id="editModLockNotice" class="form-control"></div>
-                        <button type="submit" class="btn btn-sm btn-primary w-100">Save Changes</button>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
+                            <input type="number" id="editModDisplayOrder" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Custom Lock Notice</label>
+                            <input type="text" id="editModLockNotice" class="form-control">
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Save Changes</button>
                     </form>
                 </div>
             </div>
@@ -273,23 +315,32 @@
     </div>
 
     <div class="modal fade" id="editLessonModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 320px;">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold">Edit Video Information</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title mb-0">Edit Video Information</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
                 </div>
-                <div class="modal-body" style="font-size: 13px;">
+                <div class="modal-body">
                     <form id="formEditLesson">
                         <input type="hidden" id="editLessonId">
-                        <div class="mb-2"><label class="form-label text-muted small">Video Title</label><input type="text" id="editLessonTitle" class="form-control" required></div>
-                        <div class="mb-2"><label class="form-label text-muted small">Description</label><input type="text" id="editLessonDesc" class="form-control"></div>
-                        <div class="mb-3"><label class="form-label text-muted small">Display Order (Placement)</label><input type="number" id="editLessonDisplayOrder" class="form-control" required></div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Video Title</label>
+                            <input type="text" id="editLessonTitle" class="form-control" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
+                            <input type="text" id="editLessonDesc" class="form-control">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
+                            <input type="number" id="editLessonDisplayOrder" class="form-control" required>
+                        </div>
                         <div class="mb-3">
-                            <label class="form-label text-muted small">Update Thumbnail Image (Leave empty to keep existing)</label>
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Update Thumbnail</label>
                             <input type="file" id="editLessonThumbnailFile" class="form-control" accept="image/*">
                         </div>
-                        <button type="submit" class="btn btn-sm btn-primary w-100">Save Changes</button>
+                        <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Save Changes</button>
                     </form>
                 </div>
             </div>
@@ -300,12 +351,24 @@
         <div class="offcanvas-header pb-0"><h6 class="offcanvas-title fw-bold">Filter Options</h6><button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button></div>
         <div class="offcanvas-body pt-2">
         <div class="row g-2">
-                <div class="col-12"><label class="form-label">DATE / RANGE</label><input type="text" id="filterDateRange" class="form-control" placeholder="Select Date(s)..." style="background-color: #fff;"></div>
-                <div class="col-6"><label class="form-label">TYPE</label><select id="filterType" class="form-select"><option value="ALL">All</option><option value="BUY">Buy</option><option value="SELL">Sell</option></select></div>
-                <div class="col-6"><label class="form-label">STATUS</label><select id="filterStatus" class="form-select"><option value="ALL">All</option><option value="OPEN">Running</option><option value="TP">Profitable</option><option value="SL">Loss</option></select></div>
-                <div class="col-12"><label class="form-label">SYMBOL</label><select id="filterSymbol" class="form-select"><option value="">All Symbols</option></select></div>
+                <div class="col-12">
+                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Date / Range</label>
+                    <input type="text" id="filterDateRange" class="form-control" placeholder="Select Date(s)..." style="background-color: #fff;">
+                </div>
+                <div class="col-6">
+                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Type</label>
+                    <select id="filterType" class="form-select"><option value="ALL">All</option><option value="BUY">Buy</option><option value="SELL">Sell</option></select>
+                </div>
+                <div class="col-6">
+                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Status</label>
+                    <select id="filterStatus" class="form-select"><option value="ALL">All</option><option value="OPEN">Running</option><option value="TP">Profitable</option><option value="SL">Loss</option></select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Symbol</label>
+                    <select id="filterSymbol" class="form-select"><option value="">All Symbols</option></select>
+                </div>
             </div>
-            <button class="btn btn-primary w-100 mt-3 fw-bold" data-bs-dismiss="offcanvas" onclick="applyFilters()">Apply</button>
+            <button class="btn btn-primary w-100 mt-3 fw-bold" style="padding:8px; border-radius:4px;" data-bs-dismiss="offcanvas" onclick="applyFilters()">Apply</button>
         </div>
     </div>
 
