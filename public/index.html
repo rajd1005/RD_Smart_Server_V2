@@ -83,27 +83,26 @@
         .video-js { width: 100% !important; height: 100% !important; }
         .close-video { position: absolute; top: 15px; right: 15px; z-index: 2010; color: #fff; background: rgba(0,0,0,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
         
-        /* UPDATED: DYNAMIC WATERMARK (Bold, Red, Smooth Floating) */
+        /* UPDATED: DYNAMIC WATERMARK (Bold, Red, Auto-Scaling via vmin, Smooth Floating) */
         #dynamicWatermark {
             position: absolute; 
-            color: rgba(255, 0, 0, 0.75); /* Deep Red, slightly transparent */
+            color: rgba(255, 0, 0, 0.85); /* Solid Bold Red */
             font-family: 'Roboto', sans-serif;
-            font-size: 15px; 
-            font-weight: 900; /* Extra Bold */
+            font-size: clamp(11px, 3.5vmin, 24px); /* Dynamically shrinks on small phones, grows on PC */
+            font-weight: 900; 
             text-align: center;
             line-height: 1.3;
-            pointer-events: none; /* User cannot click it */
+            pointer-events: none; 
             z-index: 2005; 
             white-space: nowrap; 
             display: none;
-            /* Text shadow to guarantee visibility over pure red or white video frames */
             text-shadow: 1px 1px 3px rgba(0,0,0,0.9), -1px -1px 3px rgba(255,255,255,0.4); 
-            /* Smooth CSS transition for floating effect */
             transition: top 3s ease-in-out, left 3s ease-in-out; 
         }
 
-        /* ADMIN DELETE BUTTONS */
-        .admin-del-btn { color: var(--red); background: none; border: none; font-size: 14px; padding: 5px; display: none; }
+        /* ADMIN EDIT & DELETE BUTTONS */
+        .admin-edit-btn { color: var(--blue); background: none; border: none; font-size: 14px; padding: 5px; }
+        .admin-del-btn { color: var(--red); background: none; border: none; font-size: 14px; padding: 5px; }
     </style>
 </head>
 <body>
@@ -143,7 +142,6 @@
     <div id="videoPlayerContainer">
         <button class="close-video" onclick="closeVideoPlayer()"><span class="material-icons-round">close</span></button>
         <div id="dynamicWatermark"></div>
-        
         <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" disablePictureInPicture controlsList="nodownload nofullscreen noremoteplayback"></video>
     </div>
 
@@ -172,11 +170,7 @@
 
                     <h6 class="fw-bold text-primary border-bottom pb-2">2. Add New Video Lesson</h6>
                     <form id="formAddLesson">
-                        <div class="mb-2">
-                            <select id="lessonModuleId" class="form-select" required>
-                                <option value="">Select a Module first...</option>
-                            </select>
-                        </div>
+                        <div class="mb-2"><select id="lessonModuleId" class="form-select" required><option value="">Select a Module first...</option></select></div>
                         <div class="mb-2"><input type="text" id="lessonTitle" class="form-control" placeholder="Video Title" required></div>
                         <div class="mb-2"><input type="text" id="lessonDesc" class="form-control" placeholder="Video Description"></div>
                         <div class="mb-3">
@@ -185,6 +179,53 @@
                             <div class="text-muted" style="font-size: 10px; margin-top: 4px;">*Video will be automatically encrypted and watermarked.</div>
                         </div>
                         <button type="submit" class="btn btn-sm btn-success w-100">Upload Video File</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editModuleModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Edit Category/Module</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="font-size: 13px;">
+                    <form id="formEditModule">
+                        <input type="hidden" id="editModId">
+                        <div class="mb-2"><label class="form-label text-muted small">Module Title</label><input type="text" id="editModTitle" class="form-control" required></div>
+                        <div class="mb-2"><label class="form-label text-muted small">Description</label><input type="text" id="editModDesc" class="form-control"></div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small">Required Access Level</label>
+                            <select id="editModLevel" class="form-select" required>
+                                <option value="level_1_status">Level 1 (All Access)</option>
+                                <option value="level_2_status">Requires Level 2 Access</option>
+                                <option value="level_3_status">Requires Level 3 Access</option>
+                                <option value="level_4_status">Requires Level 4 Access</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-primary w-100">Save Changes</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editLessonModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Edit Video Information</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="font-size: 13px;">
+                    <form id="formEditLesson">
+                        <input type="hidden" id="editLessonId">
+                        <div class="mb-2"><label class="form-label text-muted small">Video Title</label><input type="text" id="editLessonTitle" class="form-control" required></div>
+                        <div class="mb-3"><label class="form-label text-muted small">Description</label><input type="text" id="editLessonDesc" class="form-control"></div>
+                        <button type="submit" class="btn btn-sm btn-primary w-100">Save Changes</button>
                     </form>
                 </div>
             </div>
