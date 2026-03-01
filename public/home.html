@@ -20,15 +20,8 @@
         
         .navbar { background: #fff; border-bottom: 1px solid var(--border-color); padding: 12px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .navbar-brand { font-size: 20px; font-weight: 900; color: #000; letter-spacing: -0.5px; }
-        
-        .hero-section { background: linear-gradient(135deg, var(--blue), var(--dark-blue)); color: #fff; padding: 60px 20px; text-align: center; border-radius: 0 0 30px 30px; box-shadow: 0 4px 15px rgba(0,122,255,0.3); }
-        .hero-title { font-weight: 900; font-size: 2.2rem; margin-bottom: 15px; }
-        .hero-subtitle { font-size: 1.1rem; opacity: 0.9; margin-bottom: 25px; font-weight: 400; max-width: 600px; margin-left: auto; margin-right: auto; }
-        .btn-login { background-color: #fff; color: var(--blue); font-weight: 700; padding: 10px 30px; border-radius: 50px; font-size: 1.1rem; text-decoration: none; box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: all 0.2s ease; cursor: pointer;}
-        .btn-login:hover { background-color: #f8f9fa; transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.2); }
 
         .curriculum-container { max-width: 800px; margin: 40px auto; padding: 0 15px; }
-        .section-header { font-weight: 800; font-size: 1.5rem; margin-bottom: 20px; color: #333; text-align: center; }
 
         .accordion-item { border: 1px solid var(--border-color); border-radius: 12px !important; margin-bottom: 15px; background: #fff; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
         .accordion-button { padding: 18px 20px; font-weight: 800; color: #000; background: #f8f9fa; box-shadow: none !important; font-size: 16px; }
@@ -82,14 +75,7 @@
         <button class="btn btn-sm btn-primary fw-bold px-3 py-2" style="border-radius: 8px;" data-bs-toggle="modal" data-bs-target="#loginModal">Login</button>
     </nav>
 
-    <div class="hero-section">
-        <h1 class="hero-title">Master The Markets</h1>
-        <p class="hero-subtitle">Access professional trading courses, advanced strategies, and live dashboard signals. Join the RD Algo community today.</p>
-        <button class="btn-login d-inline-block mt-2 border-0" data-bs-toggle="modal" data-bs-target="#loginModal">Student Access</button>
-    </div>
-
     <div class="curriculum-container">
-        <h3 class="section-header">Course Curriculum Overview</h3>
         <div class="accordion" id="publicCourseContainer">
             <div class="p-5 text-center text-muted fw-bold">Loading courses...</div>
         </div>
@@ -147,12 +133,10 @@
             e.preventDefault();
         });
 
-        // Trigger Login Modal from JS
         function openLoginModal() {
             bootstrap.Modal.getOrCreateInstance(document.getElementById('loginModal')).show();
         }
 
-        // Login Submission Logic
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const email = document.getElementById('loginEmail').value;
@@ -177,7 +161,7 @@
                     localStorage.setItem('userEmail', data.email);
                     localStorage.setItem('userPhone', data.phone);
                     localStorage.setItem('accessLevels', JSON.stringify(data.accessLevels));
-                    window.location.href = '/'; // Direct to Dashboard
+                    window.location.href = '/'; 
                 } else {
                     errorMsg.innerText = data.msg;
                     errorMsg.style.display = 'block';
@@ -230,7 +214,7 @@
                 const modules = await response.json();
 
                 if (modules.length === 0) {
-                    container.innerHTML = '<div class="p-4 text-center text-muted">Curriculum updating soon.</div>';
+                    container.innerHTML = '<div class="p-4 text-center text-muted">No courses added yet.</div>';
                     return;
                 }
 
@@ -284,7 +268,7 @@
 
                         lessonHtml += `</div>`;
                     } else {
-                        lessonHtml = '<div class="text-muted small p-3 text-center">Lessons coming soon.</div>';
+                        lessonHtml = '<div class="text-muted small p-3 text-center">No videos yet.</div>';
                     }
 
                     htmlContent += `
