@@ -6,9 +6,9 @@ const TelegramBot = require('node-telegram-bot-api');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const path = require('path');
-const crypto = require('crypto'); // Added to generate unique Session IDs
+const crypto = require('crypto'); 
 const { pool, initDb } = require('./database');
-const authPool = require('./authDb'); // Import MySQL connection
+const authPool = require('./authDb'); 
 require('dotenv').config();
 
 const app = express();
@@ -23,6 +23,10 @@ app.use(cookieParser());
 // --- CONFIG ---
 const DELETE_PASSWORD = process.env.DELETE_PASSWORD || "admin123"; 
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_123";
+
+// NEW: Admin Login Credentials (Set these in your Railway Variables)
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@rdalgo.in";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
 
 // --- TRUE IP EXTRACTOR ---
 function getClientIp(req) {
@@ -130,33 +134,50 @@ app.post('/api/login', async (req, res) => {
     const { email, password, rememberMe } = req.body;
     const clientIp = getClientIp(req);
     
+    console.log(`\n[LOGIN ATTEMPT] Email: ${email} | True IP: ${clientIp}`);
+    
     try {
-        const [rows] = await authPool.query(
-            "SELECT * FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?",
-            [email, password]
-        );
+        let userEmail = "";
+        let userRole = "student";
 
-        if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
+        // --- 1. ADMIN BYPASS CHECK ---
+        if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+            console.log(`[LOGIN SUCCESS] 👑 ADMIN Access granted.`);
+            userEmail = ADMIN_EMAIL;
+            userRole = "admin";
+        } 
+        // --- 2. STUDENT DATABASE CHECK ---
+        else {
+            const [rows] = await authPool.query(
+                "SELECT * FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?",
+                [email, password]
+            );
 
-        const student = rows[0];
-        const expiryDate = new Date(student.student_expiry_date);
-        const today = new Date();
-        
-        if (expiryDate < today) return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." });
+            if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
 
-        // Generate Session ID & Save to Postgres Database
+            const student = rows[0];
+            const expiryDate = new Date(student.student_expiry_date);
+            const today = new Date();
+            
+            if (expiryDate < today) return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." });
+
+            console.log(`[LOGIN SUCCESS] 🎉 Student Access granted.`);
+            userEmail = student.student_email;
+        }
+
+        // Generate Session ID & Save to Postgres Database (Works for BOTH Admin and Students)
         const sessionId = crypto.randomUUID();
         await pool.query(
             "INSERT INTO login_logs (email, session_id, ip_address) VALUES ($1, $2, $3)", 
-            [student.student_email, sessionId, clientIp]
+            [userEmail, sessionId, clientIp]
         );
 
         // Auto-delete records older than 30 days to keep DB clean
         await pool.query("DELETE FROM login_logs WHERE login_time < NOW() - INTERVAL '30 days'");
 
-        // Embed the unique sessionId into the user's token
+        // Embed the unique sessionId and role into the user's token
         const token = jwt.sign(
-            { email: student.student_email, ip: clientIp, sessionId: sessionId }, 
+            { email: userEmail, ip: clientIp, sessionId: sessionId, role: userRole }, 
             JWT_SECRET, 
             { expiresIn: rememberMe ? '30d' : '1d' } 
         );
