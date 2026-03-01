@@ -1,4 +1,3 @@
-// --- API ENDPOINTS ---
 const API_URL = '/api/trades'; 
 const API_URL_COURSES = '/api/courses'; 
 const API_URL_LESSON = '/api/lesson/';
@@ -48,8 +47,35 @@ function switchSection(section) {
 }
 
 // ==========================================
-// --- LMS COURSE LOGIC ---
+// --- LMS COURSE ACCORDION LOGIC ---
 // ==========================================
+
+function toggleAccordions(action) {
+    const collapses = document.querySelectorAll('.accordion-collapse');
+    const buttons = document.querySelectorAll('.accordion-button');
+    
+    collapses.forEach((el, index) => {
+        if (action === 'all') {
+            el.classList.add('show');
+            buttons[index].classList.remove('collapsed');
+            buttons[index].setAttribute('aria-expanded', 'true');
+        } else if (action === 'none') {
+            el.classList.remove('show');
+            buttons[index].classList.add('collapsed');
+            buttons[index].setAttribute('aria-expanded', 'false');
+        } else if (action === 'first') {
+            if (index === 0) {
+                el.classList.add('show');
+                buttons[index].classList.remove('collapsed');
+                buttons[index].setAttribute('aria-expanded', 'true');
+            } else {
+                el.classList.remove('show');
+                buttons[index].classList.add('collapsed');
+                buttons[index].setAttribute('aria-expanded', 'false');
+            }
+        }
+    });
+}
 
 async function fetchCourses() {
     const container = document.getElementById('courseModuleContainer');
@@ -74,11 +100,9 @@ async function fetchCourses() {
             }
         }
 
-        globalModules.forEach(mod => {
-            
-            // --- NEW: HIDE DEMO COURSE FOR LOGGED-IN STUDENTS ---
+        globalModules.forEach((mod, index) => {
             if (userData.role !== 'admin' && mod.required_level === 'demo') {
-                return; // Skips rendering entirely!
+                return; 
             }
 
             const isLocked = userData.role !== 'admin' && mod.required_level !== 'demo' && accessLevels[mod.required_level] !== 'Yes';
@@ -89,9 +113,9 @@ async function fetchCourses() {
             const safeNotice = (mod.lock_notice || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             
             const adminBtnsMod = userData.role === 'admin' ? `
-                <div class="d-flex align-items-center ms-2">
-                    <button class="admin-edit-btn" onclick="openEditModule(${mod.id}, '${safeTitle}', '${safeDesc}', '${mod.required_level}', '${safeNotice}', ${mod.display_order || 0})"><span class="material-icons-round" style="font-size: 18px;">edit</span></button>
-                    <button class="admin-del-btn" onclick="deleteModule(${mod.id})"><span class="material-icons-round" style="font-size: 18px;">delete</span></button>
+                <div class="d-flex align-items-center ms-auto me-3">
+                    <button class="admin-edit-btn" onclick="openEditModule(event, ${mod.id}, '${safeTitle}', '${safeDesc}', '${mod.required_level}', '${safeNotice}', ${mod.display_order || 0})"><span class="material-icons-round" style="font-size: 18px;">edit</span></button>
+                    <button class="admin-del-btn" onclick="deleteModule(event, ${mod.id})"><span class="material-icons-round" style="font-size: 18px;">delete</span></button>
                 </div>` : '';
 
             let lessonHtml = '';
@@ -112,11 +136,13 @@ async function fetchCourses() {
                             <button class="admin-del-btn" onclick="deleteLesson(event, ${l.id})"><span class="material-icons-round" style="font-size: 18px;">delete</span></button>
                         </div>` : '';
 
+                    const thumbnailImg = l.thumbnail_url ? `<img src="${l.thumbnail_url}" class="lesson-thumbnail">` : `<span class="material-icons-round lesson-icon">play_circle_filled</span>`;
+
                     if (isLocked) {
                         lessonHtml += `
                             <div class="lesson-item" style="opacity: 0.5; cursor: not-allowed; background-color: #fafafa;">
                                 <div class="d-flex align-items-center w-100">
-                                    <span class="material-icons-round lesson-icon" style="color: #b0b0b0;">play_circle_filled</span>
+                                    ${thumbnailImg}
                                     <div class="flex-grow-1">
                                         <div class="fw-bold" style="color: #666;">${l.title}</div>
                                         ${l.description ? `<div class="text-muted small">${l.description}</div>` : ''}
@@ -127,7 +153,7 @@ async function fetchCourses() {
                         lessonHtml += `
                             <div class="lesson-item" onclick="openSecureVideo(${l.id})">
                                 <div class="d-flex align-items-center w-100">
-                                    <span class="material-icons-round lesson-icon">play_circle_filled</span>
+                                    ${thumbnailImg}
                                     <div class="flex-grow-1">
                                         <div class="fw-bold">${l.title}</div>
                                         ${l.description ? `<div class="text-muted small">${l.description}</div>` : ''}
@@ -138,43 +164,46 @@ async function fetchCourses() {
                     }
                 });
             } else if (!isLocked) {
-                lessonHtml = '<div class="text-muted small p-2">No videos yet.</div>';
+                lessonHtml = '<div class="text-muted small p-3 text-center">No videos yet.</div>';
             }
 
+            // RENDER ACCORDION ITEM
             htmlContent += `
-                <div class="course-module ${isLocked ? 'module-locked' : ''}">
-                    <div class="module-header">
-                        <div class="d-flex align-items-center"><h6 class="module-title mb-0">${mod.title}</h6>${adminBtnsMod}</div>
-                        ${levelBadge}
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="heading${mod.id}">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${mod.id}" aria-expanded="false" aria-controls="collapse${mod.id}">
+                            <div class="d-flex align-items-center flex-grow-1">
+                                <h6 class="mb-0 fw-bold">${mod.title}</h6>
+                                ${levelBadge}
+                            </div>
+                            ${adminBtnsMod}
+                        </button>
+                    </h2>
+                    <div id="collapse${mod.id}" class="accordion-collapse collapse" aria-labelledby="heading${mod.id}">
+                        <div class="accordion-body p-0">
+                            ${lessonHtml}
+                        </div>
                     </div>
-                    <div>${lessonHtml}</div>
                 </div>`;
         });
+        
         container.innerHTML = htmlContent || '<div class="p-4 text-center text-muted">No courses found.</div>';
+        
+        // Open the first accordion automatically after rendering
+        setTimeout(() => { toggleAccordions('first'); }, 100);
+
     } catch (err) { 
         console.error(err);
         container.innerHTML = `<div class="p-3 text-danger text-center">❌ Error loading courses.</div>`; 
     }
 }
 
-// ==========================================
-// --- SECURE VIDEO PLAYER & WATERMARK LOGIC ---
-// ==========================================
 
-document.getElementById('videoPlayerContainer').addEventListener('contextmenu', function(e) {
-    e.preventDefault();
-});
+document.getElementById('videoPlayerContainer').addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
 async function openSecureVideo(lessonId) {
     if (!videoPlayer) {
-        videoPlayer = videojs('my-video', { 
-            hls: { overrideNative: true }, 
-            html5: { vhs: { overrideNative: true } },
-            controlBar: {
-                fullscreenToggle: false, 
-                pictureInPictureToggle: false 
-            }
-        });
+        videoPlayer = videojs('my-video', { hls: { overrideNative: true }, html5: { vhs: { overrideNative: true } }, controlBar: { fullscreenToggle: false, pictureInPictureToggle: false } });
         videoPlayer.el().addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
         videoPlayer.on('loadedmetadata', async function() {
@@ -182,9 +211,8 @@ async function openSecureVideo(lessonId) {
             const vh = videoPlayer.videoHeight();
             if (screen.orientation && screen.orientation.lock) {
                 try { 
-                    if (vw > vh) { await screen.orientation.lock("landscape"); } 
-                    else { await screen.orientation.lock("portrait"); }
-                } catch (e) { console.warn("Auto-rotate blocked by browser logic."); }
+                    if (vw > vh) { await screen.orientation.lock("landscape"); } else { await screen.orientation.lock("portrait"); }
+                } catch (e) { }
             }
         });
     }
@@ -198,37 +226,24 @@ async function openSecureVideo(lessonId) {
         const data = await response.json();
         
         videoPlayer.src({ src: data.hlsUrl, type: 'application/x-mpegURL' });
-        
         const playerContainer = document.getElementById('videoPlayerContainer');
         playerContainer.style.display = 'block';
         
-        if (playerContainer.requestFullscreen) {
-            await playerContainer.requestFullscreen().catch(e => console.warn(e));
-        } else if (playerContainer.webkitRequestFullscreen) { 
-            await playerContainer.webkitRequestFullscreen().catch(e => console.warn(e));
-        }
+        if (playerContainer.requestFullscreen) { await playerContainer.requestFullscreen().catch(e => {}); } 
+        else if (playerContainer.webkitRequestFullscreen) { await playerContainer.webkitRequestFullscreen().catch(e => {}); }
 
         startWatermark();
         videoPlayer.play();
-        
     } catch(err) { alert("🚨 Error loading video stream."); }
 }
 
 function closeVideoPlayer() {
     if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
-    
-    if (screen.orientation && screen.orientation.unlock) {
-        try { screen.orientation.unlock(); } catch (e) {}
-    }
-    
+    if (screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch (e) {} }
     if (document.fullscreenElement || document.webkitFullscreenElement) {
-        if (document.exitFullscreen) {
-            document.exitFullscreen().catch(e => console.warn(e));
-        } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen().catch(e => console.warn(e));
-        }
+        if (document.exitFullscreen) { document.exitFullscreen().catch(e => {}); } 
+        else if (document.webkitExitFullscreen) { document.webkitExitFullscreen().catch(e => {}); }
     }
-    
     stopWatermark();
     document.getElementById('videoPlayerContainer').style.display = 'none';
 }
@@ -237,7 +252,6 @@ function startWatermark() {
     const wmEl = document.getElementById('dynamicWatermark');
     wmEl.innerHTML = `${userData.email || 'Email'}<br>${userData.phone || 'Phone'}<br>Rdalgo.in`;
     wmEl.style.display = 'block';
-    
     if (watermarkInterval) clearInterval(watermarkInterval);
     moveWatermark();
     watermarkInterval = setInterval(moveWatermark, 3000); 
@@ -258,46 +272,24 @@ function moveWatermark() {
     const vw = videoPlayer.videoWidth();
     const vh = videoPlayer.videoHeight();
     
-    if (!vw || !vh) {
-        wmEl.style.left = '50%';
-        wmEl.style.top = '50%';
-        wmEl.style.transform = 'translate(-50%, -50%)';
-        return;
-    } else {
-        wmEl.style.transform = 'none'; 
-    }
+    if (!vw || !vh) { wmEl.style.left = '50%'; wmEl.style.top = '50%'; wmEl.style.transform = 'translate(-50%, -50%)'; return; } 
+    else { wmEl.style.transform = 'none'; }
 
-    const cw = container.clientWidth;
-    const ch = container.clientHeight;
-    const videoRatio = vw / vh;
-    const containerRatio = cw / ch;
+    const cw = container.clientWidth; const ch = container.clientHeight;
+    const videoRatio = vw / vh; const containerRatio = cw / ch;
 
     let renderedWidth, renderedHeight, offsetX, offsetY;
 
-    if (videoRatio > containerRatio) {
-        renderedWidth = cw;
-        renderedHeight = cw / videoRatio;
-        offsetX = 0;
-        offsetY = (ch - renderedHeight) / 2;
-    } else {
-        renderedHeight = ch;
-        renderedWidth = ch * videoRatio;
-        offsetX = (cw - renderedWidth) / 2;
-        offsetY = 0;
-    }
+    if (videoRatio > containerRatio) { renderedWidth = cw; renderedHeight = cw / videoRatio; offsetX = 0; offsetY = (ch - renderedHeight) / 2; } 
+    else { renderedHeight = ch; renderedWidth = ch * videoRatio; offsetX = (cw - renderedWidth) / 2; offsetY = 0; }
 
-    const minX = offsetX + 10; 
-    const maxX = Math.max(minX, offsetX + renderedWidth - wmEl.clientWidth - 10);
-    
-    const minY = offsetY + 50; 
-    const maxY = Math.max(minY, offsetY + renderedHeight - wmEl.clientHeight - 20);
+    const minX = offsetX + 10; const maxX = Math.max(minX, offsetX + renderedWidth - wmEl.clientWidth - 10);
+    const minY = offsetY + 50; const maxY = Math.max(minY, offsetY + renderedHeight - wmEl.clientHeight - 20);
 
-    const randomX = Math.floor(Math.random() * (maxX - minX + 1)) + minX;
-    const randomY = Math.floor(Math.random() * (maxY - minY + 1)) + minY;
-
-    wmEl.style.left = randomX + 'px';
-    wmEl.style.top = randomY + 'px';
+    wmEl.style.left = Math.floor(Math.random() * (maxX - minX + 1)) + minX + 'px';
+    wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
 }
+
 
 // ==========================================
 // --- ADMIN COURSE MANAGEMENT FORMS ---
@@ -308,16 +300,14 @@ if (formAddModule) {
     formAddModule.addEventListener('submit', async (e) => {
         e.preventDefault();
         const data = {
-            title: document.getElementById('modTitle').value, 
-            description: document.getElementById('modDesc').value, 
-            required_level: document.getElementById('modLevel').value,
-            display_order: document.getElementById('modDisplayOrder').value,
+            title: document.getElementById('modTitle').value, description: document.getElementById('modDesc').value, 
+            required_level: document.getElementById('modLevel').value, display_order: document.getElementById('modDisplayOrder').value,
             lock_notice: document.getElementById('modLockNotice').value
         };
         try {
             const res = await fetch('/api/admin/modules', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
             if(res.ok) { alert("Module Added!"); formAddModule.reset(); fetchCourses(); } else alert("Error adding module");
-        } catch(e) { console.error(e); }
+        } catch(e) {}
     });
 }
 
@@ -331,6 +321,9 @@ if (formAddLesson) {
         formData.append('description', document.getElementById('lessonDesc').value);
         formData.append('display_order', document.getElementById('lessonDisplayOrder').value);
         formData.append('video_file', document.getElementById('lessonVideoFile').files[0]);
+        
+        const thumbFile = document.getElementById('lessonThumbnailFile').files[0];
+        if (thumbFile) formData.append('thumbnail_file', thumbFile);
 
         const btn = e.target.querySelector('button'); btn.innerText = "⏳ Uploading & Encrypting..."; btn.disabled = true;
         try {
@@ -342,40 +335,13 @@ if (formAddLesson) {
     });
 }
 
-async function deleteModule(id) {
-    if(!confirm("⚠️ Delete this entire module AND all its videos?")) return;
-    try {
-        const res = await fetch(`/api/admin/modules/${id}`, { method: 'DELETE', credentials: 'same-origin' });
-        if(res.ok) fetchCourses();
-    } catch(e) { console.error(e); }
-}
-
-async function deleteLesson(e, id) {
-    e.stopPropagation(); 
-    if(!confirm("⚠️ Delete this video?")) return;
-    try {
-        const res = await fetch(`/api/admin/lessons/${id}`, { method: 'DELETE', credentials: 'same-origin' });
-        if(res.ok) fetchCourses();
-    } catch(e) { console.error(e); }
-}
-
-function openEditModule(id, title, desc, level, notice, order) {
-    document.getElementById('editModId').value = id;
-    document.getElementById('editModTitle').value = title;
+function openEditModule(e, id, title, desc, level, notice, order) {
+    e.stopPropagation();
+    document.getElementById('editModId').value = id; document.getElementById('editModTitle').value = title;
     document.getElementById('editModDesc').value = (desc !== 'null' && desc !== 'undefined') ? desc : '';
-    document.getElementById('editModLevel').value = level;
-    document.getElementById('editModDisplayOrder').value = order;
+    document.getElementById('editModLevel').value = level; document.getElementById('editModDisplayOrder').value = order;
     document.getElementById('editModLockNotice').value = (notice !== 'null' && notice !== 'undefined') ? notice : '';
     bootstrap.Modal.getOrCreateInstance(document.getElementById('editModuleModal')).show();
-}
-
-function openEditLesson(e, id, title, desc, order) {
-    e.stopPropagation();
-    document.getElementById('editLessonId').value = id;
-    document.getElementById('editLessonTitle').value = title;
-    document.getElementById('editLessonDesc').value = (desc !== 'null' && desc !== 'undefined') ? desc : '';
-    document.getElementById('editLessonDisplayOrder').value = order;
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('editLessonModal')).show();
 }
 
 const formEditModule = document.getElementById('formEditModule');
@@ -384,18 +350,31 @@ if (formEditModule) {
         e.preventDefault();
         const id = document.getElementById('editModId').value;
         const data = {
-            title: document.getElementById('editModTitle').value,
-            description: document.getElementById('editModDesc').value,
-            required_level: document.getElementById('editModLevel').value,
-            display_order: document.getElementById('editModDisplayOrder').value,
+            title: document.getElementById('editModTitle').value, description: document.getElementById('editModDesc').value,
+            required_level: document.getElementById('editModLevel').value, display_order: document.getElementById('editModDisplayOrder').value,
             lock_notice: document.getElementById('editModLockNotice').value
         };
         try {
             const res = await fetch(`/api/admin/modules/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
-            if(res.ok) { bootstrap.Modal.getInstance(document.getElementById('editModuleModal')).hide(); fetchCourses(); } 
-            else { alert("Error updating module"); }
-        } catch(err) { console.error(err); }
+            if(res.ok) { bootstrap.Modal.getInstance(document.getElementById('editModuleModal')).hide(); fetchCourses(); } else { alert("Error updating module"); }
+        } catch(err) {}
     });
+}
+
+async function deleteModule(e, id) {
+    e.stopPropagation();
+    if(!confirm("⚠️ Delete this entire module AND all its videos?")) return;
+    try { const res = await fetch(`/api/admin/modules/${id}`, { method: 'DELETE', credentials: 'same-origin' }); if(res.ok) fetchCourses(); } catch(e) {}
+}
+
+
+function openEditLesson(e, id, title, desc, order) {
+    e.stopPropagation();
+    document.getElementById('editLessonId').value = id; document.getElementById('editLessonTitle').value = title;
+    document.getElementById('editLessonDesc').value = (desc !== 'null' && desc !== 'undefined') ? desc : '';
+    document.getElementById('editLessonDisplayOrder').value = order;
+    document.getElementById('editLessonThumbnailFile').value = ''; // Reset file input
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('editLessonModal')).show();
 }
 
 const formEditLesson = document.getElementById('formEditLesson');
@@ -403,18 +382,28 @@ if (formEditLesson) {
     formEditLesson.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('editLessonId').value;
-        const data = { 
-            title: document.getElementById('editLessonTitle').value, 
-            description: document.getElementById('editLessonDesc').value,
-            display_order: document.getElementById('editLessonDisplayOrder').value
-        };
+        
+        const formData = new FormData();
+        formData.append('title', document.getElementById('editLessonTitle').value);
+        formData.append('description', document.getElementById('editLessonDesc').value);
+        formData.append('display_order', document.getElementById('editLessonDisplayOrder').value);
+        
+        const thumbFile = document.getElementById('editLessonThumbnailFile').files[0];
+        if (thumbFile) formData.append('thumbnail_file', thumbFile);
+
         try {
-            const res = await fetch(`/api/admin/lessons/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
-            if(res.ok) { bootstrap.Modal.getInstance(document.getElementById('editLessonModal')).hide(); fetchCourses(); } 
-            else { alert("Error updating lesson"); }
-        } catch(err) { console.error(err); }
+            const res = await fetch(`/api/admin/lessons/${id}`, { method: 'PUT', credentials: 'same-origin', body: formData });
+            if(res.ok) { bootstrap.Modal.getInstance(document.getElementById('editLessonModal')).hide(); fetchCourses(); } else { alert("Error updating lesson"); }
+        } catch(err) {}
     });
 }
+
+async function deleteLesson(e, id) {
+    e.stopPropagation(); 
+    if(!confirm("⚠️ Delete this video?")) return;
+    try { const res = await fetch(`/api/admin/lessons/${id}`, { method: 'DELETE', credentials: 'same-origin' }); if(res.ok) fetchCourses(); } catch(e) {}
+}
+
 
 // ==========================================
 // --- ORIGINAL TRADE LOGIC (100% RESTORED) ---
@@ -425,8 +414,12 @@ function applyRoleRestrictions() {
     if (role === 'admin') {
         document.getElementById('btnSelect').style.display = 'flex';
         document.getElementById('btnDelete').style.display = 'flex';
+        
         const btnAdminCourseManager = document.getElementById('btnAdminCourseManager');
         if (btnAdminCourseManager) btnAdminCourseManager.style.display = 'inline-block';
+        
+        const adminAccordionControls = document.getElementById('adminAccordionControls');
+        if (adminAccordionControls) adminAccordionControls.style.display = 'block';
     }
 }
 
@@ -446,7 +439,6 @@ async function fetchTrades() {
         populateSymbolFilter(allTrades);
         applyFilters(checkedIds); 
     } catch (error) { 
-        console.error(error); 
         const container = document.getElementById('tradeListContainer');
         if (container) container.innerHTML = `<div class="p-3 text-danger text-center fw-bold">❌ Connection Error. Please refresh.</div>`;
     }
@@ -615,7 +607,7 @@ async function deleteSelected() {
         });
         const result = await res.json();
         if (result.success) { toggleSelectionMode(); alert("✅ Deleted Successfully"); } else { alert(result.msg || "❌ Error Deleting"); }
-    } catch (err) { console.error(err); }
+    } catch (err) {}
 }
 
 async function logout() {
@@ -623,7 +615,7 @@ async function logout() {
         await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
         localStorage.clear();
         window.location.href = '/home.html';
-    } catch (err) { console.error("Logout failed", err); }
+    } catch (err) {}
 }
 
 document.getElementById('filterSymbol').addEventListener('change', () => applyFilters());
