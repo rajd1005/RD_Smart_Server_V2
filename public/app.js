@@ -17,10 +17,13 @@ const userData = {
     role: localStorage.getItem('userRole')
 };
 
+// --- SET LEARN TAB AS DEFAULT ---
 window.onload = function() {
     initDatePicker();
-    fetchTrades();
+    fetchTrades(); // Fetches in background
+    fetchCourses(); // Loads courses immediately
     applyRoleRestrictions(); 
+    switchSection('learning'); // Forces UI into Learn tab automatically
 };
 
 function switchSection(section) {
@@ -56,7 +59,7 @@ async function fetchCourses() {
     
     try {
         const response = await fetch(API_URL_COURSES, { credentials: 'same-origin' });
-        if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
+        if (response.status === 401 || response.status === 403) { window.location.href = '/home.html'; return; }
         
         globalModules = await response.json();
         let accessLevels = {};
@@ -88,9 +91,8 @@ async function fetchCourses() {
 
             let lessonHtml = '';
             
-            // Render the Custom Lock Notice and force hyperlinks to open in new tab safely
             if (isLocked) {
-                let displayNotice = mod.lock_notice ? mod.lock_notice : `⚠️ Your WP Level Status restricts access. Please upgrade to unlock.`;
+                let displayNotice = mod.lock_notice ? mod.lock_notice : `⚠️ Your WP Level Status restricts access. Please contact Admin.`;
                 displayNotice = displayNotice.replace(/<a /gi, '<a target="_blank" rel="noopener noreferrer" '); 
                 lessonHtml += `<div class="lock-notice">${displayNotice}</div>`;
             } 
@@ -106,7 +108,6 @@ async function fetchCourses() {
                         </div>` : '';
 
                     if (isLocked) {
-                        // VISIBLE BUT UNCLICKABLE LOCKED STATE
                         lessonHtml += `
                             <div class="lesson-item" style="opacity: 0.5; cursor: not-allowed; background-color: #fafafa;">
                                 <div class="d-flex align-items-center w-100">
@@ -118,7 +119,6 @@ async function fetchCourses() {
                                 </div>
                             </div>`;
                     } else {
-                        // FULLY UNLOCKED STATE
                         lessonHtml += `
                             <div class="lesson-item" onclick="openSecureVideo(${l.id})">
                                 <div class="d-flex align-items-center w-100">
@@ -427,7 +427,7 @@ async function fetchTrades() {
     const checkedIds = getCheckedIds();
     try {
         const response = await fetch(API_URL, { method: 'GET', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin' });
-        if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
+        if (response.status === 401 || response.status === 403) { window.location.href = '/home.html'; return; }
         allTrades = await response.json();
         populateSymbolFilter(allTrades);
         applyFilters(checkedIds); 
@@ -608,7 +608,7 @@ async function logout() {
     try {
         await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
         localStorage.clear();
-        window.location.href = '/login.html';
+        window.location.href = '/home.html';
     } catch (err) { console.error("Logout failed", err); }
 }
 
