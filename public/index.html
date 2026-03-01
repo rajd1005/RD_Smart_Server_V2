@@ -8,7 +8,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    
     <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
 
     <style>
@@ -71,7 +70,7 @@
         .badge-locked { background-color: var(--text-secondary); }
         .badge-unlocked { background-color: var(--green); }
         
-        .lesson-item { padding: 10px 12px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; cursor: pointer; }
+        .lesson-item { padding: 10px 12px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
         .lesson-item:hover { background-color: #f1f8ff; }
         .lesson-icon { color: var(--blue); margin-right: 10px; font-size: 20px; }
         
@@ -84,11 +83,13 @@
         .video-js { width: 100% !important; height: 100% !important; }
         .close-video { position: absolute; top: 15px; right: 15px; z-index: 2010; color: #fff; background: rgba(0,0,0,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
         
-        /* DYNAMIC WATERMARK */
         #dynamicWatermark {
             position: absolute; color: rgba(255, 255, 255, 0.3); font-family: 'Roboto', sans-serif;
             font-size: 14px; font-weight: 700; pointer-events: none; z-index: 2005; white-space: nowrap; display: none;
         }
+
+        /* ADMIN DELETE BUTTONS */
+        .admin-del-btn { color: var(--red); background: none; border: none; font-size: 14px; padding: 5px; display: none; }
     </style>
 </head>
 <body>
@@ -118,6 +119,10 @@
     </div>
 
     <div id="learningSection">
+        <div class="p-2 text-end">
+            <button id="btnAdminCourseManager" class="btn btn-sm btn-dark fw-bold" style="display:none;" data-bs-toggle="modal" data-bs-target="#adminCourseModal">⚙️ Admin Manager</button>
+        </div>
+        
         <div id="courseModuleContainer"><div class="p-4 text-center text-muted">Loading courses...</div></div>
     </div>
 
@@ -127,13 +132,54 @@
         <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" data-setup='{}'></video>
     </div>
 
+    <div class="modal fade" id="adminCourseModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Admin Course Manager</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="font-size: 13px;">
+                    <h6 class="fw-bold text-primary border-bottom pb-2">1. Add New Category/Module</h6>
+                    <form id="formAddModule" class="mb-4">
+                        <div class="mb-2"><input type="text" id="modTitle" class="form-control" placeholder="Module Title (e.g. Level 5)" required></div>
+                        <div class="mb-2"><input type="text" id="modDesc" class="form-control" placeholder="Short Description"></div>
+                        <div class="mb-2">
+                            <select id="modLevel" class="form-select" required>
+                                <option value="level_1_status">Level 1 (All Access)</option>
+                                <option value="level_2_status">Requires Level 2 Access</option>
+                                <option value="level_3_status">Requires Level 3 Access</option>
+                                <option value="level_4_status">Requires Level 4 Access</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-primary w-100">Create Module</button>
+                    </form>
+
+                    <h6 class="fw-bold text-primary border-bottom pb-2">2. Add New Video Lesson</h6>
+                    <form id="formAddLesson">
+                        <div class="mb-2">
+                            <select id="lessonModuleId" class="form-select" required>
+                                <option value="">Select a Module first...</option>
+                            </select>
+                        </div>
+                        <div class="mb-2"><input type="text" id="lessonTitle" class="form-control" placeholder="Video Title" required></div>
+                        <div class="mb-2"><input type="text" id="lessonDesc" class="form-control" placeholder="Video Description"></div>
+                        <div class="mb-3">
+                            <label class="text-muted small">Secure HLS URL (.m3u8 link)</label>
+                            <input type="url" id="lessonUrl" class="form-control" placeholder="https://..." required>
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-success w-100">Upload Video Link</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <nav class="bottom-nav" id="navDefault">
         <button class="b-btn b-active" id="navTradeBtn" onclick="switchSection('trade')"><span class="material-icons-round">analytics</span>Trade</button>
         <button class="b-btn" id="navLearnBtn" onclick="switchSection('learning')"><span class="material-icons-round">school</span>Learn</button>
-        
         <button class="b-btn" id="btnRefresh" onclick="fetchTrades()"><span class="material-icons-round">refresh</span>Refresh</button>
         <button class="b-btn" id="btnFilter" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterSheet"><span class="material-icons-round">filter_list</span>Filter</button>
-        
         <button class="b-btn" id="btnSelect" onclick="toggleSelectionMode()" style="display:none;"><span class="material-icons-round" id="selectIcon">check_circle</span>Select</button>
         <button class="b-btn b-del" id="btnDelete" onclick="deleteSelected()" style="display:none;"><span class="material-icons-round">delete</span>Delete</button>
     </nav>
