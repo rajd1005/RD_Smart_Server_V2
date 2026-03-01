@@ -3,134 +3,181 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IND Stock & Index - Rd Algo</title>
+    <title>Login - Rd Algo</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     
     <style>
         :root {
-            --bg-color: #f0f2f5; --card-bg: #ffffff;
-            --text-primary: #212529; --text-secondary: #878a8d;
-            --border-color: #e9ecef;
-            --green: #00b346; --red: #ff3b30; --blue: #007aff;
+            --bg-color: #f0f2f5; 
+            --card-bg: #ffffff;
+            --text-primary: #212529; 
+            --text-secondary: #878a8d;
+            --blue: #007aff;
         }
-        body { background-color: var(--bg-color); font-family: 'Roboto', sans-serif; color: var(--text-primary); padding-bottom: 60px; font-size: 13px; -webkit-font-smoothing: antialiased; }
         
-        /* HEADER */
-        .app-header { background: #fff; border-bottom: 1px solid var(--border-color); padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
-        .app-title { font-size: 16px; font-weight: 700; color: #000; letter-spacing: -0.5px; }
-        .server-time { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
-
-        /* STATS */
-        .stats-bar { background: #fff; padding: 10px 15px; display: flex; gap: 15px; overflow-x: auto; border-bottom: 1px solid var(--border-color); margin-bottom: 10px; }
-        .stats-bar::-webkit-scrollbar { display: none; }
-        .stat-item { min-width: 80px; display: flex; flex-direction: column; }
-        .stat-lbl { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 500; }
-        .stat-val { font-size: 15px; font-weight: 700; color: #000; line-height: 1.1; }
-        .val-green { color: var(--green); }
-        .val-red { color: var(--red); }
-
-        /* TRADE CARDS */
-        .trade-list { padding: 0 10px; }
-        .trade-card { background: #fff; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); position: relative; }
-        .tc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-        .tc-mid { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-        .tc-bot { display: flex; justify-content: space-between; background: #f8f9fa; padding: 6px 8px; border-radius: 4px; font-size: 11px; }
-        .tc-symbol { font-size: 15px; font-weight: 700; color: #000; }
-        .tc-profit { font-size: 16px; font-weight: 700; text-align: right; }
-        .tc-time { font-size: 10px; color: var(--text-secondary); }
-        .c-green { color: var(--green); } .c-red { color: var(--red); }
-        .type-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 2px 5px; border-radius: 3px; }
-        .bg-buy { background: #e3f2fd; color: var(--blue); } .bg-sell { background: #ffebee; color: var(--red); }
-        .status-txt { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-        .detail-grp { display: flex; gap: 10px; }
-        .dt-item { display: flex; flex-direction: column; }
-        .dt-lbl { font-size: 9px; color: var(--text-secondary); margin-bottom: 1px; }
-        .dt-val { font-weight: 600; color: #333; }
-
-        /* NAV & FILTER */
-        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; border-top: 1px solid var(--border-color); padding: 8px 0; display: flex; justify-content: space-around; z-index: 999; }
-        .b-btn { background: none; border: none; display: flex; flex-direction: column; align-items: center; font-size: 10px; color: var(--text-secondary); font-weight: 500; }
-        .b-btn .material-icons-round { font-size: 22px; margin-bottom: 2px; }
-        .b-active { color: var(--blue); } .b-del { color: var(--red); }
+        body { 
+            background-color: var(--bg-color); 
+            font-family: 'Roboto', sans-serif; 
+            color: var(--text-primary); 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100vh; 
+            margin: 0; 
+            -webkit-font-smoothing: antialiased;
+        }
         
-        .offcanvas-bottom { height: auto !important; border-radius: 15px 15px 0 0; }
-        .form-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 2px; }
-        .form-control, .form-select { font-size: 13px; padding: 8px; }
-        .custom-check { width: 18px; height: 18px; margin-right: 10px; border-radius: 4px; border: 2px solid #ccc; }
-        .custom-check:checked { background-color: var(--blue); border-color: var(--blue); }
+        .login-card { 
+            background: var(--card-bg); 
+            padding: 35px 25px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+            width: 90%; 
+            max-width: 400px; 
+        }
         
-        #noData { padding: 50px; text-align: center; color: var(--text-secondary); }
+        .login-card h3 { 
+            font-weight: 700; 
+            margin-bottom: 25px; 
+            text-align: center; 
+            color: #000;
+            letter-spacing: -0.5px;
+        }
+        
+        .form-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        
+        .form-control {
+            font-size: 14px;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        
+        .form-control:focus {
+            border-color: var(--blue);
+            box-shadow: 0 0 0 0.2rem rgba(0, 122, 255, 0.25);
+        }
+        
+        .btn-primary { 
+            background-color: var(--blue); 
+            border: none; 
+            font-weight: 600; 
+            padding: 12px; 
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+        
+        .btn-primary:hover {
+            background-color: #005bb5;
+        }
+
+        .custom-check-container {
+            display: flex;
+            align-items: center;
+        }
+
+        .custom-check { 
+            width: 18px; 
+            height: 18px; 
+            margin-right: 8px; 
+            border-radius: 4px; 
+            border: 2px solid #ccc; 
+            cursor: pointer;
+        }
+        
+        .custom-check:checked { 
+            background-color: var(--blue); 
+            border-color: var(--blue); 
+        }
+
+        .check-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
 
-<header class="app-header">
-        <div class="d-flex align-items-center">
-            <div class="app-title">IND Stock & Index</div>
-            <div id="activeDateDisplay" style="font-size: 10px; background: #e3f2fd; color: var(--blue); padding: 2px 6px; border-radius: 4px; margin-left: 8px; font-weight: 600;">Today</div>
+<div class="login-card">
+    <h3>RD Algo Access</h3>
+    <form id="loginForm">
+        <div class="mb-3">
+            <label class="form-label" for="email">Email ID</label>
+            <input type="email" id="email" class="form-control" placeholder="Enter your registered email" required autocomplete="email">
         </div>
-        <div class="server-time" id="clock">00:00:00</div>
-    </header>
-
-    <div class="stats-bar">
-        <div class="stat-item"><span class="stat-lbl">Points</span><span class="stat-val" id="totalPips">0.00</span></div>
-        <div class="stat-item"><span class="stat-lbl">Active</span><span class="stat-val" id="activeTrades">0</span></div>
-        <div class="stat-item"><span class="stat-lbl">Win Rate</span><span class="stat-val" id="winRate">0%</span></div>
-        <div class="stat-item"><span class="stat-lbl">Signals</span><span class="stat-val" id="totalTrades">0</span></div>
-    </div>
-
-    <div class="trade-list" id="tradeListContainer"></div>
-    <div id="noData" style="display:none;"><span class="material-icons-round" style="font-size:32px; opacity:0.3;">toc</span><div class="mt-2 text-muted small">No trades found</div></div>
-
-    <nav class="bottom-nav" id="navDefault">
-        <button class="b-btn b-active" onclick="fetchTrades()"><span class="material-icons-round">refresh</span>Refresh</button>
-        <button class="b-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterSheet"><span class="material-icons-round">filter_list</span>Filter</button>
-        <button class="b-btn" onclick="toggleSelectionMode()"><span class="material-icons-round" id="selectIcon">check_circle</span>Select</button>
-        <button class="b-btn b-del" onclick="deleteSelected()"><span class="material-icons-round">delete</span>Delete</button>
-    </nav>
-
-    <nav class="bottom-nav" id="navSelection" style="display:none;">
-        <button class="b-btn" onclick="toggleSelectionMode()">
-            <span class="material-icons-round">close</span>Cancel
-        </button>
-        <button class="b-btn b-active" onclick="selectAllTrades()">
-            <span class="material-icons-round">done_all</span>Select All
-        </button>
-        <button class="b-btn b-del" onclick="deleteSelected()">
-            <span class="material-icons-round">delete_forever</span>Delete
-        </button>
-    </nav>
-
-    <div class="offcanvas offcanvas-bottom" tabindex="-1" id="filterSheet">
-        <div class="offcanvas-header pb-0"><h6 class="offcanvas-title fw-bold">Filter Options</h6><button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button></div>
-        <div class="offcanvas-body pt-2">
-        <div class="row g-2">
-                <div class="col-12">
-                    <label class="form-label">DATE / RANGE</label>
-                    <input type="text" id="filterDateRange" class="form-control" placeholder="Select Date(s)..." style="background-color: #fff;">
-                </div>
-                
-                <div class="col-6"><label class="form-label">TYPE</label><select id="filterType" class="form-select"><option value="ALL">All</option><option value="BUY">Buy</option><option value="SELL">Sell</option></select></div>
-                <div class="col-6"><label class="form-label">STATUS</label><select id="filterStatus" class="form-select"><option value="ALL">All</option><option value="OPEN">Running</option><option value="TP">Profitable</option><option value="SL">Loss</option></select></div>
-                
-                <div class="col-12"><label class="form-label">SYMBOL</label>
-                    <select id="filterSymbol" class="form-select">
-                        <option value="">All Symbols</option>
-                    </select>
-                </div>
-            </div>
-            <button class="btn btn-primary w-100 mt-3 fw-bold" data-bs-dismiss="offcanvas" onclick="applyFilters()">Apply</button>
+        
+        <div class="mb-3">
+            <label class="form-label" for="password">Password (Phone Number)</label>
+            <input type="password" id="password" class="form-control" placeholder="Enter your phone number" required autocomplete="current-password">
         </div>
-    </div>
+        
+        <div class="mb-3 custom-check-container">
+            <input type="checkbox" class="form-check-input custom-check" id="rememberMe">
+            <label class="check-label" for="rememberMe">Save Password</label>
+        </div>
+        
+        <div id="errorMsg" class="text-danger small mb-3 text-center fw-bold" style="display:none; font-size: 13px;"></div>
+        
+        <button type="submit" class="btn btn-primary w-100" id="loginBtn">Login to Dashboard</button>
+    </form>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="app.js"></script>
-    <script>setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-GB'); }, 1000);</script>
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const emailInput = document.getElementById('email').value.trim();
+    const passwordInput = document.getElementById('password').value.trim();
+    const rememberMeCheck = document.getElementById('rememberMe').checked;
+    
+    const errorMsg = document.getElementById('errorMsg');
+    const loginBtn = document.getElementById('loginBtn');
+
+    // Disable button to prevent multiple clicks
+    loginBtn.disabled = true;
+    loginBtn.innerText = "Authenticating...";
+    errorMsg.style.display = 'none';
+
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                email: emailInput, 
+                password: passwordInput, 
+                rememberMe: rememberMeCheck 
+            })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            // Login success - redirect to main dashboard
+            window.location.href = '/'; 
+        } else {
+            // Display server error message (e.g., Invalid credentials, Account expired)
+            errorMsg.innerText = "❌ " + data.msg;
+            errorMsg.style.display = 'block';
+            loginBtn.disabled = false;
+            loginBtn.innerText = "Login to Dashboard";
+        }
+    } catch (err) {
+        console.error("Login fetch error:", err);
+        errorMsg.innerText = "❌ Server connection error. Try again.";
+        errorMsg.style.display = 'block';
+        loginBtn.disabled = false;
+        loginBtn.innerText = "Login to Dashboard";
+    }
+});
+</script>
+
 </body>
 </html>
