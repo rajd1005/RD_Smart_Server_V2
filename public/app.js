@@ -17,13 +17,12 @@ const userData = {
     role: localStorage.getItem('userRole')
 };
 
-// --- SET LEARN TAB AS DEFAULT ---
 window.onload = function() {
     initDatePicker();
-    fetchTrades(); // Fetches in background
-    fetchCourses(); // Loads courses immediately
+    fetchTrades(); 
+    fetchCourses(); 
     applyRoleRestrictions(); 
-    switchSection('learning'); // Forces UI into Learn tab automatically
+    switchSection('learning'); 
 };
 
 function switchSection(section) {
@@ -76,7 +75,8 @@ async function fetchCourses() {
         }
 
         globalModules.forEach(mod => {
-            const isLocked = userData.role !== 'admin' && accessLevels[mod.required_level] !== 'Yes';
+            // If the module is set to 'demo', it is never locked for anyone
+            const isLocked = userData.role !== 'admin' && mod.required_level !== 'demo' && accessLevels[mod.required_level] !== 'Yes';
             const levelBadge = isLocked ? '<span class="module-level-badge badge-locked">LOCKED</span>' : '<span class="module-level-badge badge-unlocked">UNLOCKED</span>';
             
             const safeTitle = (mod.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
