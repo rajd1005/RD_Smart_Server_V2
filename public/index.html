@@ -61,7 +61,6 @@
         
         #noData { padding: 50px; text-align: center; color: var(--text-secondary); }
 
-        /* LMS ACCORDION STYLES */
         #learningSection { display: block; padding: 10px; }
         #tradeSection { display: none; }
         
@@ -78,7 +77,6 @@
         .lesson-item:first-child { border-top: none; }
         .lesson-item:hover { background-color: #f9fbfd; }
         
-        /* THUMBNAIL & PLAY OVERLAY */
         .thumb-wrapper { position: relative; width: 80px; height: 45px; flex-shrink: 0; margin-right: 15px; border-radius: 4px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); }
         .thumb-wrapper img { width: 100%; height: 100%; object-fit: cover; opacity: 0.75; transition: opacity 0.2s; }
         .lesson-item:hover .thumb-wrapper img { opacity: 0.95; }
@@ -91,7 +89,6 @@
         .lock-notice { background-color: #fff3cd; color: #856404; padding: 10px 15px; font-size: 11px; font-weight: 600; border-bottom: 1px solid var(--border-color); }
         .lock-notice a { color: #0056b3; text-decoration: underline; }
 
-        /* VIDEO PLAYER */
         #videoPlayerContainer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; display: none; }
         .video-js { width: 100% !important; height: 100% !important; }
         .close-video { position: absolute; top: 15px; right: 15px; z-index: 2010; color: #fff; background: rgba(0,0,0,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
@@ -182,7 +179,7 @@
                     </form>
 
                     <h6 class="fw-bold text-primary border-bottom pb-2">2. Add New Video Lesson</h6>
-                    <form id="formAddLesson">
+                    <form id="formAddLesson" class="mb-4">
                         <div class="mb-2"><select id="lessonModuleId" class="form-select" required><option value="">Select a Module first...</option></select></div>
                         <div class="mb-2"><input type="text" id="lessonTitle" class="form-control" placeholder="Video Title" required></div>
                         <div class="mb-2"><input type="text" id="lessonDesc" class="form-control" placeholder="Video Description"></div>
@@ -192,12 +189,24 @@
                             <label class="text-muted small fw-bold">Upload Thumbnail Image</label>
                             <input type="file" id="lessonThumbnailFile" class="form-control" accept="image/*">
                         </div>
-
                         <div class="mb-3">
                             <label class="text-muted small fw-bold">Upload MP4 Video</label>
                             <input type="file" id="lessonVideoFile" class="form-control" accept="video/mp4,video/x-m4v,video/*" required>
                         </div>
                         <button type="submit" class="btn btn-sm btn-success w-100">Upload Video File</button>
+                    </form>
+
+                    <h6 class="fw-bold text-primary border-bottom pb-2">3. Global View Settings</h6>
+                    <form id="formAdminSettings">
+                        <div class="mb-2">
+                            <label class="form-label text-muted small">Default Accordion State (For All Users)</label>
+                            <select id="adminAccordionState" class="form-select" required>
+                                <option value="first">Open 1st Module Only</option>
+                                <option value="all">Open All Modules</option>
+                                <option value="none">Close All Modules</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-warning w-100 fw-bold">Save Settings</button>
                     </form>
                 </div>
             </div>
