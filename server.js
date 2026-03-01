@@ -65,7 +65,6 @@ const isAdmin = (req, res, next) => {
     next();
 };
 
-// --- UPDATED: REDIRECTS TO /home.html INSTEAD OF /login.html ---
 app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
         const token = req.cookies.authToken;
@@ -98,14 +97,26 @@ function toMarkdown(text) { if (text === undefined || text === null) return ""; 
 app.get('/api/public/courses', async (req, res) => {
     try {
         const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order FROM learning_modules ORDER BY display_order ASC");
-        // Specifically excluding hls_manifest_url from public API for security
         const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order FROM lesson_videos ORDER BY display_order ASC");
-        
         const coursesStructure = modulesResult.rows.map(mod => { 
             return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; 
         });
         res.json(coursesStructure);
     } catch (err) { res.status(500).json({ error: "Server Error fetching public courses." }); }
+});
+
+// --- NEW: PUBLIC DEMO VIDEO API ---
+app.get('/api/public/lesson/:id', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT lv.*, lm.required_level FROM lesson_videos lv JOIN learning_modules lm ON lv.module_id = lm.id WHERE lv.id = $1", [req.params.id]);
+        if (result.rows.length === 0) return res.status(404).json({ success: false, msg: "Lesson not found." });
+        const lesson = result.rows[0];
+        
+        if (lesson.required_level !== 'demo') {
+            return res.status(403).json({ success: false, msg: "🔒 LOGIN REQUIRED" });
+        }
+        res.json({ success: true, title: lesson.title, hlsUrl: lesson.hls_manifest_url });
+    } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
 });
 
 
@@ -147,9 +158,31 @@ app.post('/api/login', async (req, res) => {
 
 app.post('/api/logout', (req, res) => { res.clearCookie('authToken'); res.json({ success: true }); });
 
-app.get('/api/hls-key/:lessonId/enc.key', authenticateToken, (req, res) => {
-    const keyPath = path.join(__dirname, 'public', 'hls', req.params.lessonId, 'enc.key');
-    if (fs.existsSync(keyPath)) { res.sendFile(keyPath); } else { res.status(404).send('Key not found'); }
+// --- UPDATED: INTELLIGENT DECRYPTION KEY DISPENSER ---
+app.get('/api/hls-key/:lessonId/enc.key', async (req, res) => {
+    try {
+        const lessonId = req.params.lessonId;
+        
+        // Check if this video is marked as a Public Demo
+        const result = await pool.query(
+            "SELECT lm.required_level FROM lesson_videos lv JOIN learning_modules lm ON lv.module_id = lm.id WHERE lv.hls_manifest_url LIKE $1 LIMIT 1", 
+            [`%${lessonId}%`]
+        );
+        
+        const isDemo = result.rows.length > 0 && result.rows[0].required_level === 'demo';
+
+        if (!isDemo) {
+            // Not a demo? Strictly enforce Login Token
+            const token = req.cookies.authToken;
+            if (!token) return res.status(401).send('Auth Required');
+            jwt.verify(token, JWT_SECRET); 
+        }
+
+        const keyPath = path.join(__dirname, 'public', 'hls', lessonId, 'enc.key');
+        if (fs.existsSync(keyPath)) { res.sendFile(keyPath); } else { res.status(404).send('Key not found'); }
+    } catch (err) {
+        res.status(403).send('Forbidden');
+    }
 });
 
 app.get('/api/courses', authenticateToken, async (req, res) => {
@@ -166,13 +199,18 @@ app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
         const result = await pool.query("SELECT lv.*, lm.required_level FROM lesson_videos lv JOIN learning_modules lm ON lv.module_id = lm.id WHERE lv.id = $1", [req.params.id]);
         if (result.rows.length === 0) return res.status(404).json({ success: false, msg: "Lesson not found." });
         const lesson = result.rows[0];
-        if (req.user.role !== 'admin' && req.user.accessLevels[lesson.required_level] !== 'Yes') {
+        
+        // Allows access if user is admin, if the module is a Demo, or if they have the proper level
+        if (req.user.role !== 'admin' && lesson.required_level !== 'demo' && req.user.accessLevels[lesson.required_level] !== 'Yes') {
             return res.status(403).json({ success: false, msg: "🔒 ACCESS DENIED" });
         }
         res.json({ success: true, title: lesson.title, hlsUrl: lesson.hls_manifest_url });
     } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
 });
 
+// ==========================================
+// --- ADMIN LMS MANAGEMENT API ---
+// ==========================================
 
 app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
     const { title, description, required_level, display_order, lock_notice } = req.body;
