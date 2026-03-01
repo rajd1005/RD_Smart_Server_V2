@@ -16,6 +16,19 @@ const userData = {
     role: localStorage.getItem('userRole')
 };
 
+// --- NEW: AUTO-OPEN FIRST VIDEO WHEN MODULE OPENS ---
+document.addEventListener('show.bs.collapse', function (e) {
+    if (!e.target.classList.contains('lesson-collapse')) {
+        const firstLessonCollapse = e.target.querySelector('.lesson-collapse');
+        const firstLessonBtn = e.target.querySelector('.lesson-accordion-btn');
+        if (firstLessonCollapse && firstLessonBtn && !firstLessonCollapse.classList.contains('show')) {
+            firstLessonCollapse.classList.add('show');
+            firstLessonBtn.classList.remove('collapsed');
+            firstLessonBtn.setAttribute('aria-expanded', 'true');
+        }
+    }
+});
+
 window.onload = function() {
     initDatePicker();
     fetchTrades(); 
@@ -106,7 +119,6 @@ async function fetchCourses() {
             if (userData.role !== 'admin' && mod.required_level === 'demo') return; 
 
             const isLocked = userData.role !== 'admin' && mod.required_level !== 'demo' && accessLevels[mod.required_level] !== 'Yes';
-            const levelBadge = isLocked ? '<span class="module-level-badge badge-locked">LOCKED</span>' : '<span class="module-level-badge badge-unlocked">UNLOCKED</span>';
             
             const safeTitle = (mod.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             const safeDesc = (mod.description || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
@@ -177,13 +189,13 @@ async function fetchCourses() {
                 lessonHtml += '<div class="text-muted p-3 text-center" style="font-size:12px;">No videos yet.</div>';
             }
 
+            // REMOVED BADGE LOGIC HERE
             htmlContent += `
                 <div class="accordion-item course-module">
                     <h2 class="accordion-header" id="heading${mod.id}">
                         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${mod.id}" aria-expanded="false" aria-controls="collapse${mod.id}">
                             <div class="d-flex align-items-center flex-grow-1">
                                 <h6 class="mb-0 fw-bold" style="font-size:14px;">${mod.title}</h6>
-                                ${levelBadge}
                             </div>
                             ${adminBtnsMod}
                         </button>
