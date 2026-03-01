@@ -27,7 +27,6 @@ app.use(cookieParser());
 
 const uploadDir = path.join(__dirname, 'uploads');
 const hlsDir = path.join(__dirname, 'public', 'hls');
-// SAVING THUMBNAILS INSIDE THE HLS VOLUME SO THEY ARE NEVER DELETED BY RAILWAY
 const thumbDir = path.join(__dirname, 'public', 'hls', 'thumbnails'); 
 
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -261,7 +260,12 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
         const thumbFile = req.files['thumbnail_file'][0];
         const ext = path.extname(thumbFile.originalname) || '.jpg';
         const thumbName = crypto.randomUUID() + ext;
-        fs.renameSync(thumbFile.path, path.join(thumbDir, thumbName));
+        const destPath = path.join(thumbDir, thumbName);
+        
+        // --- SECURE FIX FOR CROSS-DEVICE LINK ERROR ---
+        fs.copyFileSync(thumbFile.path, destPath);
+        fs.unlinkSync(thumbFile.path); 
+        
         thumbUrl = '/hls/thumbnails/' + thumbName;
     }
 
@@ -302,7 +306,12 @@ app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, upload.single('thu
         if (req.file) {
             const ext = path.extname(req.file.originalname) || '.jpg';
             const thumbName = crypto.randomUUID() + ext;
-            fs.renameSync(req.file.path, path.join(thumbDir, thumbName));
+            const destPath = path.join(thumbDir, thumbName);
+            
+            // --- SECURE FIX FOR CROSS-DEVICE LINK ERROR ---
+            fs.copyFileSync(req.file.path, destPath);
+            fs.unlinkSync(req.file.path); 
+            
             const thumbUrl = '/hls/thumbnails/' + thumbName;
             
             await pool.query("UPDATE lesson_videos SET title = $1, description = $2, display_order = $3, thumbnail_url = $4 WHERE id = $5", [title, description, display_order || 0, thumbUrl, req.params.id]);
@@ -328,7 +337,6 @@ app.delete('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// --- ORIGINAL TRADING API ---
 app.get('/api/trades', authenticateToken, async (req, res) => {
     try { res.json((await pool.query(`SELECT * FROM trades WHERE CAST(created_at AS TIMESTAMP) >= NOW() - INTERVAL '30 days' ORDER BY id DESC`)).rows); } catch (err) { res.status(500).json({ error: err.message }); }
 });
