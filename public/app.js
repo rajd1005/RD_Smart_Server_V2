@@ -46,13 +46,39 @@ function applyFilters(preserveIds = []) {
     const filterSymbol = document.getElementById('filterSymbol').value;
     const filterStatus = document.getElementById('filterStatus').value;
     const filterType = document.getElementById('filterType').value;
-    const filterDateInput = document.getElementById('filterDate').value; 
+    const startDate = document.getElementById('filterStartDate').value; 
+    const endDate = document.getElementById('filterEndDate').value; 
 
+    // --- Update Header Text ---
+    const dateDisplay = document.getElementById('activeDateDisplay');
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    
+    if (!startDate && !endDate) {
+        dateDisplay.innerText = "All Time";
+    } else if (startDate === endDate) {
+        dateDisplay.innerText = (startDate === todayStr) ? "Today" : startDate;
+    } else {
+        const startText = startDate ? startDate.substring(5) : "Past"; // Extracts MM-DD
+        const endText = endDate ? endDate.substring(5) : "Now";
+        dateDisplay.innerText = `${startText} to ${endText}`;
+    }
+
+    // --- Filter Trades ---
     const filtered = allTrades.filter(trade => {
         const tradeDateObj = new Date(trade.created_at);
         const tradeDateStr = tradeDateObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
-        return ((filterDateInput === "") || (tradeDateStr === filterDateInput)) &&
+        // Date Range Logic
+        let dateMatch = true;
+        if (startDate && endDate) {
+            dateMatch = (tradeDateStr >= startDate && tradeDateStr <= endDate);
+        } else if (startDate) {
+            dateMatch = (tradeDateStr >= startDate);
+        } else if (endDate) {
+            dateMatch = (tradeDateStr <= endDate);
+        }
+
+        return dateMatch &&
                (filterSymbol === "" || trade.symbol === filterSymbol) &&
                (filterType === 'ALL' || trade.type === filterType) &&
                (filterStatus === 'ALL' || 
@@ -64,7 +90,6 @@ function applyFilters(preserveIds = []) {
     renderTrades(filtered, preserveIds);
     calculateStats(filtered);
 }
-
 function renderTrades(trades, preserveIds) {
     const container = document.getElementById('tradeListContainer');
     const noDataMsg = document.getElementById('noData');
