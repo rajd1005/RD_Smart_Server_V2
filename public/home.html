@@ -33,11 +33,6 @@
         .accordion-button:not(.collapsed) { background: #e3f2fd; color: var(--blue); }
         .accordion-button::after { transform: scale(0.8); }
         
-        .module-level-badge { font-size: 9px; font-weight: 700; padding: 3px 6px; border-radius: 4px; background-color: #d1ecf1; color: #0c5460; text-transform: uppercase; margin-left: 8px; }
-        .badge-demo { background-color: #d4edda; color: #155724; }
-        .badge-locked { background-color: var(--text-secondary); color: #fff; }
-        .badge-unlocked { background-color: var(--green); color: #fff; }
-        
         /* NESTED LESSON ACCORDION */
         .lesson-accordion-item { border: none !important; border-top: 1px solid var(--border-color) !important; border-radius: 0 !important; margin: 0 !important; box-shadow: none !important; }
         .lesson-accordion-item:first-child { border-top: none !important; }
@@ -150,6 +145,19 @@
         let videoPlayer = null; 
         let watermarkInterval = null; 
 
+        // --- NEW: AUTO-OPEN FIRST VIDEO WHEN MODULE OPENS ---
+        document.addEventListener('show.bs.collapse', function (e) {
+            if (!e.target.classList.contains('lesson-collapse')) {
+                const firstLessonCollapse = e.target.querySelector('.lesson-collapse');
+                const firstLessonBtn = e.target.querySelector('.lesson-accordion-btn');
+                if (firstLessonCollapse && firstLessonBtn && !firstLessonCollapse.classList.contains('show')) {
+                    firstLessonCollapse.classList.add('show');
+                    firstLessonBtn.classList.remove('collapsed');
+                    firstLessonBtn.setAttribute('aria-expanded', 'true');
+                }
+            }
+        });
+
         document.getElementById('videoPlayerContainer').addEventListener('contextmenu', function(e) {
             e.preventDefault();
         });
@@ -242,8 +250,6 @@
                 let htmlContent = '';
                 modules.forEach((mod, index) => {
                     const isDemo = mod.required_level === 'demo';
-                    const badgeClass = isDemo ? 'badge-demo' : '';
-                    const lvlBadge = isDemo ? 'FREE DEMO' : (mod.required_level.split('_')[1] ? `LEVEL ${mod.required_level.split('_')[1]}` : 'ACCESS');
 
                     let displayNoticeHtml = '';
                     if (!isDemo) {
@@ -292,13 +298,13 @@
                         lessonHtml = '<div class="text-muted p-3 text-center" style="font-size:12px;">Lessons coming soon.</div>';
                     }
 
+                    // REMOVED BADGE LOGIC HERE
                     htmlContent += `
                         <div class="accordion-item course-module">
                             <h2 class="accordion-header" id="heading${mod.id}">
                                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${mod.id}" aria-expanded="false" aria-controls="collapse${mod.id}">
                                     <div class="d-flex align-items-center flex-grow-1">
                                         <span class="mb-0 fw-bold" style="font-size:14px;">${mod.title}</span>
-                                        <span class="module-level-badge ${badgeClass}">${lvlBadge}</span>
                                     </div>
                                 </button>
                             </h2>
