@@ -61,23 +61,30 @@
         
         #noData { padding: 50px; text-align: center; color: var(--text-secondary); }
 
+        /* LMS ACCORDION STYLES */
         #learningSection { display: block; padding: 10px; }
         #tradeSection { display: none; }
         
-        .course-module { background: #fff; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 10px; overflow: hidden; }
-        .module-header { padding: 12px; background: #f8f9fa; border-bottom: 1px solid var(--border-color); display:flex; justify-content: space-between; align-items:center; }
-        .module-title { font-size: 14px; font-weight: 700; color: #000; margin: 0; }
-        .module-level-badge { font-size: 10px; font-weight: 600; padding: 3px 6px; border-radius: 4px; color: #fff; }
+        .accordion-item { border: 1px solid var(--border-color); border-radius: 8px !important; margin-bottom: 10px; background: #fff; overflow: hidden; }
+        .accordion-button { padding: 12px 15px; font-weight: 700; color: #000; background: #f8f9fa; box-shadow: none !important; display: flex; align-items: center; }
+        .accordion-button:not(.collapsed) { background: #e3f2fd; color: var(--blue); }
+        .accordion-button::after { flex-shrink: 0; width: 1rem; height: 1rem; margin-left: auto; background-size: 1rem; }
+        
+        .module-level-badge { font-size: 10px; font-weight: 600; padding: 3px 6px; border-radius: 4px; color: #fff; margin-left: 10px; }
         .badge-locked { background-color: var(--text-secondary); }
         .badge-unlocked { background-color: var(--green); }
         
-        .lesson-item { padding: 10px 12px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
-        .lesson-item:hover { background-color: #f1f8ff; }
-        .lesson-icon { color: var(--blue); margin-right: 10px; font-size: 20px; }
+        .lesson-item { padding: 12px 15px; border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: background 0.2s; }
+        .lesson-item:first-child { border-top: none; }
+        .lesson-item:hover { background-color: #f9fbfd; }
         
-        .lock-notice { background-color: #fff3cd; color: #856404; padding: 8px 12px; font-size: 11px; font-weight: 600; border-bottom: 1px solid var(--border-color); }
+        .lesson-thumbnail { width: 80px; height: 45px; border-radius: 4px; object-fit: cover; margin-right: 15px; background: #e9ecef; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.1); }
+        .lesson-icon { color: var(--blue); margin-right: 15px; font-size: 24px; flex-shrink: 0; }
+        
+        .lock-notice { background-color: #fff3cd; color: #856404; padding: 10px 15px; font-size: 11px; font-weight: 600; border-bottom: 1px solid var(--border-color); }
         .lock-notice a { color: #0056b3; text-decoration: underline; }
 
+        /* VIDEO PLAYER */
         #videoPlayerContainer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; display: none; }
         .video-js { width: 100% !important; height: 100% !important; }
         .close-video { position: absolute; top: 15px; right: 15px; z-index: 2010; color: #fff; background: rgba(0,0,0,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
@@ -121,10 +128,18 @@
     </div>
 
     <div id="learningSection">
-        <div class="p-2 text-end">
-            <button id="btnAdminCourseManager" class="btn btn-sm btn-dark fw-bold" style="display:none;" data-bs-toggle="modal" data-bs-target="#adminCourseModal">⚙️ Admin Manager</button>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div id="adminAccordionControls" style="display:none;">
+                <button class="btn btn-sm btn-outline-secondary" onclick="toggleAccordions('all')">Open All</button>
+                <button class="btn btn-sm btn-outline-secondary ms-1" onclick="toggleAccordions('none')">Close All</button>
+                <button class="btn btn-sm btn-outline-primary ms-1" onclick="toggleAccordions('first')">Open 1st</button>
+            </div>
+            <button id="btnAdminCourseManager" class="btn btn-sm btn-dark fw-bold ms-auto" style="display:none;" data-bs-toggle="modal" data-bs-target="#adminCourseModal">⚙️ Admin Manager</button>
         </div>
-        <div id="courseModuleContainer"><div class="p-4 text-center text-muted">Loading courses...</div></div>
+        
+        <div class="accordion" id="courseModuleContainer">
+            <div class="p-4 text-center text-muted">Loading courses...</div>
+        </div>
     </div>
 
     <div id="videoPlayerContainer">
@@ -154,13 +169,8 @@
                                 <option value="level_4_status">Requires Level 4 Access</option>
                             </select>
                         </div>
-                        <div class="mb-2">
-                            <input type="number" id="modDisplayOrder" class="form-control" placeholder="Display Order (e.g. 1, 2, 3)" value="0" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-muted small">Custom Lock Notice (HTML/Links allowed)</label>
-                            <input type="text" id="modLockNotice" class="form-control" placeholder='⚠️ Locked. &lt;a href="https://rdalgo.in" target="_blank"&gt;Upgrade Here&lt;/a&gt;'>
-                        </div>
+                        <div class="mb-2"><input type="number" id="modDisplayOrder" class="form-control" placeholder="Display Order (e.g. 1, 2, 3)" value="0" required></div>
+                        <div class="mb-3"><label class="form-label text-muted small">Custom Lock Notice (HTML/Links allowed)</label><input type="text" id="modLockNotice" class="form-control" placeholder='⚠️ Locked. &lt;a href="https://rdalgo.in" target="_blank"&gt;Upgrade Here&lt;/a&gt;'></div>
                         <button type="submit" class="btn btn-sm btn-primary w-100">Create Module</button>
                     </form>
 
@@ -169,9 +179,13 @@
                         <div class="mb-2"><select id="lessonModuleId" class="form-select" required><option value="">Select a Module first...</option></select></div>
                         <div class="mb-2"><input type="text" id="lessonTitle" class="form-control" placeholder="Video Title" required></div>
                         <div class="mb-2"><input type="text" id="lessonDesc" class="form-control" placeholder="Video Description"></div>
+                        <div class="mb-2"><input type="number" id="lessonDisplayOrder" class="form-control" placeholder="Display Order (e.g. 1, 2, 3)" value="0" required></div>
+                        
                         <div class="mb-2">
-                            <input type="number" id="lessonDisplayOrder" class="form-control" placeholder="Display Order (e.g. 1, 2, 3)" value="0" required>
+                            <label class="text-muted small fw-bold">Upload Thumbnail Image</label>
+                            <input type="file" id="lessonThumbnailFile" class="form-control" accept="image/*">
                         </div>
+
                         <div class="mb-3">
                             <label class="text-muted small fw-bold">Upload MP4 Video</label>
                             <input type="file" id="lessonVideoFile" class="form-control" accept="video/mp4,video/x-m4v,video/*" required>
@@ -205,14 +219,8 @@
                                 <option value="level_4_status">Requires Level 4 Access</option>
                             </select>
                         </div>
-                        <div class="mb-2">
-                            <label class="form-label text-muted small">Display Order (Placement)</label>
-                            <input type="number" id="editModDisplayOrder" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-muted small">Custom Lock Notice (HTML/Links allowed)</label>
-                            <input type="text" id="editModLockNotice" class="form-control">
-                        </div>
+                        <div class="mb-2"><label class="form-label text-muted small">Display Order (Placement)</label><input type="number" id="editModDisplayOrder" class="form-control" required></div>
+                        <div class="mb-3"><label class="form-label text-muted small">Custom Lock Notice (HTML/Links allowed)</label><input type="text" id="editModLockNotice" class="form-control"></div>
                         <button type="submit" class="btn btn-sm btn-primary w-100">Save Changes</button>
                     </form>
                 </div>
@@ -232,9 +240,10 @@
                         <input type="hidden" id="editLessonId">
                         <div class="mb-2"><label class="form-label text-muted small">Video Title</label><input type="text" id="editLessonTitle" class="form-control" required></div>
                         <div class="mb-2"><label class="form-label text-muted small">Description</label><input type="text" id="editLessonDesc" class="form-control"></div>
+                        <div class="mb-3"><label class="form-label text-muted small">Display Order (Placement)</label><input type="number" id="editLessonDisplayOrder" class="form-control" required></div>
                         <div class="mb-3">
-                            <label class="form-label text-muted small">Display Order (Placement)</label>
-                            <input type="number" id="editLessonDisplayOrder" class="form-control" required>
+                            <label class="form-label text-muted small">Update Thumbnail Image (Leave empty to keep existing)</label>
+                            <input type="file" id="editLessonThumbnailFile" class="form-control" accept="image/*">
                         </div>
                         <button type="submit" class="btn btn-sm btn-primary w-100">Save Changes</button>
                     </form>
