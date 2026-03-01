@@ -78,17 +78,24 @@ async function fetchCourses() {
             
             const safeTitle = (mod.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             const safeDesc = (mod.description || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const safeNotice = (mod.lock_notice || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             
             const adminBtnsMod = userData.role === 'admin' ? `
                 <div class="d-flex align-items-center ms-2">
-                    <button class="admin-edit-btn" onclick="openEditModule(${mod.id}, '${safeTitle}', '${safeDesc}', '${mod.required_level}')"><span class="material-icons-round" style="font-size: 18px;">edit</span></button>
+                    <button class="admin-edit-btn" onclick="openEditModule(${mod.id}, '${safeTitle}', '${safeDesc}', '${mod.required_level}', '${safeNotice}')"><span class="material-icons-round" style="font-size: 18px;">edit</span></button>
                     <button class="admin-del-btn" onclick="deleteModule(${mod.id})"><span class="material-icons-round" style="font-size: 18px;">delete</span></button>
                 </div>` : '';
 
             let lessonHtml = '';
+            
+            // Render the Custom Lock Notice and force hyperlinks to open in new tab safely
             if (isLocked) {
-                lessonHtml = `<div class="lock-notice">⚠️ To get Access Contact our Sales/Support Team.</div>`;
-            } else if (mod.lessons && mod.lessons.length > 0) {
+                let displayNotice = mod.lock_notice ? mod.lock_notice : `⚠️ Your WP Level Status restricts access. Please upgrade to unlock.`;
+                displayNotice = displayNotice.replace(/<a /gi, '<a target="_blank" rel="noopener noreferrer" '); 
+                lessonHtml += `<div class="lock-notice">${displayNotice}</div>`;
+            } 
+            
+            if (mod.lessons && mod.lessons.length > 0) {
                 mod.lessons.forEach(l => {
                     const safeLT = (l.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
                     const safeLD = (l.description || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
@@ -98,19 +105,34 @@ async function fetchCourses() {
                             <button class="admin-del-btn" onclick="deleteLesson(event, ${l.id})"><span class="material-icons-round" style="font-size: 18px;">delete</span></button>
                         </div>` : '';
 
-                    lessonHtml += `
-                        <div class="lesson-item" onclick="openSecureVideo(${l.id})">
-                            <div class="d-flex align-items-center w-100">
-                                <span class="material-icons-round lesson-icon">play_circle_filled</span>
-                                <div class="flex-grow-1">
-                                    <div class="fw-bold">${l.title}</div>
-                                    ${l.description ? `<div class="text-muted small">${l.description}</div>` : ''}
+                    if (isLocked) {
+                        // VISIBLE BUT UNCLICKABLE LOCKED STATE
+                        lessonHtml += `
+                            <div class="lesson-item" style="opacity: 0.5; cursor: not-allowed; background-color: #fafafa;">
+                                <div class="d-flex align-items-center w-100">
+                                    <span class="material-icons-round lesson-icon" style="color: #b0b0b0;">play_circle_filled</span>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-bold" style="color: #666;">${l.title}</div>
+                                        ${l.description ? `<div class="text-muted small">${l.description}</div>` : ''}
+                                    </div>
                                 </div>
-                                ${adminBtnsLess}
-                            </div>
-                        </div>`;
+                            </div>`;
+                    } else {
+                        // FULLY UNLOCKED STATE
+                        lessonHtml += `
+                            <div class="lesson-item" onclick="openSecureVideo(${l.id})">
+                                <div class="d-flex align-items-center w-100">
+                                    <span class="material-icons-round lesson-icon">play_circle_filled</span>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-bold">${l.title}</div>
+                                        ${l.description ? `<div class="text-muted small">${l.description}</div>` : ''}
+                                    </div>
+                                    ${adminBtnsLess}
+                                </div>
+                            </div>`;
+                    }
                 });
-            } else {
+            } else if (!isLocked) {
                 lessonHtml = '<div class="text-muted small p-2">No videos yet.</div>';
             }
 
@@ -150,24 +172,14 @@ async function openSecureVideo(lessonId) {
         });
         videoPlayer.el().addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
-        // --- NEW: DYNAMIC ASPECT RATIO & AUTO-ROTATE ---
         videoPlayer.on('loadedmetadata', async function() {
             const vw = videoPlayer.videoWidth();
             const vh = videoPlayer.videoHeight();
-            
-            // Check if device supports rotation locks
             if (screen.orientation && screen.orientation.lock) {
                 try { 
-                    if (vw > vh) {
-                        // Wide video: Force Landscape
-                        await screen.orientation.lock("landscape"); 
-                    } else {
-                        // Tall video (Shorts): Force Portrait
-                        await screen.orientation.lock("portrait"); 
-                    }
-                } catch (e) { 
-                    console.warn("Auto-rotate blocked by browser logic."); 
-                }
+                    if (vw > vh) { await screen.orientation.lock("landscape"); } 
+                    else { await screen.orientation.lock("portrait"); }
+                } catch (e) { console.warn("Auto-rotate blocked by browser logic."); }
             }
         });
     }
@@ -185,7 +197,6 @@ async function openSecureVideo(lessonId) {
         const playerContainer = document.getElementById('videoPlayerContainer');
         playerContainer.style.display = 'block';
         
-        // Request Fullscreen first so rotation is permitted by the browser
         if (playerContainer.requestFullscreen) {
             await playerContainer.requestFullscreen().catch(e => console.warn(e));
         } else if (playerContainer.webkitRequestFullscreen) { 
@@ -234,54 +245,46 @@ function stopWatermark() {
     if (wmEl) wmEl.style.display = 'none';
 }
 
-// --- NEW: CONFINED WATERMARK CALCULATION ---
 function moveWatermark() {
     const wmEl = document.getElementById('dynamicWatermark');
     const container = document.getElementById('videoPlayerContainer');
-    
     if (!videoPlayer) return;
 
     const vw = videoPlayer.videoWidth();
     const vh = videoPlayer.videoHeight();
     
-    // If metadata isn't loaded yet, default to center of screen
     if (!vw || !vh) {
         wmEl.style.left = '50%';
         wmEl.style.top = '50%';
         wmEl.style.transform = 'translate(-50%, -50%)';
         return;
     } else {
-        wmEl.style.transform = 'none'; // Clear center transform once loaded
+        wmEl.style.transform = 'none'; 
     }
 
     const cw = container.clientWidth;
     const ch = container.clientHeight;
-
     const videoRatio = vw / vh;
     const containerRatio = cw / ch;
 
     let renderedWidth, renderedHeight, offsetX, offsetY;
 
-    // Calculate actual playing video boundaries to avoid black bars
     if (videoRatio > containerRatio) {
-        // Video has black bars on Top and Bottom (Letterboxing)
         renderedWidth = cw;
         renderedHeight = cw / videoRatio;
         offsetX = 0;
         offsetY = (ch - renderedHeight) / 2;
     } else {
-        // Video has black bars on Left and Right (Pillarboxing)
         renderedHeight = ch;
         renderedWidth = ch * videoRatio;
         offsetX = (cw - renderedWidth) / 2;
         offsetY = 0;
     }
 
-    // Set Min/Max bounds strictly inside the rendered video area
     const minX = offsetX + 10; 
     const maxX = Math.max(minX, offsetX + renderedWidth - wmEl.clientWidth - 10);
     
-    const minY = offsetY + 50; // Leave 50px buffer at the top to avoid the close button
+    const minY = offsetY + 50; 
     const maxY = Math.max(minY, offsetY + renderedHeight - wmEl.clientHeight - 20);
 
     const randomX = Math.floor(Math.random() * (maxX - minX + 1)) + minX;
@@ -300,7 +303,10 @@ if (formAddModule) {
     formAddModule.addEventListener('submit', async (e) => {
         e.preventDefault();
         const data = {
-            title: document.getElementById('modTitle').value, description: document.getElementById('modDesc').value, required_level: document.getElementById('modLevel').value
+            title: document.getElementById('modTitle').value, 
+            description: document.getElementById('modDesc').value, 
+            required_level: document.getElementById('modLevel').value,
+            lock_notice: document.getElementById('modLockNotice').value
         };
         try {
             const res = await fetch('/api/admin/modules', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
@@ -346,11 +352,12 @@ async function deleteLesson(e, id) {
     } catch(e) { console.error(e); }
 }
 
-function openEditModule(id, title, desc, level) {
+function openEditModule(id, title, desc, level, notice) {
     document.getElementById('editModId').value = id;
     document.getElementById('editModTitle').value = title;
     document.getElementById('editModDesc').value = (desc !== 'null' && desc !== 'undefined') ? desc : '';
     document.getElementById('editModLevel').value = level;
+    document.getElementById('editModLockNotice').value = (notice !== 'null' && notice !== 'undefined') ? notice : '';
     bootstrap.Modal.getOrCreateInstance(document.getElementById('editModuleModal')).show();
 }
 
@@ -370,7 +377,8 @@ if (formEditModule) {
         const data = {
             title: document.getElementById('editModTitle').value,
             description: document.getElementById('editModDesc').value,
-            required_level: document.getElementById('editModLevel').value
+            required_level: document.getElementById('editModLevel').value,
+            lock_notice: document.getElementById('editModLockNotice').value
         };
         try {
             const res = await fetch(`/api/admin/modules/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
