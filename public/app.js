@@ -87,7 +87,7 @@ async function fetchCourses() {
 
             let lessonHtml = '';
             if (isLocked) {
-                lessonHtml = `<div class="lock-notice">⚠️ Your WP Level Status restricts access. Contact Admin.</div>`;
+                lessonHtml = `<div class="lock-notice">⚠️ To get Access Contact our Sales/Support Team.</div>`;
             } else if (mod.lessons && mod.lessons.length > 0) {
                 mod.lessons.forEach(l => {
                     const safeLT = (l.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
