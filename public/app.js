@@ -75,7 +75,12 @@ async function fetchCourses() {
         }
 
         globalModules.forEach(mod => {
-            // If the module is set to 'demo', it is never locked for anyone
+            
+            // --- NEW: HIDE DEMO COURSE FOR LOGGED-IN STUDENTS ---
+            if (userData.role !== 'admin' && mod.required_level === 'demo') {
+                return; // Skips rendering entirely!
+            }
+
             const isLocked = userData.role !== 'admin' && mod.required_level !== 'demo' && accessLevels[mod.required_level] !== 'Yes';
             const levelBadge = isLocked ? '<span class="module-level-badge badge-locked">LOCKED</span>' : '<span class="module-level-badge badge-unlocked">UNLOCKED</span>';
             
@@ -85,7 +90,7 @@ async function fetchCourses() {
             
             const adminBtnsMod = userData.role === 'admin' ? `
                 <div class="d-flex align-items-center ms-2">
-                    <button class="admin-edit-btn" onclick="openEditModule(${mod.id}, '${safeTitle}', '${safeDesc}', '${mod.required_level}', '${safeNotice}')"><span class="material-icons-round" style="font-size: 18px;">edit</span></button>
+                    <button class="admin-edit-btn" onclick="openEditModule(${mod.id}, '${safeTitle}', '${safeDesc}', '${mod.required_level}', '${safeNotice}', ${mod.display_order || 0})"><span class="material-icons-round" style="font-size: 18px;">edit</span></button>
                     <button class="admin-del-btn" onclick="deleteModule(${mod.id})"><span class="material-icons-round" style="font-size: 18px;">delete</span></button>
                 </div>` : '';
 
@@ -103,7 +108,7 @@ async function fetchCourses() {
                     const safeLD = (l.description || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
                     const adminBtnsLess = userData.role === 'admin' ? `
                         <div class="d-flex align-items-center ms-2">
-                            <button class="admin-edit-btn" onclick="openEditLesson(event, ${l.id}, '${safeLT}', '${safeLD}')"><span class="material-icons-round" style="font-size: 18px;">edit</span></button>
+                            <button class="admin-edit-btn" onclick="openEditLesson(event, ${l.id}, '${safeLT}', '${safeLD}', ${l.display_order || 0})"><span class="material-icons-round" style="font-size: 18px;">edit</span></button>
                             <button class="admin-del-btn" onclick="deleteLesson(event, ${l.id})"><span class="material-icons-round" style="font-size: 18px;">delete</span></button>
                         </div>` : '';
 
@@ -306,6 +311,7 @@ if (formAddModule) {
             title: document.getElementById('modTitle').value, 
             description: document.getElementById('modDesc').value, 
             required_level: document.getElementById('modLevel').value,
+            display_order: document.getElementById('modDisplayOrder').value,
             lock_notice: document.getElementById('modLockNotice').value
         };
         try {
@@ -323,6 +329,7 @@ if (formAddLesson) {
         formData.append('module_id', document.getElementById('lessonModuleId').value);
         formData.append('title', document.getElementById('lessonTitle').value);
         formData.append('description', document.getElementById('lessonDesc').value);
+        formData.append('display_order', document.getElementById('lessonDisplayOrder').value);
         formData.append('video_file', document.getElementById('lessonVideoFile').files[0]);
 
         const btn = e.target.querySelector('button'); btn.innerText = "⏳ Uploading & Encrypting..."; btn.disabled = true;
@@ -352,20 +359,22 @@ async function deleteLesson(e, id) {
     } catch(e) { console.error(e); }
 }
 
-function openEditModule(id, title, desc, level, notice) {
+function openEditModule(id, title, desc, level, notice, order) {
     document.getElementById('editModId').value = id;
     document.getElementById('editModTitle').value = title;
     document.getElementById('editModDesc').value = (desc !== 'null' && desc !== 'undefined') ? desc : '';
     document.getElementById('editModLevel').value = level;
+    document.getElementById('editModDisplayOrder').value = order;
     document.getElementById('editModLockNotice').value = (notice !== 'null' && notice !== 'undefined') ? notice : '';
     bootstrap.Modal.getOrCreateInstance(document.getElementById('editModuleModal')).show();
 }
 
-function openEditLesson(e, id, title, desc) {
+function openEditLesson(e, id, title, desc, order) {
     e.stopPropagation();
     document.getElementById('editLessonId').value = id;
     document.getElementById('editLessonTitle').value = title;
     document.getElementById('editLessonDesc').value = (desc !== 'null' && desc !== 'undefined') ? desc : '';
+    document.getElementById('editLessonDisplayOrder').value = order;
     bootstrap.Modal.getOrCreateInstance(document.getElementById('editLessonModal')).show();
 }
 
@@ -378,6 +387,7 @@ if (formEditModule) {
             title: document.getElementById('editModTitle').value,
             description: document.getElementById('editModDesc').value,
             required_level: document.getElementById('editModLevel').value,
+            display_order: document.getElementById('editModDisplayOrder').value,
             lock_notice: document.getElementById('editModLockNotice').value
         };
         try {
@@ -393,7 +403,11 @@ if (formEditLesson) {
     formEditLesson.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('editLessonId').value;
-        const data = { title: document.getElementById('editLessonTitle').value, description: document.getElementById('editLessonDesc').value };
+        const data = { 
+            title: document.getElementById('editLessonTitle').value, 
+            description: document.getElementById('editLessonDesc').value,
+            display_order: document.getElementById('editLessonDisplayOrder').value
+        };
         try {
             const res = await fetch(`/api/admin/lessons/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
             if(res.ok) { bootstrap.Modal.getInstance(document.getElementById('editLessonModal')).hide(); fetchCourses(); } 
