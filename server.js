@@ -105,7 +105,11 @@ function toMarkdown(text) {
 app.post('/api/login', async (req, res) => {
     const { email, password, rememberMe } = req.body;
     
+    console.log(`\n[LOGIN ATTEMPT] Email: ${email} | IP: ${req.ip}`);
+    
     try {
+        console.log(`[DB INFO] Connecting to MySQL Host: ${process.env.MYSQL_HOST} | DB: ${process.env.MYSQL_DATABASE}`);
+
         // Fetch user from remote MySQL database
         const [rows] = await authPool.query(
             "SELECT * FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?",
@@ -113,17 +117,23 @@ app.post('/api/login', async (req, res) => {
         );
 
         if (rows.length === 0) {
+            console.log(`[LOGIN FAILED] ❌ Invalid credentials for email: ${email}`);
             return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
         }
 
         const student = rows[0];
+        console.log(`[LOGIN INFO] ✅ User found in DB. Checking expiry...`);
 
         // Check Expiry Date
         const expiryDate = new Date(student.student_expiry_date);
         const today = new Date();
+        
         if (expiryDate < today) {
+            console.log(`[LOGIN FAILED] ❌ Account Expired for: ${email}. Expiry Date: ${expiryDate}, Today: ${today}`);
             return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." });
         }
+
+        console.log(`[LOGIN SUCCESS] 🎉 Access granted for: ${email}`);
 
         // Generate JWT Token encoding the user's IP
         const token = jwt.sign(
@@ -141,7 +151,14 @@ app.post('/api/login', async (req, res) => {
 
         res.json({ success: true, msg: "Login successful" });
     } catch (error) {
-        console.error("Login Error:", error);
+        console.error(`\n[LOGIN SYSTEM ERROR] 🚨🚨🚨`);
+        console.error(`Error Code: ${error.code}`);
+        console.error(`Error Message: ${error.message}`);
+        if (error.sqlMessage) {
+            console.error(`SQL Specific Error: ${error.sqlMessage}`);
+        }
+        console.error(`----------------------------------------\n`);
+        
         res.status(500).json({ success: false, msg: "Database connection error" });
     }
 });
