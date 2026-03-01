@@ -46,7 +46,6 @@ function switchSection(section) {
     }
 }
 
-// --- SMART NESTED ACCORDION TOGGLER ---
 function toggleAccordions(action) {
     const allCollapses = document.querySelectorAll('.accordion-collapse');
     const allButtons = document.querySelectorAll('.accordion-button');
@@ -61,7 +60,6 @@ function toggleAccordions(action) {
         allCollapses.forEach(el => el.classList.remove('show'));
         allButtons.forEach(el => { el.classList.add('collapsed'); el.setAttribute('aria-expanded', 'false'); });
         
-        // Open 1st Module
         const firstModCollapse = document.querySelector('.course-module > .accordion-collapse');
         const firstModBtn = document.querySelector('.course-module > .accordion-header > .accordion-button');
         
@@ -70,7 +68,6 @@ function toggleAccordions(action) {
             firstModBtn.classList.remove('collapsed');
             firstModBtn.setAttribute('aria-expanded', 'true');
             
-            // Open 1st Video inside that 1st Module
             const firstLessonCollapse = firstModCollapse.querySelector('.lesson-collapse');
             const firstLessonBtn = firstModCollapse.querySelector('.lesson-accordion-btn');
             if (firstLessonCollapse && firstLessonBtn) {
@@ -121,14 +118,15 @@ async function fetchCourses() {
                     <button class="admin-del-btn" onclick="deleteModule(event, ${mod.id})"><span class="material-icons-round" style="font-size: 18px;">delete</span></button>
                 </div>` : '';
 
-            let lessonHtml = '';
-            
+            // --- EXTRACTED LOCK NOTICE TO BE ALWAYS VISIBLE ---
+            let displayNoticeHtml = '';
             if (isLocked) {
                 let displayNotice = mod.lock_notice ? mod.lock_notice : `⚠️ Your WP Level Status restricts access. Please contact Admin.`;
                 displayNotice = displayNotice.replace(/<a /gi, '<a target="_blank" rel="noopener noreferrer" '); 
-                lessonHtml += `<div class="lock-notice">${displayNotice}</div>`;
+                displayNoticeHtml = `<div class="lock-notice">${displayNotice}</div>`;
             } 
-            
+
+            let lessonHtml = '';
             if (mod.lessons && mod.lessons.length > 0) {
                 lessonHtml += `<div class="accordion w-100" id="accLsn${mod.id}">`;
                 
@@ -153,7 +151,6 @@ async function fetchCourses() {
 
                     const onClickAction = isLocked ? '' : `onclick="openSecureVideo(${l.id})"`;
 
-                    // --- NESTED VIDEO ACCORDION ---
                     lessonHtml += `
                         <div class="accordion-item lesson-accordion-item">
                             <h2 class="accordion-header" id="hLsn${l.id}">
@@ -177,12 +174,12 @@ async function fetchCourses() {
                         </div>`;
                 });
                 
-                lessonHtml += `</div>`; // Close nested accordion container
-            } else if (!isLocked) {
+                lessonHtml += `</div>`;
+            } else {
                 lessonHtml += '<div class="text-muted small p-3 text-center">No videos yet.</div>';
             }
 
-            // --- PARENT MODULE ACCORDION ---
+            // --- PLACED NOTICE RIGHT AFTER HEADER, OUTSIDE COLLAPSE BODY ---
             htmlContent += `
                 <div class="accordion-item course-module">
                     <h2 class="accordion-header" id="heading${mod.id}">
@@ -194,6 +191,7 @@ async function fetchCourses() {
                             ${adminBtnsMod}
                         </button>
                     </h2>
+                    ${displayNoticeHtml}
                     <div id="collapse${mod.id}" class="accordion-collapse collapse" aria-labelledby="heading${mod.id}">
                         <div class="accordion-body p-0">
                             ${lessonHtml}
@@ -305,10 +303,6 @@ function moveWatermark() {
     wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
 }
 
-
-// ==========================================
-// --- ADMIN COURSE MANAGEMENT FORMS ---
-// ==========================================
 
 const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
