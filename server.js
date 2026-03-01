@@ -46,6 +46,12 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
+// --- NEW: Admin Verification Middleware ---
+const isAdmin = (req, res, next) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ success: false, msg: "Admin access required." });
+    next();
+};
+
 app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
         const token = req.cookies.authToken;
@@ -73,7 +79,6 @@ function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
-// --- LOGIN API (WITH NEW WORDPRESS LEVEL CHECKS) ---
 app.post('/api/login', async (req, res) => {
     const { email, password, rememberMe } = req.body;
     const clientIp = getClientIp(req);
@@ -86,7 +91,6 @@ app.post('/api/login', async (req, res) => {
             userEmail = ADMIN_EMAIL; userRole = "admin"; userPhone = "Admin";
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
         } else {
-            // NEW: Added level_2_status, level_3_status, level_4_status to WP Query
             const [rows] = await authPool.query(
                 "SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?",
                 [email, password]
@@ -99,11 +103,10 @@ app.post('/api/login', async (req, res) => {
             if (expiryDate < new Date()) return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." });
 
             userEmail = student.student_email;
-            userPhone = student.student_phone; // Save phone for Watermark
+            userPhone = student.student_phone; 
             
-            // Populate Levels
             accessLevels = {
-                level_1_status: 'Yes', // Default access for level 1
+                level_1_status: 'Yes', 
                 level_2_status: student.level_2_status || 'No',
                 level_3_status: student.level_3_status || 'No',
                 level_4_status: student.level_4_status || 'No'
@@ -114,25 +117,21 @@ app.post('/api/login', async (req, res) => {
         await pool.query("INSERT INTO login_logs (email, session_id, ip_address) VALUES ($1, $2, $3)", [userEmail, sessionId, clientIp]);
         await pool.query("DELETE FROM login_logs WHERE login_time < NOW() - INTERVAL '30 days'");
 
-        // Encode user data, phone, and access levels into token
         const token = jwt.sign({ email: userEmail, phone: userPhone, ip: clientIp, sessionId: sessionId, role: userRole, accessLevels: accessLevels }, JWT_SECRET, { expiresIn: rememberMe ? '30d' : '1d' });
 
         res.cookie('authToken', token, { httpOnly: true, secure: req.secure || req.headers['x-forwarded-proto'] === 'https', sameSite: 'lax', maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 });
 
         res.json({ success: true, msg: "Login successful", email: userEmail, phone: userPhone, role: userRole, accessLevels: accessLevels });
-    } catch (error) {
-        res.status(500).json({ success: false, msg: "Database connection error" });
-    }
+    } catch (error) { res.status(500).json({ success: false, msg: "Database connection error" }); }
 });
 
 app.post('/api/logout', (req, res) => { res.clearCookie('authToken'); res.json({ success: true }); });
 
-// --- NEW LEARNING API ---
+// --- LEARNING DISPLAY API ---
 app.get('/api/courses', authenticateToken, async (req, res) => {
     try {
         const modules = (await pool.query("SELECT * FROM learning_modules ORDER BY display_order ASC")).rows;
         const lessons = (await pool.query("SELECT id, module_id, title, description, display_order FROM lesson_videos ORDER BY display_order ASC")).rows;
-        
         const coursesStructure = modules.map(mod => { return { ...mod, lessons: lessons.filter(l => l.module_id === mod.id) }; });
         res.json(coursesStructure);
     } catch (err) { res.status(500).json({ error: "Server Error fetching courses." }); }
@@ -142,10 +141,8 @@ app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query("SELECT lv.*, lm.required_level FROM lesson_videos lv JOIN learning_modules lm ON lv.module_id = lm.id WHERE lv.id = $1", [req.params.id]);
         if (result.rows.length === 0) return res.status(404).json({ success: false, msg: "Lesson not found." });
-
         const lesson = result.rows[0];
         
-        // Final security check: If user role is student, check encoded level access
         if (req.user.role !== 'admin' && req.user.accessLevels[lesson.required_level] !== 'Yes') {
             return res.status(403).json({ success: false, msg: "🔒 ACCESS DENIED" });
         }
@@ -153,7 +150,45 @@ app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
 });
 
-// --- EXISTING TRADE API (100% UNTOUCHED) ---
+// ==========================================
+// --- NEW: ADMIN COURSE MANAGEMENT API ---
+// ==========================================
+
+// Add a Module
+app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
+    const { title, description, required_level, display_order } = req.body;
+    try {
+        await pool.query("INSERT INTO learning_modules (title, description, required_level, display_order) VALUES ($1, $2, $3, $4)", [title, description, required_level, display_order || 0]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// Delete a Module (Will auto-delete attached videos due to CASCADE)
+app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        await pool.query("DELETE FROM learning_modules WHERE id = $1", [req.params.id]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// Add a Video Lesson
+app.post('/api/admin/lessons', authenticateToken, isAdmin, async (req, res) => {
+    const { module_id, title, description, hls_manifest_url, display_order } = req.body;
+    try {
+        await pool.query("INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order) VALUES ($1, $2, $3, $4, $5)", [module_id, title, description, hls_manifest_url, display_order || 0]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// Delete a Video Lesson
+app.delete('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        await pool.query("DELETE FROM lesson_videos WHERE id = $1", [req.params.id]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// --- EXISTING TRADE API ---
 app.get('/api/trades', authenticateToken, async (req, res) => {
     try { res.json((await pool.query("SELECT * FROM trades WHERE CAST(created_at AS TIMESTAMP) >= NOW() - INTERVAL '30 days' ORDER BY id DESC")).rows); } 
     catch (err) { res.status(500).json({ error: err.message }); }
