@@ -17,8 +17,13 @@
             --border-color: #e9ecef;
             --green: #00b346; --red: #ff3b30; --blue: #007aff;
         }
-        body { background-color: var(--bg-color); font-family: 'Roboto', sans-serif; color: var(--text-primary); padding-bottom: 60px; font-size: 13px; -webkit-font-smoothing: antialiased; }
         
+        /* BODY IS NOW THE OUTER CANVAS */
+        body { background-color: #dbe0e5; font-family: 'Roboto', sans-serif; color: var(--text-primary); margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+        
+        /* MAIN APP CONTAINER (800px max) */
+        .app-wrapper { max-width: 800px; margin: 0 auto; background-color: var(--bg-color); min-height: 100vh; position: relative; padding-bottom: 60px; box-shadow: 0 0 25px rgba(0,0,0,0.08); }
+
         .app-header { background: #fff; border-bottom: 1px solid var(--border-color); padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
         .app-title { font-size: 16px; font-weight: 700; color: #000; letter-spacing: -0.5px; }
         .server-time { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
@@ -48,12 +53,14 @@
         .dt-lbl { font-size: 9px; color: var(--text-secondary); margin-bottom: 1px; }
         .dt-val { font-weight: 600; color: #333; }
 
-        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; border-top: 1px solid var(--border-color); padding: 8px 0; display: flex; justify-content: space-around; z-index: 999; }
+        /* CENTERED & LOCKED BOTTOM NAV */
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; margin: 0 auto; width: 100%; max-width: 800px; background: #fff; border-top: 1px solid var(--border-color); padding: 8px 0; display: flex; justify-content: space-around; z-index: 999; }
         .b-btn { background: none; border: none; display: flex; flex-direction: column; align-items: center; font-size: 10px; color: var(--text-secondary); font-weight: 500; }
         .b-btn .material-icons-round { font-size: 22px; margin-bottom: 2px; }
         .b-active { color: var(--blue); } .b-del { color: var(--red); }
         
-        .offcanvas-bottom { height: auto !important; border-radius: 15px 15px 0 0; }
+        /* CENTERED OFFCANVAS FILTER */
+        .offcanvas-bottom { height: auto !important; border-radius: 15px 15px 0 0; left: 0; right: 0; margin: 0 auto; max-width: 800px; }
         .form-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 2px; }
         .form-control, .form-select { font-size: 13px; padding: 8px; }
         .custom-check { width: 18px; height: 18px; margin-right: 10px; border-radius: 4px; border: 2px solid #ccc; }
@@ -64,7 +71,6 @@
         #learningSection { display: block; padding: 10px; }
         #tradeSection { display: none; }
         
-        /* PARENT MODULE ACCORDION */
         .accordion-item { border: 1px solid var(--border-color); border-radius: 8px !important; margin-bottom: 10px; background: #fff; overflow: hidden; }
         .accordion-button { padding: 12px 15px; font-weight: 700; color: #000; background: #f8f9fa; box-shadow: none !important; display: flex; align-items: center; }
         .accordion-button:not(.collapsed) { background: #e3f2fd; color: var(--blue); }
@@ -73,7 +79,6 @@
         .badge-locked { background-color: var(--text-secondary); }
         .badge-unlocked { background-color: var(--green); }
         
-        /* NESTED LESSON ACCORDION */
         .lesson-accordion-item { border: none !important; border-top: 1px solid var(--border-color) !important; border-radius: 0 !important; margin: 0 !important; }
         .lesson-accordion-item:first-child { border-top: none !important; }
         .lesson-accordion-btn { padding: 12px 15px; font-size: 13px; font-weight: 600; background: transparent !important; color: inherit; box-shadow: none !important; }
@@ -83,7 +88,6 @@
         .lesson-item-content { padding: 10px; border-radius: 6px; transition: background 0.2s; cursor: pointer; border: 1px solid transparent; }
         .lesson-item-content:hover { background-color: #f1f8ff; border-color: #e3f2fd; }
         
-        /* THUMBNAILS */
         .thumb-wrapper { position: relative; width: 80px; height: 45px; flex-shrink: 0; margin-right: 15px; border-radius: 4px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); }
         .thumb-wrapper img { width: 100%; height: 100%; object-fit: cover; opacity: 0.75; transition: opacity 0.2s; }
         .lesson-item-content:hover .thumb-wrapper img { opacity: 0.95; }
@@ -91,11 +95,10 @@
         .thumb-play-overlay .material-icons-round { color: #fff; font-size: 26px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8)); transition: transform 0.2s; }
         .lesson-item-content:hover .thumb-play-overlay .material-icons-round { transform: scale(1.1); }
         
-        /* ALWAYS VISIBLE LOCK NOTICE */
         .lock-notice { background-color: #fff3cd; color: #856404; padding: 12px 15px; font-size: 12px; font-weight: 600; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
         .lock-notice a { color: #0056b3; text-decoration: underline; }
 
-        /* VIDEO PLAYER */
+        /* VIDEO PLAYER (Kept full screen regardless of wrapper) */
         #videoPlayerContainer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; display: none; }
         .video-js { width: 100% !important; height: 100% !important; }
         .close-video { position: absolute; top: 15px; right: 15px; z-index: 2010; color: #fff; background: rgba(0,0,0,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
@@ -114,46 +117,63 @@
 </head>
 <body>
 
-    <header class="app-header">
-        <div class="d-flex align-items-center">
-            <div class="app-title">INT Forex & Crypto</div>
-            <div id="activeDateDisplay" style="font-size: 10px; background: #e3f2fd; color: var(--blue); padding: 2px 6px; border-radius: 4px; margin-left: 8px; font-weight: 600;">Today</div>
-        </div>
-        <div class="d-flex align-items-center">
-            <div class="server-time" id="clock" style="margin-right: 15px;">00:00:00</div>
-            <button onclick="logout()" style="background:none; border:none; color:var(--red); padding:0; display:flex; align-items:center;">
-                <span class="material-icons-round">logout</span>
-            </button>
-        </div>
-    </header>
+    <div class="app-wrapper">
 
-    <div id="tradeSection">
-        <div class="stats-bar">
-            <div class="stat-item"><span class="stat-lbl">Points</span><span class="stat-val" id="totalPips">0.00</span></div>
-            <div class="stat-item"><span class="stat-lbl">Active</span><span class="stat-val" id="activeTrades">0</span></div>
-            <div class="stat-item"><span class="stat-lbl">Win Rate</span><span class="stat-val" id="winRate">0%</span></div>
-            <div class="stat-item"><span class="stat-lbl">Signals</span><span class="stat-val" id="totalTrades">0</span></div>
-        </div>
-        <div class="trade-list" id="tradeListContainer"></div>
-        <div id="noData" style="display:none;"><span class="material-icons-round" style="font-size:32px; opacity:0.3;">toc</span><div class="mt-2 text-muted small">No trades found</div></div>
-    </div>
-
-    <div id="learningSection">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div id="adminAccordionControls" style="display:none;">
-                <button class="btn btn-sm btn-outline-secondary" onclick="toggleAccordions('all')">Open All</button>
-                <button class="btn btn-sm btn-outline-secondary ms-1" onclick="toggleAccordions('none')">Close All</button>
-                <button class="btn btn-sm btn-outline-primary ms-1" onclick="toggleAccordions('first')">Open 1st</button>
+        <header class="app-header">
+            <div class="d-flex align-items-center">
+                <div class="app-title">INT Forex & Crypto</div>
+                <div id="activeDateDisplay" style="font-size: 10px; background: #e3f2fd; color: var(--blue); padding: 2px 6px; border-radius: 4px; margin-left: 8px; font-weight: 600;">Today</div>
             </div>
-            <button id="btnAdminCourseManager" class="btn btn-sm btn-dark fw-bold ms-auto" style="display:none;" data-bs-toggle="modal" data-bs-target="#adminCourseModal">⚙️ Admin Manager</button>
-        </div>
-        
-        <div class="accordion" id="courseModuleContainer">
-            <div class="p-4 text-center text-muted">Loading courses...</div>
-        </div>
-    </div>
+            <div class="d-flex align-items-center">
+                <div class="server-time" id="clock" style="margin-right: 15px;">00:00:00</div>
+                <button onclick="logout()" style="background:none; border:none; color:var(--red); padding:0; display:flex; align-items:center;">
+                    <span class="material-icons-round">logout</span>
+                </button>
+            </div>
+        </header>
 
-    <div id="videoPlayerContainer">
+        <div id="tradeSection">
+            <div class="stats-bar">
+                <div class="stat-item"><span class="stat-lbl">Points</span><span class="stat-val" id="totalPips">0.00</span></div>
+                <div class="stat-item"><span class="stat-lbl">Active</span><span class="stat-val" id="activeTrades">0</span></div>
+                <div class="stat-item"><span class="stat-lbl">Win Rate</span><span class="stat-val" id="winRate">0%</span></div>
+                <div class="stat-item"><span class="stat-lbl">Signals</span><span class="stat-val" id="totalTrades">0</span></div>
+            </div>
+            <div class="trade-list" id="tradeListContainer"></div>
+            <div id="noData" style="display:none;"><span class="material-icons-round" style="font-size:32px; opacity:0.3;">toc</span><div class="mt-2 text-muted small">No trades found</div></div>
+        </div>
+
+        <div id="learningSection">
+            <div class="d-flex justify-content-between align-items-center mb-3 px-2 pt-1">
+                <div id="adminAccordionControls" style="display:none;">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleAccordions('all')">Open All</button>
+                    <button class="btn btn-sm btn-outline-secondary ms-1" onclick="toggleAccordions('none')">Close All</button>
+                    <button class="btn btn-sm btn-outline-primary ms-1" onclick="toggleAccordions('first')">Open 1st</button>
+                </div>
+                <button id="btnAdminCourseManager" class="btn btn-sm btn-dark fw-bold ms-auto" style="display:none;" data-bs-toggle="modal" data-bs-target="#adminCourseModal">⚙️ Admin Manager</button>
+            </div>
+            
+            <div class="accordion" id="courseModuleContainer">
+                <div class="p-4 text-center text-muted">Loading courses...</div>
+            </div>
+        </div>
+
+        <nav class="bottom-nav" id="navDefault">
+            <button class="b-btn" id="navTradeBtn" onclick="switchSection('trade')"><span class="material-icons-round">analytics</span>Trade</button>
+            <button class="b-btn b-active" id="navLearnBtn" onclick="switchSection('learning')"><span class="material-icons-round">school</span>Learn</button>
+            <button class="b-btn" id="btnRefresh" onclick="fetchTrades()" style="display:none;"><span class="material-icons-round">refresh</span>Refresh</button>
+            <button class="b-btn" id="btnFilter" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterSheet" style="display:none;"><span class="material-icons-round">filter_list</span>Filter</button>
+            <button class="b-btn" id="btnSelect" onclick="toggleSelectionMode()" style="display:none;"><span class="material-icons-round" id="selectIcon">check_circle</span>Select</button>
+            <button class="b-btn b-del" id="btnDelete" onclick="deleteSelected()" style="display:none;"><span class="material-icons-round">delete</span>Delete</button>
+        </nav>
+
+        <nav class="bottom-nav" id="navSelection" style="display:none;">
+            <button class="b-btn" onclick="toggleSelectionMode()"><span class="material-icons-round">close</span>Cancel</button>
+            <button class="b-btn b-active" onclick="selectAllTrades()"><span class="material-icons-round">done_all</span>Select All</button>
+            <button class="b-btn b-del" onclick="deleteSelected()"><span class="material-icons-round">delete_forever</span>Delete</button>
+        </nav>
+
+    </div><div id="videoPlayerContainer">
         <button class="close-video" onclick="closeVideoPlayer()"><span class="material-icons-round">close</span></button>
         <div id="dynamicWatermark"></div>
         <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" disablePictureInPicture controlsList="nodownload nofullscreen noremoteplayback"></video>
@@ -274,21 +294,6 @@
             </div>
         </div>
     </div>
-
-    <nav class="bottom-nav" id="navDefault">
-        <button class="b-btn" id="navTradeBtn" onclick="switchSection('trade')"><span class="material-icons-round">analytics</span>Trade</button>
-        <button class="b-btn b-active" id="navLearnBtn" onclick="switchSection('learning')"><span class="material-icons-round">school</span>Learn</button>
-        <button class="b-btn" id="btnRefresh" onclick="fetchTrades()" style="display:none;"><span class="material-icons-round">refresh</span>Refresh</button>
-        <button class="b-btn" id="btnFilter" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterSheet" style="display:none;"><span class="material-icons-round">filter_list</span>Filter</button>
-        <button class="b-btn" id="btnSelect" onclick="toggleSelectionMode()" style="display:none;"><span class="material-icons-round" id="selectIcon">check_circle</span>Select</button>
-        <button class="b-btn b-del" id="btnDelete" onclick="deleteSelected()" style="display:none;"><span class="material-icons-round">delete</span>Delete</button>
-    </nav>
-
-    <nav class="bottom-nav" id="navSelection" style="display:none;">
-        <button class="b-btn" onclick="toggleSelectionMode()"><span class="material-icons-round">close</span>Cancel</button>
-        <button class="b-btn b-active" onclick="selectAllTrades()"><span class="material-icons-round">done_all</span>Select All</button>
-        <button class="b-btn b-del" onclick="deleteSelected()"><span class="material-icons-round">delete_forever</span>Delete</button>
-    </nav>
 
     <div class="offcanvas offcanvas-bottom" tabindex="-1" id="filterSheet">
         <div class="offcanvas-header pb-0"><h6 class="offcanvas-title fw-bold">Filter Options</h6><button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button></div>
