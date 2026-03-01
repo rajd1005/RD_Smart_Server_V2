@@ -97,9 +97,7 @@ async function fetchCourses() {
         }
 
         globalModules.forEach((mod, index) => {
-            if (userData.role !== 'admin' && mod.required_level === 'demo') {
-                return; 
-            }
+            if (userData.role !== 'admin' && mod.required_level === 'demo') return; 
 
             const isLocked = userData.role !== 'admin' && mod.required_level !== 'demo' && accessLevels[mod.required_level] !== 'Yes';
             const levelBadge = isLocked ? '<span class="module-level-badge badge-locked">LOCKED</span>' : '<span class="module-level-badge badge-unlocked">UNLOCKED</span>';
@@ -132,7 +130,6 @@ async function fetchCourses() {
                             <button class="admin-del-btn" onclick="deleteLesson(event, ${l.id})"><span class="material-icons-round" style="font-size: 18px;">delete</span></button>
                         </div>` : '';
 
-                    // Overlay Math for Play or Lock Icon over the thumbnail
                     const overlayIcon = isLocked ? 'lock' : 'play_circle_filled';
                     const textColor = isLocked ? '#666' : '#000';
                     const opacityLvl = isLocked ? '0.6' : '1';
@@ -180,7 +177,20 @@ async function fetchCourses() {
         });
         
         container.innerHTML = htmlContent || '<div class="p-4 text-center text-muted">No courses found.</div>';
-        setTimeout(() => { toggleAccordions('first'); }, 100);
+        
+        // --- NEW: FETCH AND APPLY GLOBAL SETTINGS ---
+        try {
+            const settingsRes = await fetch('/api/settings');
+            const settings = await settingsRes.json();
+            const defaultState = settings.accordion_state || 'first';
+            
+            setTimeout(() => { toggleAccordions(defaultState); }, 100);
+            
+            const adminSettingDropdown = document.getElementById('adminAccordionState');
+            if (adminSettingDropdown) adminSettingDropdown.value = defaultState;
+        } catch (e) {
+            setTimeout(() => { toggleAccordions('first'); }, 100);
+        }
 
     } catch (err) { container.innerHTML = `<div class="p-3 text-danger text-center">❌ Error loading courses.</div>`; }
 }
@@ -270,6 +280,22 @@ function moveWatermark() {
     wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
 }
 
+
+// ==========================================
+// --- ADMIN COURSE MANAGEMENT FORMS ---
+// ==========================================
+
+const formAdminSettings = document.getElementById('formAdminSettings');
+if (formAdminSettings) {
+    formAdminSettings.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const state = document.getElementById('adminAccordionState').value;
+        try {
+            const res = await fetch('/api/admin/settings', { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({ accordion_state: state }) });
+            if(res.ok) { alert("Settings Saved!"); fetchCourses(); } else { alert("Error saving settings"); }
+        } catch(err) {}
+    });
+}
 
 const formAddModule = document.getElementById('formAddModule');
 if (formAddModule) {
@@ -407,7 +433,7 @@ async function fetchTrades() {
         allTrades = await response.json();
         populateSymbolFilter(allTrades);
         applyFilters(checkedIds); 
-    } catch (error) {}
+    } catch (error) { }
 }
 
 function populateSymbolFilter(trades) {
@@ -532,11 +558,14 @@ function calculateStats(trades) {
     });
     const totalClosed = wins + losses;
     const winRate = totalClosed === 0 ? 0 : Math.round((wins / totalClosed) * 100);
+
     if(document.getElementById('totalTrades')) document.getElementById('totalTrades').innerText = trades.length;
     if(document.getElementById('winRate')) document.getElementById('winRate').innerText = winRate + "%";
+    
     const pipsEl = document.getElementById('totalPips');
     pipsEl.innerText = totalPoints.toFixed(2);
     pipsEl.className = totalPoints >= 0 ? 'stat-val val-green' : 'stat-val val-red';
+    
     if(document.getElementById('activeTrades')) document.getElementById('activeTrades').innerText = active;
 }
 
