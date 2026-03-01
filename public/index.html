@@ -149,6 +149,7 @@
                         <div class="mb-2"><input type="text" id="modDesc" class="form-control" placeholder="Short Description"></div>
                         <div class="mb-2">
                             <select id="modLevel" class="form-select" required>
+                                <option value="demo">Demo / Public (No Login Required)</option>
                                 <option value="level_1_status">Level 1 (All Access)</option>
                                 <option value="level_2_status">Requires Level 2 Access</option>
                                 <option value="level_3_status">Requires Level 3 Access</option>
@@ -193,6 +194,7 @@
                         <div class="mb-2">
                             <label class="form-label text-muted small">Required Access Level</label>
                             <select id="editModLevel" class="form-select" required>
+                                <option value="demo">Demo / Public (No Login Required)</option>
                                 <option value="level_1_status">Level 1 (All Access)</option>
                                 <option value="level_2_status">Requires Level 2 Access</option>
                                 <option value="level_3_status">Requires Level 3 Access</option>
@@ -232,10 +234,8 @@
     <nav class="bottom-nav" id="navDefault">
         <button class="b-btn" id="navTradeBtn" onclick="switchSection('trade')"><span class="material-icons-round">analytics</span>Trade</button>
         <button class="b-btn b-active" id="navLearnBtn" onclick="switchSection('learning')"><span class="material-icons-round">school</span>Learn</button>
-        
         <button class="b-btn" id="btnRefresh" onclick="fetchTrades()" style="display:none;"><span class="material-icons-round">refresh</span>Refresh</button>
         <button class="b-btn" id="btnFilter" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterSheet" style="display:none;"><span class="material-icons-round">filter_list</span>Filter</button>
-        
         <button class="b-btn" id="btnSelect" onclick="toggleSelectionMode()" style="display:none;"><span class="material-icons-round" id="selectIcon">check_circle</span>Select</button>
         <button class="b-btn b-del" id="btnDelete" onclick="deleteSelected()" style="display:none;"><span class="material-icons-round">delete</span>Delete</button>
     </nav>
