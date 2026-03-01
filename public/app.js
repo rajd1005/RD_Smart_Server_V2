@@ -238,7 +238,11 @@ async function deleteSelected() {
     } catch (err) { console.error(err); }
 }
 
-document.getElementById('filterDate').addEventListener('change', () => applyFilters());
+// Replace the old filterDate listener with these:
+document.getElementById('filterStartDate').addEventListener('change', () => applyFilters());
+document.getElementById('filterEndDate').addEventListener('change', () => applyFilters());
+
+// Keep the others:
 document.getElementById('filterSymbol').addEventListener('change', () => applyFilters());
 document.getElementById('filterStatus').addEventListener('change', () => applyFilters());
 document.getElementById('filterType').addEventListener('change', () => applyFilters());
