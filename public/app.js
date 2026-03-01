@@ -118,7 +118,6 @@ async function fetchCourses() {
                     <button class="admin-del-btn" onclick="deleteModule(event, ${mod.id})"><span class="material-icons-round" style="font-size: 18px;">delete</span></button>
                 </div>` : '';
 
-            // --- EXTRACTED LOCK NOTICE TO BE ALWAYS VISIBLE ---
             let displayNoticeHtml = '';
             if (isLocked) {
                 let displayNotice = mod.lock_notice ? mod.lock_notice : `⚠️ Your WP Level Status restricts access. Please contact Admin.`;
@@ -164,8 +163,7 @@ async function fetchCourses() {
                                     <div class="lesson-item-content d-flex align-items-center w-100" style="opacity: ${opacityLvl}; cursor: ${pointerEv};" ${onClickAction}>
                                         ${thumbnailImg}
                                         <div class="flex-grow-1">
-                                            ${l.description ? `<div class="text-muted small mb-1">${l.description}</div>` : ''}
-                                            ${isLocked ? `<span class="badge bg-secondary">Locked</span>` : `<span class="badge bg-primary">Play Video</span>`}
+                                            ${l.description ? `<div class="text-muted small">${l.description}</div>` : ''}
                                         </div>
                                         ${!isLocked ? adminBtnsLess : ''}
                                     </div>
@@ -179,7 +177,6 @@ async function fetchCourses() {
                 lessonHtml += '<div class="text-muted small p-3 text-center">No videos yet.</div>';
             }
 
-            // --- PLACED NOTICE RIGHT AFTER HEADER, OUTSIDE COLLAPSE BODY ---
             htmlContent += `
                 <div class="accordion-item course-module">
                     <h2 class="accordion-header" id="heading${mod.id}">
@@ -302,7 +299,6 @@ function moveWatermark() {
     wmEl.style.left = Math.floor(Math.random() * (maxX - minX + 1)) + minX + 'px';
     wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
 }
-
 
 const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
