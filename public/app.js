@@ -2,11 +2,27 @@ const API_URL = '/api/trades';
 let allTrades = []; 
 let isSelectionMode = false;
 const socket = io(); 
+let datePicker;
 
 window.onload = function() {
-    setTodayDate();
+    initDatePicker();
     fetchTrades();
 };
+
+function initDatePicker() {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    
+    // Initialize Flatpickr in range mode
+    datePicker = flatpickr("#filterDateRange", {
+        mode: "range",
+        dateFormat: "Y-m-d",
+        defaultDate: today, // Set today as default
+        onChange: function() {
+            // Instantly apply filters when user selects a date/range
+            applyFilters(); 
+        }
+    });
+}
 
 socket.on('trade_update', () => { fetchTrades(); });
 
@@ -42,13 +58,22 @@ function populateSymbolFilter(trades) {
     if(uniqueSymbols.includes(currentVal)) symbolSelect.value = currentVal;
 }
 
-// --- 1. OPTIMIZED FILTER & AUTO-CLOSE LOGIC ---
 function applyFilters(preserveIds = []) {
     const filterSymbol = document.getElementById('filterSymbol').value;
     const filterStatus = document.getElementById('filterStatus').value;
     const filterType = document.getElementById('filterType').value;
-    const startDate = document.getElementById('filterStartDate').value; 
-    const endDate = document.getElementById('filterEndDate').value; 
+    
+    // Extract dates from Flatpickr
+    let startDate = "";
+    let endDate = "";
+    if (datePicker && datePicker.selectedDates.length > 0) {
+        const formatOpts = { timeZone: 'Asia/Kolkata' };
+        startDate = datePicker.selectedDates[0].toLocaleDateString('en-CA', formatOpts);
+        // If it's a single date, end date is the same. If range, use the second date.
+        endDate = datePicker.selectedDates.length === 2 
+            ? datePicker.selectedDates[1].toLocaleDateString('en-CA', formatOpts) 
+            : startDate;
+    }
 
     // --- Update Header Text ---
     const dateDisplay = document.getElementById('activeDateDisplay');
@@ -81,7 +106,6 @@ function applyFilters(preserveIds = []) {
         let displayStatus = trade.status;
         let isVisuallyActive = (trade.status === 'ACTIVE' || trade.status === 'SETUP');
         
-        // If trade is active but from a previous day, force it closed visually
         if (isVisuallyActive && tradeDateStr < todayStr) {
             isVisuallyActive = false; 
             const pts = parseFloat(trade.points_gained || 0);
@@ -267,10 +291,6 @@ async function deleteSelected() {
         }
     } catch (err) { console.error(err); }
 }
-
-// Replace the old filterDate listener with these:
-document.getElementById('filterStartDate').addEventListener('change', () => applyFilters());
-document.getElementById('filterEndDate').addEventListener('change', () => applyFilters());
 
 // Keep the others:
 document.getElementById('filterSymbol').addEventListener('change', () => applyFilters());
