@@ -32,7 +32,7 @@ const initDb = async () => {
     CREATE TABLE IF NOT EXISTS lesson_videos (
         id SERIAL PRIMARY KEY, module_id INT REFERENCES learning_modules(id) ON DELETE CASCADE,
         title VARCHAR(255) NOT NULL, description TEXT, hls_manifest_url TEXT NOT NULL,
-        display_order INT DEFAULT 0
+        display_order INT DEFAULT 0, thumbnail_url TEXT
     );`;
 
     const populateDefaultModules = `
@@ -43,17 +43,19 @@ const initDb = async () => {
     ('Level 4: Mastering Psychology', 'The trader''s mindset.', 'level_4_status', 4)
     ON CONFLICT (title) DO NOTHING;`;
 
-    // Safely upgrade existing tables if they don't have the new column yet
+    // Safely upgrade existing tables
     const upgradeModulesTable = `ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS lock_notice TEXT;`;
+    const upgradeLessonsTable = `ALTER TABLE lesson_videos ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;`;
 
     try {
         await pool.query(queryTrades);
         await pool.query(queryLogs); 
         await pool.query(queryLearningModules); 
-        await pool.query(upgradeModulesTable); // UPGRADES DB AUTOMATICALLY
+        await pool.query(upgradeModulesTable); 
         await pool.query(queryLessonVideos); 
+        await pool.query(upgradeLessonsTable); 
         await pool.query(populateDefaultModules); 
-        console.log("✅ Database Tables Verified/Created (Trades + LMS with Lock Notices)");
+        console.log("✅ Database Tables Verified/Created (Trades + LMS + Thumbnails)");
     } catch (err) {
         console.error("❌ Database Error:", err);
     }
