@@ -18,10 +18,7 @@
             --green: #00b346; --red: #ff3b30; --blue: #007aff;
         }
         
-        /* BODY IS NOW THE OUTER CANVAS */
         body { background-color: #dbe0e5; font-family: 'Roboto', sans-serif; color: var(--text-primary); margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
-        
-        /* MAIN APP CONTAINER (800px max) */
         .app-wrapper { max-width: 800px; margin: 0 auto; background-color: var(--bg-color); min-height: 100vh; position: relative; padding-bottom: 60px; box-shadow: 0 0 25px rgba(0,0,0,0.08); }
 
         .app-header { background: #fff; border-bottom: 1px solid var(--border-color); padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
@@ -53,13 +50,11 @@
         .dt-lbl { font-size: 9px; color: var(--text-secondary); margin-bottom: 1px; }
         .dt-val { font-weight: 600; color: #333; }
 
-        /* CENTERED & LOCKED BOTTOM NAV */
         .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; margin: 0 auto; width: 100%; max-width: 800px; background: #fff; border-top: 1px solid var(--border-color); padding: 8px 0; display: flex; justify-content: space-around; z-index: 999; }
         .b-btn { background: none; border: none; display: flex; flex-direction: column; align-items: center; font-size: 10px; color: var(--text-secondary); font-weight: 500; }
         .b-btn .material-icons-round { font-size: 22px; margin-bottom: 2px; }
         .b-active { color: var(--blue); } .b-del { color: var(--red); }
         
-        /* CENTERED OFFCANVAS FILTER */
         .offcanvas-bottom { height: auto !important; border-radius: 15px 15px 0 0; left: 0; right: 0; margin: 0 auto; max-width: 800px; }
         .form-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 2px; }
         .form-control, .form-select { font-size: 13px; padding: 8px; }
@@ -71,34 +66,40 @@
         #learningSection { display: block; padding: 10px; }
         #tradeSection { display: none; }
         
-        .accordion-item { border: 1px solid var(--border-color); border-radius: 8px !important; margin-bottom: 10px; background: #fff; overflow: hidden; }
-        .accordion-button { padding: 12px 15px; font-weight: 700; color: #000; background: #f8f9fa; box-shadow: none !important; display: flex; align-items: center; }
+        /* COMPACT LMS ACCORDION STYLES */
+        .accordion-item { border: 1px solid var(--border-color); border-radius: 8px !important; margin-bottom: 6px; background: #fff; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .accordion-button { padding: 10px 12px; font-weight: 700; color: #000; background: #f8f9fa; box-shadow: none !important; font-size: 14px; min-height: 44px; }
         .accordion-button:not(.collapsed) { background: #e3f2fd; color: var(--blue); }
+        .accordion-button::after { transform: scale(0.8); }
         
-        .module-level-badge { font-size: 10px; font-weight: 600; padding: 3px 6px; border-radius: 4px; color: #fff; margin-left: 10px; }
-        .badge-locked { background-color: var(--text-secondary); }
-        .badge-unlocked { background-color: var(--green); }
+        .module-level-badge { font-size: 9px; font-weight: 700; padding: 3px 6px; border-radius: 4px; background-color: #d1ecf1; color: #0c5460; text-transform: uppercase; margin-left: 8px; }
+        .badge-locked { background-color: var(--text-secondary); color: #fff; }
+        .badge-unlocked { background-color: var(--green); color: #fff; }
+        .badge-demo { background-color: #d4edda; color: #155724; }
         
-        .lesson-accordion-item { border: none !important; border-top: 1px solid var(--border-color) !important; border-radius: 0 !important; margin: 0 !important; }
+        /* NESTED LESSON ACCORDION */
+        .lesson-accordion-item { border: none !important; border-top: 1px solid var(--border-color) !important; border-radius: 0 !important; margin: 0 !important; box-shadow: none !important; }
         .lesson-accordion-item:first-child { border-top: none !important; }
-        .lesson-accordion-btn { padding: 12px 15px; font-size: 13px; font-weight: 600; background: transparent !important; color: inherit; box-shadow: none !important; }
+        .lesson-accordion-btn { padding: 8px 12px; font-size: 13px; font-weight: 600; background: transparent !important; color: inherit; box-shadow: none !important; min-height: 38px; }
         .lesson-accordion-btn:not(.collapsed) { background: #f8f9fa !important; color: var(--blue) !important; }
-        .lesson-accordion-btn::after { transform: scale(0.8); }
         
-        .lesson-item-content { padding: 10px; border-radius: 6px; transition: background 0.2s; cursor: pointer; border: 1px solid transparent; }
-        .lesson-item-content:hover { background-color: #f1f8ff; border-color: #e3f2fd; }
+        .lesson-item-content { padding: 8px 12px; border-radius: 0; transition: background 0.2s; cursor: pointer; border-top: 1px solid #f0f2f5; }
+        .lesson-item-content:hover { background-color: #f9fbfd; }
         
-        .thumb-wrapper { position: relative; width: 80px; height: 45px; flex-shrink: 0; margin-right: 15px; border-radius: 4px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); }
-        .thumb-wrapper img { width: 100%; height: 100%; object-fit: cover; opacity: 0.75; transition: opacity 0.2s; }
-        .lesson-item-content:hover .thumb-wrapper img { opacity: 0.95; }
-        .thumb-play-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-        .thumb-play-overlay .material-icons-round { color: #fff; font-size: 26px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8)); transition: transform 0.2s; }
-        .lesson-item-content:hover .thumb-play-overlay .material-icons-round { transform: scale(1.1); }
+        /* COMPACT THUMBNAILS */
+        .thumb-wrapper-compact { position: relative; width: 100px; height: 56px; flex-shrink: 0; margin-right: 12px; border-radius: 4px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); }
+        .thumb-wrapper-compact img { width: 100%; height: 100%; object-fit: cover; opacity: 0.85; transition: opacity 0.2s; }
+        .lesson-item-content:hover .thumb-wrapper-compact img { opacity: 1; }
+        .thumb-play-overlay-compact { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+        .thumb-play-overlay-compact .material-icons-round { color: #fff; font-size: 24px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8)); transition: transform 0.2s; }
+        .lesson-item-content:hover .thumb-play-overlay-compact .material-icons-round { transform: scale(1.1); }
         
-        .lock-notice { background-color: #fff3cd; color: #856404; padding: 12px 15px; font-size: 12px; font-weight: 600; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
+        .lesson-icon-compact { margin-right: 12px; font-size: 28px; flex-shrink: 0; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1)); }
+        
+        .lock-notice { background-color: #fff3cd; color: #856404; padding: 6px 12px; font-size: 11px; font-weight: 600; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
         .lock-notice a { color: #0056b3; text-decoration: underline; }
 
-        /* VIDEO PLAYER (Kept full screen regardless of wrapper) */
+        /* VIDEO PLAYER */
         #videoPlayerContainer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; display: none; }
         .video-js { width: 100% !important; height: 100% !important; }
         .close-video { position: absolute; top: 15px; right: 15px; z-index: 2010; color: #fff; background: rgba(0,0,0,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
@@ -144,13 +145,13 @@
         </div>
 
         <div id="learningSection">
-            <div class="d-flex justify-content-between align-items-center mb-3 px-2 pt-1">
+            <div class="d-flex justify-content-between align-items-center mb-2 px-1">
                 <div id="adminAccordionControls" style="display:none;">
-                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleAccordions('all')">Open All</button>
-                    <button class="btn btn-sm btn-outline-secondary ms-1" onclick="toggleAccordions('none')">Close All</button>
-                    <button class="btn btn-sm btn-outline-primary ms-1" onclick="toggleAccordions('first')">Open 1st</button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleAccordions('all')" style="font-size: 11px;">Open All</button>
+                    <button class="btn btn-sm btn-outline-secondary ms-1" onclick="toggleAccordions('none')" style="font-size: 11px;">Close All</button>
+                    <button class="btn btn-sm btn-outline-primary ms-1" onclick="toggleAccordions('first')" style="font-size: 11px;">Open 1st</button>
                 </div>
-                <button id="btnAdminCourseManager" class="btn btn-sm btn-dark fw-bold ms-auto" style="display:none;" data-bs-toggle="modal" data-bs-target="#adminCourseModal">⚙️ Admin Manager</button>
+                <button id="btnAdminCourseManager" class="btn btn-sm btn-dark fw-bold ms-auto" style="display:none; font-size: 11px;" data-bs-toggle="modal" data-bs-target="#adminCourseModal">⚙️ Admin Manager</button>
             </div>
             
             <div class="accordion" id="courseModuleContainer">
