@@ -27,8 +27,10 @@ app.use(cookieParser());
 
 const uploadDir = path.join(__dirname, 'uploads');
 const hlsDir = path.join(__dirname, 'public', 'hls');
+const thumbDir = path.join(__dirname, 'public', 'thumbnails');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 if (!fs.existsSync(hlsDir)) fs.mkdirSync(hlsDir, { recursive: true });
+if (!fs.existsSync(thumbDir)) fs.mkdirSync(thumbDir, { recursive: true });
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -95,7 +97,7 @@ function toMarkdown(text) { if (text === undefined || text === null) return ""; 
 app.get('/api/public/courses', async (req, res) => {
     try {
         const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order FROM learning_modules ORDER BY display_order ASC");
-        const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order FROM lesson_videos ORDER BY display_order ASC");
+        const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url FROM lesson_videos ORDER BY display_order ASC");
         const coursesStructure = modulesResult.rows.map(mod => { 
             return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; 
         });
@@ -171,7 +173,7 @@ app.get('/api/hls-key/:lessonId/enc.key', async (req, res) => {
 app.get('/api/courses', authenticateToken, async (req, res) => {
     try {
         const modulesResult = await pool.query("SELECT * FROM learning_modules ORDER BY display_order ASC");
-        const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order FROM lesson_videos ORDER BY display_order ASC");
+        const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url FROM lesson_videos ORDER BY display_order ASC");
         const coursesStructure = modulesResult.rows.map(mod => { return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; });
         res.json(coursesStructure);
     } catch (err) { res.status(500).json({ error: "Server Error fetching courses." }); }
@@ -204,7 +206,6 @@ app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// UPDATED: Allow updating of Display Order
 app.put('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
     const { title, description, required_level, lock_notice, display_order } = req.body;
     try {
@@ -231,11 +232,22 @@ app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.single('video_file'), async (req, res) => {
+// MULTIPART FORM WITH VIDEO AND THUMBNAIL
+app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name: 'video_file', maxCount: 1 }, { name: 'thumbnail_file', maxCount: 1 }]), async (req, res) => {
     const { module_id, title, description, display_order } = req.body;
-    const file = req.file;
+    
+    if (!req.files || !req.files['video_file']) return res.status(400).json({ success: false, msg: "Video file is required." });
+    const videoFile = req.files['video_file'][0];
 
-    if (!file) return res.status(400).json({ success: false, msg: "Video file is required." });
+    // Process Thumbnail File
+    let thumbUrl = '';
+    if (req.files['thumbnail_file']) {
+        const thumbFile = req.files['thumbnail_file'][0];
+        const ext = path.extname(thumbFile.originalname) || '.jpg';
+        const thumbName = crypto.randomUUID() + ext;
+        fs.renameSync(thumbFile.path, path.join(thumbDir, thumbName));
+        thumbUrl = '/thumbnails/' + thumbName;
+    }
 
     const lessonId = crypto.randomUUID();
     const lessonHlsDir = path.join(hlsDir, lessonId);
@@ -251,28 +263,37 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.single('video_
 
     const m3u8Path = `/hls/${lessonId}/output.m3u8`;
 
-    ffmpeg(file.path)
+    ffmpeg(videoFile.path)
         .outputOptions([
             '-profile:v baseline', '-level 3.0', '-s 1280x720', '-start_number 0', '-hls_time 10', '-hls_list_size 0', '-f hls', `-hls_key_info_file ${keyInfoPath}` 
         ])
         .output(path.join(lessonHlsDir, 'output.m3u8'))
         .on('end', async () => {
-            if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-            try { await pool.query("INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order) VALUES ($1, $2, $3, $4, $5)", [module_id, title, description, m3u8Path, display_order || 0]); } catch(e) {}
+            if (fs.existsSync(videoFile.path)) fs.unlinkSync(videoFile.path);
+            try { await pool.query("INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6)", [module_id, title, description, m3u8Path, display_order || 0, thumbUrl]); } catch(e) {}
         })
         .on('error', (err) => {
-            if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+            if (fs.existsSync(videoFile.path)) fs.unlinkSync(videoFile.path);
         })
         .run();
 
-    res.json({ success: true, msg: "Video Uploaded. System is now converting and encrypting it in the background." });
+    res.json({ success: true, msg: "Video Uploaded. System is converting it in the background." });
 });
 
-// UPDATED: Allow updating of Display Order
-app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res) => {
+// EDIT LESSON WITH MULTIPART FOR THUMBNAIL UPDATE
+app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, upload.single('thumbnail_file'), async (req, res) => {
     const { title, description, display_order } = req.body;
     try {
-        await pool.query("UPDATE lesson_videos SET title = $1, description = $2, display_order = $3 WHERE id = $4", [title, description, display_order || 0, req.params.id]);
+        if (req.file) {
+            const ext = path.extname(req.file.originalname) || '.jpg';
+            const thumbName = crypto.randomUUID() + ext;
+            fs.renameSync(req.file.path, path.join(thumbDir, thumbName));
+            const thumbUrl = '/thumbnails/' + thumbName;
+            
+            await pool.query("UPDATE lesson_videos SET title = $1, description = $2, display_order = $3, thumbnail_url = $4 WHERE id = $5", [title, description, display_order || 0, thumbUrl, req.params.id]);
+        } else {
+            await pool.query("UPDATE lesson_videos SET title = $1, description = $2, display_order = $3 WHERE id = $4", [title, description, display_order || 0, req.params.id]);
+        }
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
