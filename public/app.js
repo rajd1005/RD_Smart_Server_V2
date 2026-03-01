@@ -12,7 +12,8 @@ socket.on('trade_update', () => { fetchTrades(); });
 
 function setTodayDate() {
     const istDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    document.getElementById('filterDate').value = istDate;
+    document.getElementById('filterStartDate').value = istDate;
+    document.getElementById('filterEndDate').value = istDate;
 }
 
 async function fetchTrades() {
