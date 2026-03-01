@@ -13,7 +13,7 @@ const multer = require('multer');
 // --- NEW FFMPEG CONFIGURATION ---
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
-ffmpeg.setFfmpegPath(ffmpegPath); // Tells Node exactly where the engine is!
+ffmpeg.setFfmpegPath(ffmpegPath); 
 
 const { pool, initDb } = require('./database');
 const authPool = require('./authDb'); 
@@ -22,7 +22,6 @@ require('dotenv').config();
 const app = express();
 
 app.set('trust proxy', true); 
-
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
@@ -216,6 +215,10 @@ app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
 });
 
+// ==========================================
+// --- ADMIN LMS MANAGEMENT API ---
+// ==========================================
+
 app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
     const { title, description, required_level, display_order } = req.body;
     try {
@@ -227,12 +230,23 @@ app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+app.put('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
+    const { title, description, required_level } = req.body;
+    try {
+        await pool.query(
+            "UPDATE learning_modules SET title = $1, description = $2, required_level = $3 WHERE id = $4", 
+            [title, description, required_level, req.params.id]
+        );
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
 app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
     try { await pool.query("DELETE FROM learning_modules WHERE id = $1", [req.params.id]); res.json({ success: true }); } 
     catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// --- AUTOMATED HLS ENCRYPTION ENGINE ---
+
 app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.single('video_file'), async (req, res) => {
     const { module_id, title, description, display_order } = req.body;
     const file = req.file;
@@ -285,6 +299,17 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.single('video_
         .run();
 
     res.json({ success: true, msg: "Video Uploaded. System is now converting and encrypting it in the background." });
+});
+
+app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res) => {
+    const { title, description } = req.body;
+    try {
+        await pool.query(
+            "UPDATE lesson_videos SET title = $1, description = $2 WHERE id = $3", 
+            [title, description, req.params.id]
+        );
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 app.delete('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res) => {
