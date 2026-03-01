@@ -30,7 +30,7 @@
             <label class="form-check-label" for="rememberMe">Save Password</label>
         </div>
         <div id="errorMsg" class="text-danger small mb-3 text-center" style="display:none;"></div>
-        <button type="submit" class="btn btn-primary w-100">Login</button>
+        <button type="submit" class="btn btn-primary w-100" id="loginBtn">Login</button>
     </form>
 </div>
 
@@ -41,6 +41,10 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     const password = document.getElementById('password').value;
     const rememberMe = document.getElementById('rememberMe').checked;
     const errorMsg = document.getElementById('errorMsg');
+    const loginBtn = document.getElementById('loginBtn');
+
+    loginBtn.disabled = true;
+    errorMsg.style.display = 'none';
 
     try {
         const res = await fetch('/api/login', {
@@ -51,14 +55,18 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         
         const data = await res.json();
         if (data.success) {
-            window.location.href = '/'; // Redirect to dashboard
+            // ✅ Save the user role (admin/student) to local storage
+            localStorage.setItem('userRole', data.role);
+            window.location.href = '/'; 
         } else {
             errorMsg.innerText = data.msg;
             errorMsg.style.display = 'block';
+            loginBtn.disabled = false;
         }
     } catch (err) {
         errorMsg.innerText = "Server connection error.";
         errorMsg.style.display = 'block';
+        loginBtn.disabled = false;
     }
 });
 </script>
