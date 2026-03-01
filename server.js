@@ -27,7 +27,9 @@ app.use(cookieParser());
 
 const uploadDir = path.join(__dirname, 'uploads');
 const hlsDir = path.join(__dirname, 'public', 'hls');
-const thumbDir = path.join(__dirname, 'public', 'thumbnails');
+// SAVING THUMBNAILS INSIDE THE HLS VOLUME SO THEY ARE NEVER DELETED BY RAILWAY
+const thumbDir = path.join(__dirname, 'public', 'hls', 'thumbnails'); 
+
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 if (!fs.existsSync(hlsDir)) fs.mkdirSync(hlsDir, { recursive: true });
 if (!fs.existsSync(thumbDir)) fs.mkdirSync(thumbDir, { recursive: true });
@@ -94,7 +96,6 @@ function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
-// --- SYSTEM SETTINGS API ---
 app.get('/api/settings', async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM system_settings");
@@ -261,7 +262,7 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
         const ext = path.extname(thumbFile.originalname) || '.jpg';
         const thumbName = crypto.randomUUID() + ext;
         fs.renameSync(thumbFile.path, path.join(thumbDir, thumbName));
-        thumbUrl = '/thumbnails/' + thumbName;
+        thumbUrl = '/hls/thumbnails/' + thumbName;
     }
 
     const lessonId = crypto.randomUUID();
@@ -292,7 +293,7 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
         })
         .run();
 
-    res.json({ success: true, msg: "Video Uploaded. System is converting it in the background." });
+    res.json({ success: true, msg: "Video Uploaded. System is now converting and encrypting it in the background." });
 });
 
 app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, upload.single('thumbnail_file'), async (req, res) => {
@@ -302,7 +303,7 @@ app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, upload.single('thu
             const ext = path.extname(req.file.originalname) || '.jpg';
             const thumbName = crypto.randomUUID() + ext;
             fs.renameSync(req.file.path, path.join(thumbDir, thumbName));
-            const thumbUrl = '/thumbnails/' + thumbName;
+            const thumbUrl = '/hls/thumbnails/' + thumbName;
             
             await pool.query("UPDATE lesson_videos SET title = $1, description = $2, display_order = $3, thumbnail_url = $4 WHERE id = $5", [title, description, display_order || 0, thumbUrl, req.params.id]);
         } else {
@@ -327,6 +328,7 @@ app.delete('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+// --- ORIGINAL TRADING API ---
 app.get('/api/trades', authenticateToken, async (req, res) => {
     try { res.json((await pool.query(`SELECT * FROM trades WHERE CAST(created_at AS TIMESTAMP) >= NOW() - INTERVAL '30 days' ORDER BY id DESC`)).rows); } catch (err) { res.status(500).json({ error: err.message }); }
 });
