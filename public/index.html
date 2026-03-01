@@ -165,10 +165,11 @@
                         <div class="mb-2"><input type="text" id="lessonTitle" class="form-control" placeholder="Video Title" required></div>
                         <div class="mb-2"><input type="text" id="lessonDesc" class="form-control" placeholder="Video Description"></div>
                         <div class="mb-3">
-                            <label class="text-muted small">Secure HLS URL (.m3u8 link)</label>
-                            <input type="url" id="lessonUrl" class="form-control" placeholder="https://..." required>
+                            <label class="text-muted small fw-bold">Upload MP4 Video</label>
+                            <input type="file" id="lessonVideoFile" class="form-control" accept="video/mp4,video/x-m4v,video/*" required>
+                            <div class="text-muted" style="font-size: 10px; margin-top: 4px;">*Video will be automatically encrypted and watermarked.</div>
                         </div>
-                        <button type="submit" class="btn btn-sm btn-success w-100">Upload Video Link</button>
+                        <button type="submit" class="btn btn-sm btn-success w-100">Upload Video File</button>
                     </form>
                 </div>
             </div>
