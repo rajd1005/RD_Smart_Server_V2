@@ -3,13 +3,13 @@ const API_URL_COURSES = '/api/courses';
 const API_URL_LESSON = '/api/lesson/';
 
 let allTrades = []; 
+let globalModules = []; // Store courses for dropdowns
 let isSelectionMode = false;
 const socket = io(); 
 let datePicker;
 let videoPlayer = null; 
 let watermarkInterval = null; 
 
-// User context for LMS & Watermark
 const userData = {
     email: localStorage.getItem('userEmail'),
     phone: localStorage.getItem('userPhone'),
@@ -22,7 +22,7 @@ window.onload = function() {
     applyRoleRestrictions(); 
 };
 
-// --- NEW: Section Toggle Logic ---
+// --- NAVIGATION LOGIC ---
 function switchSection(section) {
     if (section === 'trade') {
         document.getElementById('tradeSection').style.display = 'block';
@@ -32,7 +32,7 @@ function switchSection(section) {
         
         document.getElementById('btnRefresh').style.display = 'flex';
         document.getElementById('btnFilter').style.display = 'flex';
-        applyRoleRestrictions(); // Unhide admin buttons if needed
+        applyRoleRestrictions(); 
     } else {
         document.getElementById('tradeSection').style.display = 'none';
         document.getElementById('learningSection').style.display = 'block';
@@ -47,7 +47,7 @@ function switchSection(section) {
     }
 }
 
-// --- NEW: LMS COURSE LOGIC ---
+// --- LMS LOGIC ---
 async function fetchCourses() {
     const container = document.getElementById('courseModuleContainer');
     container.innerHTML = '<div class="p-4 text-center text-muted">Loading courses...</div>';
@@ -55,25 +55,38 @@ async function fetchCourses() {
         const response = await fetch(API_URL_COURSES);
         if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
         
-        const modules = await response.json();
+        globalModules = await response.json();
         
         let accessLevels = {};
         try { accessLevels = JSON.parse(localStorage.getItem('accessLevels')) || {}; } catch(e) {}
 
         let htmlContent = '';
-        modules.forEach(mod => {
+        
+        // Populate Admin Dropdown instantly
+        if (userData.role === 'admin') {
+            const selectEl = document.getElementById('lessonModuleId');
+            selectEl.innerHTML = '<option value="">Select a Module...</option>';
+            globalModules.forEach(m => selectEl.innerHTML += `<option value="${m.id}">${m.title}</option>`);
+        }
+
+        globalModules.forEach(mod => {
             const isLocked = userData.role !== 'admin' && accessLevels[mod.required_level] !== 'Yes';
             const levelBadge = isLocked ? '<span class="module-level-badge badge-locked">LOCKED</span>' : '<span class="module-level-badge badge-unlocked">UNLOCKED</span>';
-            
+            const delModBtn = userData.role === 'admin' ? `<button class="admin-del-btn" style="display:inline-block;" onclick="deleteModule(${mod.id})"><span class="material-icons-round">delete</span></button>` : '';
+
             let lessonHtml = '';
             if (isLocked) {
                 lessonHtml = `<div class="lock-notice">⚠️ Your WP Level Status restricts access. Contact Admin.</div>`;
             } else if (mod.lessons && mod.lessons.length > 0) {
                 mod.lessons.forEach(l => {
+                    const delLessonBtn = userData.role === 'admin' ? `<button class="admin-del-btn" style="display:inline-block;" onclick="deleteLesson(event, ${l.id})"><span class="material-icons-round">delete</span></button>` : '';
                     lessonHtml += `
                         <div class="lesson-item" onclick="openSecureVideo(${l.id})">
-                            <span class="material-icons-round lesson-icon">play_circle_filled</span>
-                            <div class="fw-bold">${l.title}</div>
+                            <div class="d-flex align-items-center">
+                                <span class="material-icons-round lesson-icon">play_circle_filled</span>
+                                <div><div class="fw-bold">${l.title}</div><div class="text-muted small">${l.description || ''}</div></div>
+                            </div>
+                            ${delLessonBtn}
                         </div>`;
                 });
             } else {
@@ -82,7 +95,10 @@ async function fetchCourses() {
 
             htmlContent += `
                 <div class="course-module ${isLocked ? 'module-locked' : ''}">
-                    <div class="module-header"><div><h6 class="module-title">${mod.title}</h6></div>${levelBadge}</div>
+                    <div class="module-header">
+                        <div><h6 class="module-title">${mod.title}</h6>${delModBtn}</div>
+                        ${levelBadge}
+                    </div>
                     <div>${lessonHtml}</div>
                 </div>`;
         });
@@ -135,23 +151,72 @@ function moveWatermark() {
     wmEl.style.top = (Math.floor(Math.random() * maxY) + 50) + 'px';
 }
 
-// --- ORIGINAL TRADE LOGIC EXACTLY AS PROVIDED ---
+// ==========================================
+// --- NEW: ADMIN COURSE MANAGEMENT LOGIC ---
+// ==========================================
+
+document.getElementById('formAddModule').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = {
+        title: document.getElementById('modTitle').value,
+        description: document.getElementById('modDesc').value,
+        required_level: document.getElementById('modLevel').value
+    };
+    try {
+        const res = await fetch('/api/admin/modules', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        if(res.ok) { alert("Module Added!"); document.getElementById('formAddModule').reset(); fetchCourses(); }
+        else alert("Error adding module");
+    } catch(e) { console.error(e); }
+});
+
+document.getElementById('formAddLesson').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = {
+        module_id: document.getElementById('lessonModuleId').value,
+        title: document.getElementById('lessonTitle').value,
+        description: document.getElementById('lessonDesc').value,
+        hls_manifest_url: document.getElementById('lessonUrl').value
+    };
+    try {
+        const res = await fetch('/api/admin/lessons', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        if(res.ok) { alert("Video Added!"); document.getElementById('formAddLesson').reset(); fetchCourses(); }
+        else alert("Error adding video");
+    } catch(e) { console.error(e); }
+});
+
+async function deleteModule(id) {
+    if(!confirm("⚠️ Delete this entire module AND all its videos?")) return;
+    try {
+        const res = await fetch(`/api/admin/modules/${id}`, { method: 'DELETE' });
+        if(res.ok) fetchCourses();
+    } catch(e) { console.error(e); }
+}
+
+async function deleteLesson(e, id) {
+    e.stopPropagation(); // Prevents the video from playing when clicking delete
+    if(!confirm("⚠️ Delete this video?")) return;
+    try {
+        const res = await fetch(`/api/admin/lessons/${id}`, { method: 'DELETE' });
+        if(res.ok) fetchCourses();
+    } catch(e) { console.error(e); }
+}
+
+
+// --- ORIGINAL TRADE LOGIC ---
 function applyRoleRestrictions() {
     const role = localStorage.getItem('userRole');
     if (role === 'admin') {
+        // Trade Admin Buttons
         document.getElementById('btnSelect').style.display = 'flex';
         document.getElementById('btnDelete').style.display = 'flex';
+        // LMS Admin Button
+        document.getElementById('btnAdminCourseManager').style.display = 'inline-block';
     }
 }
 
 function initDatePicker() {
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    datePicker = flatpickr("#filterDateRange", {
-        mode: "range",
-        dateFormat: "Y-m-d",
-        defaultDate: today, 
-        onChange: function() { applyFilters(); }
-    });
+    datePicker = flatpickr("#filterDateRange", { mode: "range", dateFormat: "Y-m-d", defaultDate: today, onChange: function() { applyFilters(); } });
 }
 
 socket.on('trade_update', () => { fetchTrades(); });
@@ -353,7 +418,7 @@ async function deleteSelected() {
 async function logout() {
     try {
         await fetch('/api/logout', { method: 'POST' });
-        localStorage.clear(); // Clears all role, email, phone memory securely
+        localStorage.clear();
         window.location.href = '/login.html';
     } catch (err) { console.error("Logout failed", err); }
 }
