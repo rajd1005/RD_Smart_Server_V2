@@ -2,172 +2,80 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RD Algo Dashboard & Learning</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RD Algo INT Forex & Crypto Login</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    
-    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
-
     <style>
-        :root {
-            --bg-color: #f0f2f5; --card-bg: #ffffff;
-            --text-primary: #212529; --text-secondary: #878a8d;
-            --border-color: #e9ecef;
-            --green: #00b346; --red: #ff3b30; --blue: #007aff;
-        }
-        body { background-color: var(--bg-color); font-family: 'Roboto', sans-serif; color: var(--text-primary); padding-bottom: 70px; font-size: 13px; -webkit-font-smoothing: antialiased; }
-        
-        /* HEADER */
-        .app-header { background: #fff; border-bottom: 1px solid var(--border-color); padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
-        .app-title { font-size: 16px; font-weight: 700; color: #000; letter-spacing: -0.5px; }
-        .server-time { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
-
-        /* TRADE CARDS STYLE (Existing) */
-        .tc-time { font-size: 10px; color: var(--text-secondary); }
-        .type-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 2px 5px; border-radius: 3px; }
-        .bg-buy { background: #e3f2fd; color: var(--blue); } .bg-sell { background: #ffebee; color: var(--red); }
-        .c-green { color: var(--green); } .c-red { color: var(--red); }
-
-        /* LEARNING SECTION STYLES */
-        #learningSection { display: none; padding: 10px; }
-        .course-module { background: #fff; border-radius: 12px; border: 1px solid var(--border-color); margin-bottom: 15px; overflow: hidden; }
-        .module-header { padding: 15px; border-bottom: 1px solid var(--border-color); background: #f8f9fa; }
-        .module-title { font-size: 15px; font-weight: 700; color: #000; margin: 0; }
-        .module-level-badge { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; color: #fff; }
-        .badge-locked { background-color: var(--text-secondary); }
-        .badge-unlocked { background-color: var(--green); }
-        
-        .lesson-item { padding: 12px 15px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; cursor: pointer; text-decoration: none; color: inherit; }
-        .lesson-item:last-child { border-bottom: none; }
-        .lesson-item:hover { background-color: #f1f8ff; }
-        .lesson-icon { color: var(--blue); margin-right: 12px; font-size: 20px; }
-        
-        /* Locking styles */
-        .module-locked .lesson-item { cursor: not-allowed; opacity: 0.6; }
-        .module-locked .lesson-item:hover { background-color: transparent; }
-        .module-locked .lesson-icon { color: var(--text-secondary); }
-        .lock-notice { background-color: #fff3cd; color: #856404; padding: 10px 15px; font-size: 12px; font-weight: 500; border-bottom: 1px solid var(--border-color); }
-
-        /* VIDEO PLAYER & WATERMARKING */
-        #videoPlayerContainer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; display: none; }
-        .video-js { width: 100% !important; height: 100% !important; }
-        .close-video { position: absolute; top: 15px; right: 15px; z-index: 2010; color: #fff; background: rgba(0,0,0,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
-        
-        /* DYNAMIC WATERMARK */
-        #dynamicWatermark {
-            position: absolute;
-            color: rgba(255, 255, 255, 0.2); /* Semi-transparent white */
-            font-family: 'Roboto', sans-serif;
-            font-size: 14px;
-            font-weight: 700;
-            pointer-events: none; /* User cannot click/interact with it */
-            z-index: 2005;
-            white-space: nowrap;
-            display: none; /* Hidden until video plays */
-        }
-
-        /* NAVIGATION */
-        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; border-top: 1px solid var(--border-color); padding: 8px 0; display: flex; justify-content: space-around; z-index: 999; }
-        .b-btn { background: none; border: none; display: flex; flex-direction: column; align-items: center; font-size: 10px; color: var(--text-secondary); font-weight: 500; }
-        .b-btn .material-icons-round { font-size: 22px; margin-bottom: 2px; }
-        .b-active { color: var(--blue); }
-        
-        #tradeSection { display: block; } /* Show trades by default */
-        
+        body { background-color: #f0f2f5; font-family: 'Roboto', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .login-card { background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 380px; }
+        .login-card h3 { font-weight: 700; margin-bottom: 20px; text-align: center; }
+        .btn-primary { background-color: #007aff; border: none; font-weight: 600; padding: 10px; }
     </style>
 </head>
 <body>
 
-    <header class="app-header">
-        <div class="d-flex align-items-center">
-            <div class="app-title">RD Algo Dashboard</div>
-        </div>
-        <div class="d-flex align-items-center">
-            <div class="server-time" id="clock" style="margin-right: 15px;">00:00:00</div>
-            <button onclick="logout()" style="background:none; border:none; color:var(--red); padding:0; display:flex; align-items:center;">
-                <span class="material-icons-round">logout</span>
-            </button>
-        </div>
-    </header>
-
-    <div id="tradeSection">
-        <style>
-            .stats-bar { background: #fff; padding: 10px 15px; display: flex; gap: 15px; overflow-x: auto; border-bottom: 1px solid var(--border-color); margin-bottom: 10px; }
-            .stats-bar::-webkit-scrollbar { display: none; }
-            .stat-item { min-width: 80px; display: flex; flex-direction: column; }
-            .stat-lbl { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 500; }
-            .stat-val { font-size: 15px; font-weight: 700; color: #000; line-height: 1.1; }
-            .val-green { color: var(--green); }
-            .val-red { color: var(--red); }
-            .trade-list { padding: 0 10px; }
-            .trade-card { background: #fff; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); position: relative; }
-            .tc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-            .tc-mid { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-            .tc-bot { display: flex; justify-content: space-between; background: #f8f9fa; padding: 6px 8px; border-radius: 4px; font-size: 11px; }
-            .tc-symbol { font-size: 15px; font-weight: 700; color: #000; }
-            .tc-profit { font-size: 16px; font-weight: 700; text-align: right; }
-            .tc-time { font-size: 10px; color: var(--text-secondary); }
-            .dt-item { display: flex; flex-direction: column; }
-            .dt-lbl { font-size: 9px; color: var(--text-secondary); margin-bottom: 1px; }
-            .dt-val { font-weight: 600; color: #333; }
-        </style>
-        <div class="stats-bar">
-            <div class="stat-item"><span class="stat-lbl">Points</span><span class="stat-val" id="totalPips">0.00</span></div>
-            <div class="stat-item"><span class="stat-lbl">Active</span><span class="stat-val" id="activeTrades">0</span></div>
-            <div class="stat-item"><span class="stat-lbl">Win Rate</span><span class="stat-val" id="winRate">0%</span></div>
-            <div class="stat-item"><span class="stat-lbl">Signals</span><span class="stat-val" id="totalTrades">0</span></div>
-        </div>
-        <div class="trade-list" id="tradeListContainer"></div>
-        <div id="noData" style="display:none; padding: 50px; text-align: center; color: var(--text-secondary);"><span class="material-icons-round" style="font-size:32px; opacity:0.3;">toc</span><div class="mt-2 text-muted small">No trades found</div></div>
-    </div>
-
-    <div id="learningSection">
-        <div id="courseModuleContainer">
-            <div class="p-4 text-center text-muted">Loading courses...</div>
-        </div>
-    </div>
-
-    <div id="videoPlayerContainer">
-        <button class="close-video" onclick="closeVideoPlayer()">
-            <span class="material-icons-round">close</span>
-        </button>
-        
-        <div id="dynamicWatermark"></div>
-
-        <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" data-setup='{}'></video>
-    </div>
-
-
-    <nav class="bottom-nav">
-        <button class="b-btn b-active" id="navTrade" onclick="switchSection('trade')">
-            <span class="material-icons-round">analytics</span>Trades
-        </button>
-        <button class="b-btn" id="navLearning" onclick="switchSection('learning')">
-            <span class="material-icons-round">school</span>Learning
-        </button>
-    </nav>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="/socket.io/socket.io.js"></script>
+<div class="login-card">
+    <h4 class="text-center">INT Forex & Crypto</h4>
+    <p class="text-muted small mb-4 text-center">
+        Use your registered EMAIL id and Phone no. to access Live signals.
+    </p>
     
-    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-    
-    <script src="app.js"></script>
-    <script>
-        // Start Clock
-        setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-GB'); }, 1000);
+    <form id="loginForm">
+        <div class="mb-3">
+            <label class="form-label">Email ID (Student Email)</label>
+            <input type="email" id="email" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Password (Student Phone)</label>
+            <input type="password" id="password" class="form-control" required>
+        </div>
+        <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="rememberMe">
+            <label class="form-check-label" for="rememberMe">Save Password</label>
+        </div>
+        <div id="errorMsg" class="text-danger small mb-3 text-center" style="display:none;"></div>
+        <button type="submit" class="btn btn-primary w-100" id="loginBtn">Login</button>
+    </form>
+</div>
+
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const rememberMe = document.getElementById('rememberMe').checked;
+    const errorMsg = document.getElementById('errorMsg');
+    const loginBtn = document.getElementById('loginBtn');
+
+    loginBtn.disabled = true;
+    errorMsg.style.display = 'none';
+
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, rememberMe })
+        });
         
-        // Handle Back Button when video is open
-        window.onpopstate = function() {
-            if(document.getElementById('videoPlayerContainer').style.display === 'block') {
-                closeVideoPlayer();
-                history.pushState(null, null, window.location.pathname);
-            }
-        };
-    </script>
+        const data = await res.json();
+        if (data.success) {
+            // Save Data for Watermark and Locks
+            localStorage.setItem('userRole', data.role);
+            localStorage.setItem('userEmail', data.email);
+            localStorage.setItem('userPhone', data.phone);
+            localStorage.setItem('accessLevels', JSON.stringify(data.accessLevels));
+            window.location.href = '/'; 
+        } else {
+            errorMsg.innerText = data.msg;
+            errorMsg.style.display = 'block';
+            loginBtn.disabled = false;
+        }
+    } catch (err) {
+        errorMsg.innerText = "Server connection error.";
+        errorMsg.style.display = 'block';
+        loginBtn.disabled = false;
+    }
+});
+</script>
 </body>
 </html>
