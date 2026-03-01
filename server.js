@@ -5,7 +5,7 @@ const cors = require('cors');
 const TelegramBot = require('node-telegram-bot-api');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
-const path = require('path'); // Added for reliable file serving
+const path = require('path');
 const { pool, initDb } = require('./database');
 const authPool = require('./authDb'); // Import MySQL connection
 require('dotenv').config();
@@ -13,9 +13,8 @@ require('dotenv').config();
 const app = express();
 
 // Trust proxy is required to get real IPs if hosting on Railway/Heroku
-app.set('trust proxy', 1); 
+app.set('trust proxy', true); 
 
-// Ensure CORS allows credentials for the frontend fetch
 app.use(cors({
     origin: true,
     credentials: true
@@ -28,25 +27,30 @@ app.use(cookieParser()); // Initialize cookie parser
 const DELETE_PASSWORD = process.env.DELETE_PASSWORD || "admin123"; 
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_123";
 
+// --- TRUE IP EXTRACTOR (Fixes Cloudflare/Railway Proxy Loops) ---
+function getClientIp(req) {
+    let ip = req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.ip || '';
+    if (typeof ip === 'string' && ip.includes(',')) {
+        ip = ip.split(',')[0]; // Extract the very first real client IP
+    }
+    return ip.trim().replace('::ffff:', '');
+}
+
 // --- AUTHENTICATION MIDDLEWARE ---
 const authenticateToken = (req, res, next) => {
     const token = req.cookies.authToken;
     
     if (!token) {
-        console.log(`[API REJECTED] ❌ No cookie found for request: ${req.path}`);
         return res.status(401).json({ success: false, msg: "Not authenticated" });
     }
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        
-        // Fix for IPv4/IPv6 proxy mapping differences on Railway
-        const tokenIp = decoded.ip.replace('::ffff:', '');
-        const currentIp = req.ip.replace('::ffff:', '');
+        const currentIp = getClientIp(req);
 
-        // Block access if IP has changed
-        if (tokenIp !== currentIp) {
-            console.log(`[API REJECTED] ❌ IP Mismatch on ${req.path}! Token IP: ${tokenIp} | Current IP: ${currentIp}`);
+        // Block access if Real IP has changed
+        if (decoded.ip !== currentIp) {
+            console.log(`[API REJECTED] ❌ IP Mismatch! Logged IP: ${decoded.ip} | Current IP: ${currentIp}`);
             res.clearCookie('authToken');
             return res.status(403).json({ success: false, msg: "IP changed. Please login again." });
         }
@@ -54,7 +58,6 @@ const authenticateToken = (req, res, next) => {
         req.user = decoded;
         next();
     } catch (err) {
-        console.log(`[API REJECTED] ❌ Session invalid on ${req.path}: ${err.message}`);
         res.clearCookie('authToken');
         return res.status(403).json({ success: false, msg: "Session expired" });
     }
@@ -71,26 +74,25 @@ app.use((req, res, next) => {
 
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            const tokenIp = decoded.ip.replace('::ffff:', '');
-            const currentIp = req.ip.replace('::ffff:', '');
+            const currentIp = getClientIp(req);
 
-            if (tokenIp !== currentIp) {
+            if (decoded.ip !== currentIp) {
+                console.log(`[PAGE REJECTED] ❌ IP Mismatch! Logged IP: ${decoded.ip} | Current IP: ${currentIp}`);
                 res.clearCookie('authToken');
                 return res.redirect('/login.html');
             }
             
-            console.log(`[PAGE SUCCESS] ✅ Dashboard access granted to: ${decoded.email}`);
-            next(); // Allow access to dashboard
+            console.log(`[PAGE SUCCESS] ✅ Dashboard access granted to: ${decoded.email} (IP: ${currentIp})`);
+            next(); 
         } catch (err) {
             res.clearCookie('authToken');
             return res.redirect('/login.html');
         }
     } else {
-        next(); // Allow other files like css, js, login.html
+        next(); 
     }
 });
 
-// Use path.join to ensure absolute path matching for static files
 app.use(express.static(path.join(__dirname, 'public'))); 
 
 // --- SOCKET.IO SETUP ---
@@ -119,8 +121,9 @@ function toMarkdown(text) {
 // --- LOGIN API ---
 app.post('/api/login', async (req, res) => {
     const { email, password, rememberMe } = req.body;
+    const clientIp = getClientIp(req);
     
-    console.log(`\n[LOGIN ATTEMPT] Email: ${email} | IP: ${req.ip}`);
+    console.log(`\n[LOGIN ATTEMPT] Email: ${email} | True IP: ${clientIp}`);
     
     try {
         const [rows] = await authPool.query(
@@ -142,19 +145,18 @@ app.post('/api/login', async (req, res) => {
             return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." });
         }
 
-        console.log(`[LOGIN SUCCESS] 🎉 Access granted. Creating secure session...`);
+        console.log(`[LOGIN SUCCESS] 🎉 Access granted. IP ${clientIp} bound to session.`);
 
         const token = jwt.sign(
-            { email: student.student_email, ip: req.ip }, 
+            { email: student.student_email, ip: clientIp }, 
             JWT_SECRET, 
             { expiresIn: rememberMe ? '30d' : '1d' } 
         );
 
-        // ✅ FIXED: Strict Cookie Policies for Railway
         res.cookie('authToken', token, {
             httpOnly: true, 
-            secure: true, // Forces HTTPS secure transmission
-            sameSite: 'lax', // Prevents cross-origin drops
+            secure: req.secure || req.headers['x-forwarded-proto'] === 'https', // Dynamically sets secure flag
+            sameSite: 'lax',
             maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 
         });
 
@@ -180,7 +182,6 @@ app.get('/api/trades', authenticateToken, async (req, res) => {
             ORDER BY id DESC
         `;
         const result = await pool.query(query);
-        console.log(`[DATA SUCCESS] ✅ Sent ${result.rows.length} trades to Dashboard.`);
         res.json(result.rows);
     } catch (err) { 
         console.error(`[DATA ERROR] ❌ Database fetch failed: ${err.message}`);
