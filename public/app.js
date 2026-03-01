@@ -46,31 +46,40 @@ function switchSection(section) {
     }
 }
 
+// --- SMART NESTED ACCORDION TOGGLER ---
 function toggleAccordions(action) {
-    const collapses = document.querySelectorAll('.accordion-collapse');
-    const buttons = document.querySelectorAll('.accordion-button');
+    const allCollapses = document.querySelectorAll('.accordion-collapse');
+    const allButtons = document.querySelectorAll('.accordion-button');
     
-    collapses.forEach((el, index) => {
-        if (action === 'all') {
-            el.classList.add('show');
-            buttons[index].classList.remove('collapsed');
-            buttons[index].setAttribute('aria-expanded', 'true');
-        } else if (action === 'none') {
-            el.classList.remove('show');
-            buttons[index].classList.add('collapsed');
-            buttons[index].setAttribute('aria-expanded', 'false');
-        } else if (action === 'first') {
-            if (index === 0) {
-                el.classList.add('show');
-                buttons[index].classList.remove('collapsed');
-                buttons[index].setAttribute('aria-expanded', 'true');
-            } else {
-                el.classList.remove('show');
-                buttons[index].classList.add('collapsed');
-                buttons[index].setAttribute('aria-expanded', 'false');
+    if (action === 'all') {
+        allCollapses.forEach(el => el.classList.add('show'));
+        allButtons.forEach(el => { el.classList.remove('collapsed'); el.setAttribute('aria-expanded', 'true'); });
+    } else if (action === 'none') {
+        allCollapses.forEach(el => el.classList.remove('show'));
+        allButtons.forEach(el => { el.classList.add('collapsed'); el.setAttribute('aria-expanded', 'false'); });
+    } else if (action === 'first') {
+        allCollapses.forEach(el => el.classList.remove('show'));
+        allButtons.forEach(el => { el.classList.add('collapsed'); el.setAttribute('aria-expanded', 'false'); });
+        
+        // Open 1st Module
+        const firstModCollapse = document.querySelector('.course-module > .accordion-collapse');
+        const firstModBtn = document.querySelector('.course-module > .accordion-header > .accordion-button');
+        
+        if (firstModCollapse && firstModBtn) {
+            firstModCollapse.classList.add('show');
+            firstModBtn.classList.remove('collapsed');
+            firstModBtn.setAttribute('aria-expanded', 'true');
+            
+            // Open 1st Video inside that 1st Module
+            const firstLessonCollapse = firstModCollapse.querySelector('.lesson-collapse');
+            const firstLessonBtn = firstModCollapse.querySelector('.lesson-accordion-btn');
+            if (firstLessonCollapse && firstLessonBtn) {
+                firstLessonCollapse.classList.add('show');
+                firstLessonBtn.classList.remove('collapsed');
+                firstLessonBtn.setAttribute('aria-expanded', 'true');
             }
         }
-    });
+    }
 }
 
 async function fetchCourses() {
@@ -121,44 +130,61 @@ async function fetchCourses() {
             } 
             
             if (mod.lessons && mod.lessons.length > 0) {
+                lessonHtml += `<div class="accordion w-100" id="accLsn${mod.id}">`;
+                
                 mod.lessons.forEach(l => {
                     const safeLT = (l.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
                     const safeLD = (l.description || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
                     const adminBtnsLess = userData.role === 'admin' ? `
-                        <div class="d-flex align-items-center ms-2">
-                            <button class="admin-edit-btn" onclick="openEditLesson(event, ${l.id}, '${safeLT}', '${safeLD}', ${l.display_order || 0})"><span class="material-icons-round" style="font-size: 18px;">edit</span></button>
-                            <button class="admin-del-btn" onclick="deleteLesson(event, ${l.id})"><span class="material-icons-round" style="font-size: 18px;">delete</span></button>
+                        <div class="d-flex flex-column align-items-center ms-2 border-start ps-2">
+                            <button class="admin-edit-btn" onclick="openEditLesson(event, ${l.id}, '${safeLT}', '${safeLD}', ${l.display_order || 0})"><span class="material-icons-round" style="font-size: 16px;">edit</span></button>
+                            <button class="admin-del-btn mt-1" onclick="deleteLesson(event, ${l.id})"><span class="material-icons-round" style="font-size: 16px;">delete</span></button>
                         </div>` : '';
 
                     const overlayIcon = isLocked ? 'lock' : 'play_circle_filled';
-                    const textColor = isLocked ? '#666' : '#000';
+                    const iconColor = isLocked ? '#999' : 'var(--blue)';
+                    const textColor = isLocked ? '#666' : '#333';
                     const opacityLvl = isLocked ? '0.6' : '1';
                     const pointerEv = isLocked ? 'not-allowed' : 'pointer';
 
                     const thumbnailImg = l.thumbnail_url 
                         ? `<div class="thumb-wrapper"><img src="${l.thumbnail_url}"><div class="thumb-play-overlay"><span class="material-icons-round">${overlayIcon}</span></div></div>` 
-                        : `<span class="material-icons-round lesson-icon">${overlayIcon}</span>`;
+                        : `<span class="material-icons-round" style="font-size:32px; color:${iconColor}; margin-right:15px; flex-shrink:0;">${overlayIcon}</span>`;
 
                     const onClickAction = isLocked ? '' : `onclick="openSecureVideo(${l.id})"`;
 
+                    // --- NESTED VIDEO ACCORDION ---
                     lessonHtml += `
-                        <div class="lesson-item" style="opacity: ${opacityLvl}; cursor: ${pointerEv}; ${isLocked ? 'background-color: #fafafa;' : ''}" ${onClickAction}>
-                            <div class="d-flex align-items-center w-100">
-                                ${thumbnailImg}
-                                <div class="flex-grow-1">
-                                    <div class="fw-bold" style="color: ${textColor};">${l.title}</div>
-                                    ${l.description ? `<div class="text-muted small">${l.description}</div>` : ''}
+                        <div class="accordion-item lesson-accordion-item">
+                            <h2 class="accordion-header" id="hLsn${l.id}">
+                                <button class="accordion-button collapsed lesson-accordion-btn" type="button" data-bs-toggle="collapse" data-bs-target="#cLsn${l.id}" aria-expanded="false" aria-controls="cLsn${l.id}">
+                                    <span class="material-icons-round" style="font-size:18px; margin-right:8px; color:${iconColor};">${overlayIcon}</span>
+                                    <span style="color: ${textColor};">${l.title}</span>
+                                </button>
+                            </h2>
+                            <div id="cLsn${l.id}" class="accordion-collapse collapse lesson-collapse" aria-labelledby="hLsn${l.id}" data-bs-parent="#accLsn${mod.id}">
+                                <div class="accordion-body p-2" style="background: #fafafa;">
+                                    <div class="lesson-item-content d-flex align-items-center w-100" style="opacity: ${opacityLvl}; cursor: ${pointerEv};" ${onClickAction}>
+                                        ${thumbnailImg}
+                                        <div class="flex-grow-1">
+                                            ${l.description ? `<div class="text-muted small mb-1">${l.description}</div>` : ''}
+                                            ${isLocked ? `<span class="badge bg-secondary">Locked</span>` : `<span class="badge bg-primary">Play Video</span>`}
+                                        </div>
+                                        ${!isLocked ? adminBtnsLess : ''}
+                                    </div>
                                 </div>
-                                ${!isLocked ? adminBtnsLess : ''}
                             </div>
                         </div>`;
                 });
+                
+                lessonHtml += `</div>`; // Close nested accordion container
             } else if (!isLocked) {
-                lessonHtml = '<div class="text-muted small p-3 text-center">No videos yet.</div>';
+                lessonHtml += '<div class="text-muted small p-3 text-center">No videos yet.</div>';
             }
 
+            // --- PARENT MODULE ACCORDION ---
             htmlContent += `
-                <div class="accordion-item">
+                <div class="accordion-item course-module">
                     <h2 class="accordion-header" id="heading${mod.id}">
                         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${mod.id}" aria-expanded="false" aria-controls="collapse${mod.id}">
                             <div class="d-flex align-items-center flex-grow-1">
@@ -178,7 +204,6 @@ async function fetchCourses() {
         
         container.innerHTML = htmlContent || '<div class="p-4 text-center text-muted">No courses found.</div>';
         
-        // --- NEW: FETCH AND APPLY GLOBAL SETTINGS ---
         try {
             const settingsRes = await fetch('/api/settings');
             const settings = await settingsRes.json();
@@ -433,7 +458,7 @@ async function fetchTrades() {
         allTrades = await response.json();
         populateSymbolFilter(allTrades);
         applyFilters(checkedIds); 
-    } catch (error) { }
+    } catch (error) {}
 }
 
 function populateSymbolFilter(trades) {
