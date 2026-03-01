@@ -92,8 +92,6 @@ function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
-
-// --- NEW: PUBLIC COURSE LIST API (No Keys exposed) ---
 app.get('/api/public/courses', async (req, res) => {
     try {
         const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order FROM learning_modules ORDER BY display_order ASC");
@@ -105,20 +103,15 @@ app.get('/api/public/courses', async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error fetching public courses." }); }
 });
 
-// --- NEW: PUBLIC DEMO VIDEO API ---
 app.get('/api/public/lesson/:id', async (req, res) => {
     try {
         const result = await pool.query("SELECT lv.*, lm.required_level FROM lesson_videos lv JOIN learning_modules lm ON lv.module_id = lm.id WHERE lv.id = $1", [req.params.id]);
         if (result.rows.length === 0) return res.status(404).json({ success: false, msg: "Lesson not found." });
         const lesson = result.rows[0];
-        
-        if (lesson.required_level !== 'demo') {
-            return res.status(403).json({ success: false, msg: "🔒 LOGIN REQUIRED" });
-        }
+        if (lesson.required_level !== 'demo') { return res.status(403).json({ success: false, msg: "🔒 LOGIN REQUIRED" }); }
         res.json({ success: true, title: lesson.title, hlsUrl: lesson.hls_manifest_url });
     } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
 });
-
 
 app.post('/api/login', async (req, res) => {
     const { email, password, rememberMe } = req.body;
@@ -158,21 +151,13 @@ app.post('/api/login', async (req, res) => {
 
 app.post('/api/logout', (req, res) => { res.clearCookie('authToken'); res.json({ success: true }); });
 
-// --- UPDATED: INTELLIGENT DECRYPTION KEY DISPENSER ---
 app.get('/api/hls-key/:lessonId/enc.key', async (req, res) => {
     try {
         const lessonId = req.params.lessonId;
-        
-        // Check if this video is marked as a Public Demo
-        const result = await pool.query(
-            "SELECT lm.required_level FROM lesson_videos lv JOIN learning_modules lm ON lv.module_id = lm.id WHERE lv.hls_manifest_url LIKE $1 LIMIT 1", 
-            [`%${lessonId}%`]
-        );
-        
+        const result = await pool.query("SELECT lm.required_level FROM lesson_videos lv JOIN learning_modules lm ON lv.module_id = lm.id WHERE lv.hls_manifest_url LIKE $1 LIMIT 1", [`%${lessonId}%`]);
         const isDemo = result.rows.length > 0 && result.rows[0].required_level === 'demo';
 
         if (!isDemo) {
-            // Not a demo? Strictly enforce Login Token
             const token = req.cookies.authToken;
             if (!token) return res.status(401).send('Auth Required');
             jwt.verify(token, JWT_SECRET); 
@@ -180,9 +165,7 @@ app.get('/api/hls-key/:lessonId/enc.key', async (req, res) => {
 
         const keyPath = path.join(__dirname, 'public', 'hls', lessonId, 'enc.key');
         if (fs.existsSync(keyPath)) { res.sendFile(keyPath); } else { res.status(404).send('Key not found'); }
-    } catch (err) {
-        res.status(403).send('Forbidden');
-    }
+    } catch (err) { res.status(403).send('Forbidden'); }
 });
 
 app.get('/api/courses', authenticateToken, async (req, res) => {
@@ -199,8 +182,6 @@ app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
         const result = await pool.query("SELECT lv.*, lm.required_level FROM lesson_videos lv JOIN learning_modules lm ON lv.module_id = lm.id WHERE lv.id = $1", [req.params.id]);
         if (result.rows.length === 0) return res.status(404).json({ success: false, msg: "Lesson not found." });
         const lesson = result.rows[0];
-        
-        // Allows access if user is admin, if the module is a Demo, or if they have the proper level
         if (req.user.role !== 'admin' && lesson.required_level !== 'demo' && req.user.accessLevels[lesson.required_level] !== 'Yes') {
             return res.status(403).json({ success: false, msg: "🔒 ACCESS DENIED" });
         }
@@ -223,12 +204,13 @@ app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+// UPDATED: Allow updating of Display Order
 app.put('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
-    const { title, description, required_level, lock_notice } = req.body;
+    const { title, description, required_level, lock_notice, display_order } = req.body;
     try {
         await pool.query(
-            "UPDATE learning_modules SET title = $1, description = $2, required_level = $3, lock_notice = $4 WHERE id = $5", 
-            [title, description, required_level, lock_notice || '', req.params.id]
+            "UPDATE learning_modules SET title = $1, description = $2, required_level = $3, lock_notice = $4, display_order = $5 WHERE id = $6", 
+            [title, description, required_level, lock_notice || '', display_order || 0, req.params.id]
         );
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
@@ -286,10 +268,11 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.single('video_
     res.json({ success: true, msg: "Video Uploaded. System is now converting and encrypting it in the background." });
 });
 
+// UPDATED: Allow updating of Display Order
 app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res) => {
-    const { title, description } = req.body;
+    const { title, description, display_order } = req.body;
     try {
-        await pool.query("UPDATE lesson_videos SET title = $1, description = $2 WHERE id = $3", [title, description, req.params.id]);
+        await pool.query("UPDATE lesson_videos SET title = $1, description = $2, display_order = $3 WHERE id = $4", [title, description, display_order || 0, req.params.id]);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
