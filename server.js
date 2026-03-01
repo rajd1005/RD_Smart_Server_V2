@@ -82,12 +82,16 @@ app.post('/api/signal_detected', async (req, res) => {
 
         const sentMsg = await bot.sendMessage(CHAT_ID, msg, { parse_mode: 'Markdown' });
         
+        // Insert new trade (Your existing code)
         const query = `
             INSERT INTO trades (trade_id, symbol, type, telegram_msg_id, created_at, status)
             VALUES ($1, $2, $3, $4, $5, 'SIGNAL')
             ON CONFLICT (trade_id) DO NOTHING;
         `;
         await pool.query(query, [trade_id, symbol, type, sentMsg.message_id, dbTime]);
+
+        // ADD THIS: Auto-delete trades older than 30 days
+        await pool.query("DELETE FROM trades WHERE CAST(created_at AS TIMESTAMP) < NOW() - INTERVAL '30 days'");
 
         io.emit('trade_update'); 
         res.json({ success: true });
