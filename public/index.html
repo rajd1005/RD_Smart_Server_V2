@@ -61,8 +61,10 @@
         
         #noData { padding: 50px; text-align: center; color: var(--text-secondary); }
 
-        /* LMS STYLES */
-        #learningSection { display: none; padding: 10px; }
+        /* LMS STYLES - UPDATED TO DEFAULT DISPLAY BLOCK */
+        #learningSection { display: block; padding: 10px; }
+        #tradeSection { display: none; }
+        
         .course-module { background: #fff; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 10px; overflow: hidden; }
         .module-header { padding: 12px; background: #f8f9fa; border-bottom: 1px solid var(--border-color); display:flex; justify-content: space-between; align-items:center; }
         .module-title { font-size: 14px; font-weight: 700; color: #000; margin: 0; }
@@ -83,17 +85,9 @@
         .close-video { position: absolute; top: 15px; right: 15px; z-index: 2010; color: #fff; background: rgba(0,0,0,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
         
         #dynamicWatermark {
-            position: absolute; 
-            color: rgba(255, 0, 0, 0.85); 
-            font-family: 'Roboto', sans-serif;
-            font-size: clamp(11px, 3.5vmin, 24px); 
-            font-weight: 900; 
-            text-align: center;
-            line-height: 1.3;
-            pointer-events: none; 
-            z-index: 2005; 
-            white-space: nowrap; 
-            display: none;
+            position: absolute; color: rgba(255, 0, 0, 0.85); font-family: 'Roboto', sans-serif;
+            font-size: clamp(11px, 3.5vmin, 24px); font-weight: 900; text-align: center;
+            line-height: 1.3; pointer-events: none; z-index: 2005; white-space: nowrap; display: none;
             text-shadow: 1px 1px 3px rgba(0,0,0,0.9), -1px -1px 3px rgba(255,255,255,0.4); 
             transition: top 3s ease-in-out, left 3s ease-in-out; 
         }
@@ -236,10 +230,12 @@
     </div>
 
     <nav class="bottom-nav" id="navDefault">
-        <button class="b-btn b-active" id="navTradeBtn" onclick="switchSection('trade')"><span class="material-icons-round">analytics</span>Trade</button>
-        <button class="b-btn" id="navLearnBtn" onclick="switchSection('learning')"><span class="material-icons-round">school</span>Learn</button>
-        <button class="b-btn" id="btnRefresh" onclick="fetchTrades()"><span class="material-icons-round">refresh</span>Refresh</button>
-        <button class="b-btn" id="btnFilter" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterSheet"><span class="material-icons-round">filter_list</span>Filter</button>
+        <button class="b-btn" id="navTradeBtn" onclick="switchSection('trade')"><span class="material-icons-round">analytics</span>Trade</button>
+        <button class="b-btn b-active" id="navLearnBtn" onclick="switchSection('learning')"><span class="material-icons-round">school</span>Learn</button>
+        
+        <button class="b-btn" id="btnRefresh" onclick="fetchTrades()" style="display:none;"><span class="material-icons-round">refresh</span>Refresh</button>
+        <button class="b-btn" id="btnFilter" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterSheet" style="display:none;"><span class="material-icons-round">filter_list</span>Filter</button>
+        
         <button class="b-btn" id="btnSelect" onclick="toggleSelectionMode()" style="display:none;"><span class="material-icons-round" id="selectIcon">check_circle</span>Select</button>
         <button class="b-btn b-del" id="btnDelete" onclick="deleteSelected()" style="display:none;"><span class="material-icons-round">delete</span>Delete</button>
     </nav>
