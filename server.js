@@ -37,13 +37,6 @@ const JWT_SECRET = (process.env.JWT_SECRET || "super_secret_key_123").trim();
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@rdalgo.in").trim();
 const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || "admin123").trim();
 
-console.log("\n====================================");
-console.log("🔧 ENVIRONMENT VARIABLE CHECK:");
-console.log(`- Admin Email: ${ADMIN_EMAIL}`);
-console.log(`- Custom ADMIN_PASSWORD found: ${process.env.ADMIN_PASSWORD ? "✅ YES" : "❌ NO"}`);
-console.log(`- Custom DELETE_PASSWORD found: ${process.env.DELETE_PASSWORD ? "✅ YES" : "❌ NO"}`);
-console.log("====================================\n");
-
 function getClientIp(req) {
     let ip = req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.ip || '';
     if (typeof ip === 'string' && ip.includes(',')) ip = ip.split(',')[0]; 
@@ -72,18 +65,19 @@ const isAdmin = (req, res, next) => {
     next();
 };
 
+// --- UPDATED: REDIRECTS TO /home.html INSTEAD OF /login.html ---
 app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
         const token = req.cookies.authToken;
-        if (!token) return res.redirect('/login.html');
+        if (!token) return res.redirect('/home.html');
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
             const currentIp = getClientIp(req);
-            if (decoded.ip !== currentIp) { res.clearCookie('authToken'); return res.redirect('/login.html'); }
+            if (decoded.ip !== currentIp) { res.clearCookie('authToken'); return res.redirect('/home.html'); }
             const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY login_time DESC LIMIT 1", [decoded.email]);
-            if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { res.clearCookie('authToken'); return res.redirect('/login.html'); }
+            if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { res.clearCookie('authToken'); return res.redirect('/home.html'); }
             next(); 
-        } catch (err) { res.clearCookie('authToken'); return res.redirect('/login.html'); }
+        } catch (err) { res.clearCookie('authToken'); return res.redirect('/home.html'); }
     } else { next(); }
 });
 
@@ -98,6 +92,22 @@ function getISTTime() { return new Date().toLocaleString("en-IN", { timeZone: "A
 function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
+
+
+// --- NEW: PUBLIC COURSE LIST API (No Keys exposed) ---
+app.get('/api/public/courses', async (req, res) => {
+    try {
+        const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order FROM learning_modules ORDER BY display_order ASC");
+        // Specifically excluding hls_manifest_url from public API for security
+        const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order FROM lesson_videos ORDER BY display_order ASC");
+        
+        const coursesStructure = modulesResult.rows.map(mod => { 
+            return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; 
+        });
+        res.json(coursesStructure);
+    } catch (err) { res.status(500).json({ error: "Server Error fetching public courses." }); }
+});
+
 
 app.post('/api/login', async (req, res) => {
     const { email, password, rememberMe } = req.body;
@@ -163,9 +173,6 @@ app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
 });
 
-// ==========================================
-// --- ADMIN LMS MANAGEMENT API ---
-// ==========================================
 
 app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
     const { title, description, required_level, display_order, lock_notice } = req.body;
@@ -224,20 +231,16 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.single('video_
 
     const m3u8Path = `/hls/${lessonId}/output.m3u8`;
 
-    console.log(`[ENGINE] Starting HLS Encryption for: ${title}`);
-
     ffmpeg(file.path)
         .outputOptions([
             '-profile:v baseline', '-level 3.0', '-s 1280x720', '-start_number 0', '-hls_time 10', '-hls_list_size 0', '-f hls', `-hls_key_info_file ${keyInfoPath}` 
         ])
         .output(path.join(lessonHlsDir, 'output.m3u8'))
         .on('end', async () => {
-            console.log(`[ENGINE] Conversion complete for: ${title}. Deleting Original File.`);
             if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
             try { await pool.query("INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order) VALUES ($1, $2, $3, $4, $5)", [module_id, title, description, m3u8Path, display_order || 0]); } catch(e) {}
         })
         .on('error', (err) => {
-            console.error(`[ENGINE ERROR] Failed converting ${title}:`, err);
             if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
         })
         .run();
