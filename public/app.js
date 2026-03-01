@@ -46,10 +46,6 @@ function switchSection(section) {
     }
 }
 
-// ==========================================
-// --- LMS COURSE ACCORDION LOGIC ---
-// ==========================================
-
 function toggleAccordions(action) {
     const collapses = document.querySelectorAll('.accordion-collapse');
     const buttons = document.querySelectorAll('.accordion-button');
@@ -136,38 +132,34 @@ async function fetchCourses() {
                             <button class="admin-del-btn" onclick="deleteLesson(event, ${l.id})"><span class="material-icons-round" style="font-size: 18px;">delete</span></button>
                         </div>` : '';
 
-                    const thumbnailImg = l.thumbnail_url ? `<img src="${l.thumbnail_url}" class="lesson-thumbnail">` : `<span class="material-icons-round lesson-icon">play_circle_filled</span>`;
+                    // Overlay Math for Play or Lock Icon over the thumbnail
+                    const overlayIcon = isLocked ? 'lock' : 'play_circle_filled';
+                    const textColor = isLocked ? '#666' : '#000';
+                    const opacityLvl = isLocked ? '0.6' : '1';
+                    const pointerEv = isLocked ? 'not-allowed' : 'pointer';
 
-                    if (isLocked) {
-                        lessonHtml += `
-                            <div class="lesson-item" style="opacity: 0.5; cursor: not-allowed; background-color: #fafafa;">
-                                <div class="d-flex align-items-center w-100">
-                                    ${thumbnailImg}
-                                    <div class="flex-grow-1">
-                                        <div class="fw-bold" style="color: #666;">${l.title}</div>
-                                        ${l.description ? `<div class="text-muted small">${l.description}</div>` : ''}
-                                    </div>
+                    const thumbnailImg = l.thumbnail_url 
+                        ? `<div class="thumb-wrapper"><img src="${l.thumbnail_url}"><div class="thumb-play-overlay"><span class="material-icons-round">${overlayIcon}</span></div></div>` 
+                        : `<span class="material-icons-round lesson-icon">${overlayIcon}</span>`;
+
+                    const onClickAction = isLocked ? '' : `onclick="openSecureVideo(${l.id})"`;
+
+                    lessonHtml += `
+                        <div class="lesson-item" style="opacity: ${opacityLvl}; cursor: ${pointerEv}; ${isLocked ? 'background-color: #fafafa;' : ''}" ${onClickAction}>
+                            <div class="d-flex align-items-center w-100">
+                                ${thumbnailImg}
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold" style="color: ${textColor};">${l.title}</div>
+                                    ${l.description ? `<div class="text-muted small">${l.description}</div>` : ''}
                                 </div>
-                            </div>`;
-                    } else {
-                        lessonHtml += `
-                            <div class="lesson-item" onclick="openSecureVideo(${l.id})">
-                                <div class="d-flex align-items-center w-100">
-                                    ${thumbnailImg}
-                                    <div class="flex-grow-1">
-                                        <div class="fw-bold">${l.title}</div>
-                                        ${l.description ? `<div class="text-muted small">${l.description}</div>` : ''}
-                                    </div>
-                                    ${adminBtnsLess}
-                                </div>
-                            </div>`;
-                    }
+                                ${!isLocked ? adminBtnsLess : ''}
+                            </div>
+                        </div>`;
                 });
             } else if (!isLocked) {
                 lessonHtml = '<div class="text-muted small p-3 text-center">No videos yet.</div>';
             }
 
-            // RENDER ACCORDION ITEM
             htmlContent += `
                 <div class="accordion-item">
                     <h2 class="accordion-header" id="heading${mod.id}">
@@ -188,14 +180,9 @@ async function fetchCourses() {
         });
         
         container.innerHTML = htmlContent || '<div class="p-4 text-center text-muted">No courses found.</div>';
-        
-        // Open the first accordion automatically after rendering
         setTimeout(() => { toggleAccordions('first'); }, 100);
 
-    } catch (err) { 
-        console.error(err);
-        container.innerHTML = `<div class="p-3 text-danger text-center">❌ Error loading courses.</div>`; 
-    }
+    } catch (err) { container.innerHTML = `<div class="p-3 text-danger text-center">❌ Error loading courses.</div>`; }
 }
 
 
@@ -205,20 +192,15 @@ async function openSecureVideo(lessonId) {
     if (!videoPlayer) {
         videoPlayer = videojs('my-video', { hls: { overrideNative: true }, html5: { vhs: { overrideNative: true } }, controlBar: { fullscreenToggle: false, pictureInPictureToggle: false } });
         videoPlayer.el().addEventListener('contextmenu', function(e) { e.preventDefault(); });
-
         videoPlayer.on('loadedmetadata', async function() {
             const vw = videoPlayer.videoWidth();
             const vh = videoPlayer.videoHeight();
             if (screen.orientation && screen.orientation.lock) {
-                try { 
-                    if (vw > vh) { await screen.orientation.lock("landscape"); } else { await screen.orientation.lock("portrait"); }
-                } catch (e) { }
+                try { if (vw > vh) { await screen.orientation.lock("landscape"); } else { await screen.orientation.lock("portrait"); } } catch (e) { }
             }
         });
     }
-    
-    videoPlayer.reset(); 
-    stopWatermark();
+    videoPlayer.reset(); stopWatermark();
     
     try {
         const response = await fetch(`${API_URL_LESSON}${lessonId}`, { credentials: 'same-origin' });
@@ -269,9 +251,7 @@ function moveWatermark() {
     const container = document.getElementById('videoPlayerContainer');
     if (!videoPlayer) return;
 
-    const vw = videoPlayer.videoWidth();
-    const vh = videoPlayer.videoHeight();
-    
+    const vw = videoPlayer.videoWidth(); const vh = videoPlayer.videoHeight();
     if (!vw || !vh) { wmEl.style.left = '50%'; wmEl.style.top = '50%'; wmEl.style.transform = 'translate(-50%, -50%)'; return; } 
     else { wmEl.style.transform = 'none'; }
 
@@ -290,10 +270,6 @@ function moveWatermark() {
     wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
 }
 
-
-// ==========================================
-// --- ADMIN COURSE MANAGEMENT FORMS ---
-// ==========================================
 
 const formAddModule = document.getElementById('formAddModule');
 if (formAddModule) {
@@ -330,7 +306,7 @@ if (formAddLesson) {
             const res = await fetch('/api/admin/lessons', { method: 'POST', credentials: 'same-origin', body: formData });
             const data = await res.json();
             if(res.ok) { alert(data.msg); formAddLesson.reset(); } else { alert(data.msg || "Error uploading video."); }
-        } catch(err) { alert("Server connection failed."); } 
+        } catch(err) {} 
         finally { btn.innerText = "Upload Video File"; btn.disabled = false; }
     });
 }
@@ -373,7 +349,7 @@ function openEditLesson(e, id, title, desc, order) {
     document.getElementById('editLessonId').value = id; document.getElementById('editLessonTitle').value = title;
     document.getElementById('editLessonDesc').value = (desc !== 'null' && desc !== 'undefined') ? desc : '';
     document.getElementById('editLessonDisplayOrder').value = order;
-    document.getElementById('editLessonThumbnailFile').value = ''; // Reset file input
+    document.getElementById('editLessonThumbnailFile').value = ''; 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('editLessonModal')).show();
 }
 
@@ -382,7 +358,6 @@ if (formEditLesson) {
     formEditLesson.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('editLessonId').value;
-        
         const formData = new FormData();
         formData.append('title', document.getElementById('editLessonTitle').value);
         formData.append('description', document.getElementById('editLessonDesc').value);
@@ -405,19 +380,13 @@ async function deleteLesson(e, id) {
 }
 
 
-// ==========================================
-// --- ORIGINAL TRADE LOGIC (100% RESTORED) ---
-// ==========================================
-
 function applyRoleRestrictions() {
     const role = localStorage.getItem('userRole');
     if (role === 'admin') {
         document.getElementById('btnSelect').style.display = 'flex';
         document.getElementById('btnDelete').style.display = 'flex';
-        
         const btnAdminCourseManager = document.getElementById('btnAdminCourseManager');
         if (btnAdminCourseManager) btnAdminCourseManager.style.display = 'inline-block';
-        
         const adminAccordionControls = document.getElementById('adminAccordionControls');
         if (adminAccordionControls) adminAccordionControls.style.display = 'block';
     }
@@ -438,10 +407,7 @@ async function fetchTrades() {
         allTrades = await response.json();
         populateSymbolFilter(allTrades);
         applyFilters(checkedIds); 
-    } catch (error) { 
-        const container = document.getElementById('tradeListContainer');
-        if (container) container.innerHTML = `<div class="p-3 text-danger text-center fw-bold">❌ Connection Error. Please refresh.</div>`;
-    }
+    } catch (error) {}
 }
 
 function populateSymbolFilter(trades) {
@@ -566,14 +532,11 @@ function calculateStats(trades) {
     });
     const totalClosed = wins + losses;
     const winRate = totalClosed === 0 ? 0 : Math.round((wins / totalClosed) * 100);
-
     if(document.getElementById('totalTrades')) document.getElementById('totalTrades').innerText = trades.length;
     if(document.getElementById('winRate')) document.getElementById('winRate').innerText = winRate + "%";
-    
     const pipsEl = document.getElementById('totalPips');
     pipsEl.innerText = totalPoints.toFixed(2);
     pipsEl.className = totalPoints >= 0 ? 'stat-val val-green' : 'stat-val val-red';
-    
     if(document.getElementById('activeTrades')) document.getElementById('activeTrades').innerText = active;
 }
 
@@ -602,20 +565,14 @@ async function deleteSelected() {
     const password = prompt("🔒 Enter Admin Password to delete:");
     if (!password) return; 
     try {
-        const res = await fetch('/api/delete_trades', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ trade_ids: ids, password: password }) 
-        });
+        const res = await fetch('/api/delete_trades', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ trade_ids: ids, password: password }) });
         const result = await res.json();
         if (result.success) { toggleSelectionMode(); alert("✅ Deleted Successfully"); } else { alert(result.msg || "❌ Error Deleting"); }
     } catch (err) {}
 }
 
 async function logout() {
-    try {
-        await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
-        localStorage.clear();
-        window.location.href = '/home.html';
-    } catch (err) {}
+    try { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); localStorage.clear(); window.location.href = '/home.html'; } catch (err) {}
 }
 
 document.getElementById('filterSymbol').addEventListener('change', () => applyFilters());
