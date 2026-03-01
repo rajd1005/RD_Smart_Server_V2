@@ -21,12 +21,21 @@ app.use(express.json());
 app.use(cookieParser());
 
 // --- CONFIG ---
-const DELETE_PASSWORD = process.env.DELETE_PASSWORD || "admin123"; 
-const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_123";
+// .trim() removes accidental blank spaces from Railway variables!
+const DELETE_PASSWORD = (process.env.DELETE_PASSWORD || "admin123").trim(); 
+const JWT_SECRET = (process.env.JWT_SECRET || "super_secret_key_123").trim();
 
-// NEW: Admin Login Credentials (Set these in your Railway Variables)
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@rdalgo.in";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@rdalgo.in").trim();
+const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || "admin123").trim();
+
+// --- STARTUP DIAGNOSTIC LOG ---
+console.log("\n====================================");
+console.log("🔧 ENVIRONMENT VARIABLE CHECK:");
+console.log(`- Admin Email: ${ADMIN_EMAIL}`);
+console.log(`- Custom ADMIN_PASSWORD found in Railway: ${process.env.ADMIN_PASSWORD ? "✅ YES" : "❌ NO (Using Default admin123)"}`);
+console.log(`- Custom DELETE_PASSWORD found in Railway: ${process.env.DELETE_PASSWORD ? "✅ YES" : "❌ NO (Using Default admin123)"}`);
+console.log("====================================\n");
+
 
 // --- TRUE IP EXTRACTOR ---
 function getClientIp(req) {
@@ -165,7 +174,7 @@ app.post('/api/login', async (req, res) => {
             userEmail = student.student_email;
         }
 
-        // Generate Session ID & Save to Postgres Database (Works for BOTH Admin and Students)
+        // Generate Session ID & Save to Postgres Database
         const sessionId = crypto.randomUUID();
         await pool.query(
             "INSERT INTO login_logs (email, session_id, ip_address) VALUES ($1, $2, $3)", 
