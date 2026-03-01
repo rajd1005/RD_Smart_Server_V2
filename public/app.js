@@ -30,6 +30,13 @@ async function fetchTrades() {
     const checkedIds = getCheckedIds();
     try {
         const response = await fetch(API_URL);
+        
+        // --- NEW: Authentication Check ---
+        if (response.status === 401 || response.status === 403) {
+            window.location.href = '/login.html'; // Kick to login if IP changes or token expires
+            return;
+        }
+        
         allTrades = await response.json();
         
         populateSymbolFilter(allTrades);
@@ -284,6 +291,16 @@ async function deleteSelected() {
             alert(result.msg || "❌ Error Deleting");
         }
     } catch (err) { console.error(err); }
+}
+
+// --- NEW: LOGOUT FUNCTION ---
+async function logout() {
+    try {
+        await fetch('/api/logout', { method: 'POST' });
+        window.location.href = '/login.html';
+    } catch (err) {
+        console.error("Logout failed", err);
+    }
 }
 
 // Keep the others:
