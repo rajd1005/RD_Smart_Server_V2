@@ -13,7 +13,6 @@ require('dotenv').config();
 
 const app = express();
 
-// Trust proxy is required to get real IPs if hosting on Railway/Heroku
 app.set('trust proxy', true); 
 
 app.use(cors({ origin: true, credentials: true }));
@@ -21,14 +20,12 @@ app.use(express.json());
 app.use(cookieParser());
 
 // --- CONFIG ---
-// .trim() removes accidental blank spaces from Railway variables!
 const DELETE_PASSWORD = (process.env.DELETE_PASSWORD || "admin123").trim(); 
 const JWT_SECRET = (process.env.JWT_SECRET || "super_secret_key_123").trim();
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@rdalgo.in").trim();
 const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || "admin123").trim();
 
-// --- STARTUP DIAGNOSTIC LOG ---
 console.log("\n====================================");
 console.log("🔧 ENVIRONMENT VARIABLE CHECK:");
 console.log(`- Admin Email: ${ADMIN_EMAIL}`);
@@ -36,15 +33,12 @@ console.log(`- Custom ADMIN_PASSWORD found in Railway: ${process.env.ADMIN_PASSW
 console.log(`- Custom DELETE_PASSWORD found in Railway: ${process.env.DELETE_PASSWORD ? "✅ YES" : "❌ NO (Using Default admin123)"}`);
 console.log("====================================\n");
 
-
-// --- TRUE IP EXTRACTOR ---
 function getClientIp(req) {
     let ip = req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.ip || '';
     if (typeof ip === 'string' && ip.includes(',')) ip = ip.split(',')[0]; 
     return ip.trim().replace('::ffff:', '');
 }
 
-// --- AUTHENTICATION MIDDLEWARE ---
 const authenticateToken = async (req, res, next) => {
     const token = req.cookies.authToken;
     if (!token) return res.status(401).json({ success: false, msg: "Not authenticated" });
@@ -53,21 +47,17 @@ const authenticateToken = async (req, res, next) => {
         const decoded = jwt.verify(token, JWT_SECRET);
         const currentIp = getClientIp(req);
 
-        // Rule 1: IP Binding
         if (decoded.ip !== currentIp) {
-            console.log(`[API REJECTED] ❌ IP Mismatch! Logged IP: ${decoded.ip} | Current IP: ${currentIp}`);
             res.clearCookie('authToken');
             return res.status(403).json({ success: false, msg: "IP changed. Please login again." });
         }
 
-        // Rule 2: Single Device / Session Concurrency Check
         const { rows } = await pool.query(
             "SELECT session_id FROM login_logs WHERE email = $1 ORDER BY login_time DESC LIMIT 1", 
             [decoded.email]
         );
 
         if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) {
-            console.log(`[API REJECTED] ❌ Old Device Detected for ${decoded.email}. Auto-Logging out.`);
             res.clearCookie('authToken');
             return res.status(403).json({ success: false, msg: "Logged in from another device. Session expired." });
         }
@@ -80,7 +70,6 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
-// --- PROTECT STATIC FILES (Dashboard) ---
 app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
         const token = req.cookies.authToken;
@@ -95,7 +84,6 @@ app.use(async (req, res, next) => {
                 return res.redirect('/login.html');
             }
 
-            // DB Check for Single Device
             const { rows } = await pool.query(
                 "SELECT session_id FROM login_logs WHERE email = $1 ORDER BY login_time DESC LIMIT 1", 
                 [decoded.email]
@@ -118,13 +106,11 @@ app.use(async (req, res, next) => {
 
 app.use(express.static(path.join(__dirname, 'public'))); 
 
-// --- SOCKET.IO SETUP ---
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*", credentials: true } });
 const bot = new TelegramBot(process.env.TG_BOT_TOKEN, { polling: false });
 const CHAT_ID = process.env.TG_CHAT_ID;
 
-// --- HELPERS ---
 function getISTTime() { return new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: true }); }
 function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) {
@@ -136,27 +122,18 @@ function toMarkdown(text) {
     return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); 
 }
 
-// --- API ENDPOINTS ---
-
-// --- LOGIN API ---
 app.post('/api/login', async (req, res) => {
     const { email, password, rememberMe } = req.body;
     const clientIp = getClientIp(req);
-    
-    console.log(`\n[LOGIN ATTEMPT] Email: ${email} | True IP: ${clientIp}`);
     
     try {
         let userEmail = "";
         let userRole = "student";
 
-        // --- 1. ADMIN BYPASS CHECK ---
         if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-            console.log(`[LOGIN SUCCESS] 👑 ADMIN Access granted.`);
             userEmail = ADMIN_EMAIL;
             userRole = "admin";
-        } 
-        // --- 2. STUDENT DATABASE CHECK ---
-        else {
+        } else {
             const [rows] = await authPool.query(
                 "SELECT * FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?",
                 [email, password]
@@ -166,25 +143,18 @@ app.post('/api/login', async (req, res) => {
 
             const student = rows[0];
             const expiryDate = new Date(student.student_expiry_date);
-            const today = new Date();
-            
-            if (expiryDate < today) return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." });
+            if (expiryDate < new Date()) return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." });
 
-            console.log(`[LOGIN SUCCESS] 🎉 Student Access granted.`);
             userEmail = student.student_email;
         }
 
-        // Generate Session ID & Save to Postgres Database
         const sessionId = crypto.randomUUID();
         await pool.query(
             "INSERT INTO login_logs (email, session_id, ip_address) VALUES ($1, $2, $3)", 
             [userEmail, sessionId, clientIp]
         );
-
-        // Auto-delete records older than 30 days to keep DB clean
         await pool.query("DELETE FROM login_logs WHERE login_time < NOW() - INTERVAL '30 days'");
 
-        // Embed the unique sessionId and role into the user's token
         const token = jwt.sign(
             { email: userEmail, ip: clientIp, sessionId: sessionId, role: userRole }, 
             JWT_SECRET, 
@@ -198,9 +168,9 @@ app.post('/api/login', async (req, res) => {
             maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 
         });
 
-        res.json({ success: true, msg: "Login successful" });
+        // ✅ FIXED: Now sending the role back to the browser so the UI knows if you are an admin
+        res.json({ success: true, msg: "Login successful", role: userRole });
     } catch (error) {
-        console.error(`\n[LOGIN SYSTEM ERROR] 🚨 ${error.message}`);
         res.status(500).json({ success: false, msg: "Database connection error" });
     }
 });
@@ -210,7 +180,6 @@ app.post('/api/logout', (req, res) => {
     res.json({ success: true });
 });
 
-// 1. GET ALL TRADES (Last 30 Days) 
 app.get('/api/trades', authenticateToken, async (req, res) => {
     try {
         const query = "SELECT * FROM trades WHERE CAST(created_at AS TIMESTAMP) >= NOW() - INTERVAL '30 days' ORDER BY id DESC";
@@ -219,7 +188,6 @@ app.get('/api/trades', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 2. SIGNAL DETECTED
 app.post('/api/signal_detected', async (req, res) => {
     const { trade_id, symbol, type } = req.body;
     try {
@@ -236,7 +204,6 @@ app.post('/api/signal_detected', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 3. SETUP CONFIRMED
 app.post('/api/setup_confirmed', async (req, res) => {
     const { trade_id, symbol, type, entry, sl, tp1, tp2, tp3 } = req.body;
     try {
@@ -262,7 +229,6 @@ app.post('/api/setup_confirmed', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 4. PRICE UPDATE
 app.post('/api/price_update', async (req, res) => {
     const { symbol, bid, ask } = req.body;
     try {
@@ -275,7 +241,6 @@ app.post('/api/price_update', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 5. INSTANT EVENT LOGGER
 app.post('/api/log_event', async (req, res) => {
     const { trade_id, new_status, price } = req.body;
     try {
@@ -298,7 +263,6 @@ app.post('/api/log_event', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- DELETE ENDPOINT ---
 app.post('/api/delete_trades', authenticateToken, async (req, res) => {
     const { trade_ids, password } = req.body; 
     if (password !== DELETE_PASSWORD) return res.status(401).json({ success: false, msg: "❌ Incorrect Password!" });
