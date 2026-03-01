@@ -38,13 +38,27 @@
         .module-level-badge { font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 6px; background-color: #d1ecf1; color: #0c5460; text-transform: uppercase; margin-left: 10px; }
         .badge-demo { background-color: #d4edda; color: #155724; }
         
-        .lesson-item { padding: 15px 18px; border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: background 0.2s; }
+        .lesson-item { padding: 18px 20px; border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: background 0.2s; }
         .lesson-item:first-child { border-top: none; }
         .lesson-item:hover { background-color: #f9fbfd; }
         
-        .lesson-thumbnail { width: 90px; height: 50px; border-radius: 6px; object-fit: cover; margin-right: 15px; background: #e9ecef; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.1); }
-        .lesson-icon { color: var(--text-secondary); margin-right: 15px; font-size: 24px; opacity: 0.6; flex-shrink: 0; }
+        /* BIG THUMBNAIL OVERLAYS FOR HOME PAGE */
+        .thumb-wrapper-big { position: relative; width: 200px; height: 112px; flex-shrink: 0; margin-right: 20px; border-radius: 8px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); }
+        .thumb-wrapper-big img { width: 100%; height: 100%; object-fit: cover; opacity: 0.8; transition: opacity 0.2s; }
+        .lesson-item:hover .thumb-wrapper-big img { opacity: 1; }
+        .thumb-play-overlay-big { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+        .thumb-play-overlay-big .material-icons-round { color: #fff; font-size: 42px; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.6)); transition: transform 0.2s; }
+        .lesson-item:hover .thumb-play-overlay-big .material-icons-round { transform: scale(1.15); }
         
+        .lesson-icon { margin-right: 20px; font-size: 36px; flex-shrink: 0; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1)); }
+        
+        /* MOBILE RULE FOR BIG THUMBNAILS */
+        @media (max-width: 576px) {
+            .lesson-flex-container { flex-direction: column; align-items: flex-start !important; }
+            .thumb-wrapper-big { width: 100%; height: auto; aspect-ratio: 16/9; margin-right: 0; margin-bottom: 15px; }
+            .lesson-icon { margin-bottom: 10px; }
+        }
+
         .footer { text-align: center; padding: 30px 20px; color: var(--text-secondary); font-size: 12px; margin-top: 40px; border-top: 1px solid var(--border-color); background: #fff; }
 
         /* VIDEO PLAYER */
@@ -76,7 +90,6 @@
 
     <div class="curriculum-container">
         <h3 class="section-header">Course Curriculum Overview</h3>
-        
         <div class="accordion" id="publicCourseContainer">
             <div class="p-5 text-center text-muted fw-bold">Loading courses...</div>
         </div>
@@ -123,37 +136,31 @@
                     let lessonHtml = '';
                     if (mod.lessons && mod.lessons.length > 0) {
                         mod.lessons.forEach(l => {
-                            const thumbnailImg = l.thumbnail_url ? `<img src="${l.thumbnail_url}" class="lesson-thumbnail">` : `<span class="material-icons-round lesson-icon">${isDemo ? 'play_circle_filled' : 'lock'}</span>`;
+                            // Smart Overlay logic for Big Thumbnails
+                            const overlayIcon = isDemo ? 'play_circle_filled' : 'lock';
+                            const iconColor = isDemo ? 'var(--blue)' : 'var(--text-secondary)';
+                            const textColor = isDemo ? '#333' : '#666';
+                            const onClickAction = isDemo ? `openDemoVideo(${l.id})` : `window.location.href='/login.html'`;
 
-                            if (isDemo) {
-                                lessonHtml += `
-                                    <div class="lesson-item" onclick="openDemoVideo(${l.id})">
-                                        <div class="d-flex align-items-center w-100">
-                                            ${thumbnailImg}
-                                            <div class="flex-grow-1">
-                                                <div class="fw-bold" style="color: #333;">${l.title}</div>
-                                                ${l.description ? `<div class="text-muted small mt-1">${l.description}</div>` : ''}
-                                            </div>
+                            const thumbnailImg = l.thumbnail_url 
+                                ? `<div class="thumb-wrapper-big"><img src="${l.thumbnail_url}"><div class="thumb-play-overlay-big"><span class="material-icons-round">${overlayIcon}</span></div></div>` 
+                                : `<span class="material-icons-round lesson-icon" style="color: ${iconColor};">${overlayIcon}</span>`;
+
+                            lessonHtml += `
+                                <div class="lesson-item" onclick="${onClickAction}">
+                                    <div class="d-flex align-items-center w-100 lesson-flex-container">
+                                        ${thumbnailImg}
+                                        <div class="flex-grow-1">
+                                            <div class="fw-bold" style="color: ${textColor}; font-size: 15px;">${l.title}</div>
+                                            ${l.description ? `<div class="text-muted small mt-1">${l.description}</div>` : ''}
                                         </div>
-                                    </div>`;
-                            } else {
-                                lessonHtml += `
-                                    <div class="lesson-item" onclick="window.location.href='/login.html'">
-                                        <div class="d-flex align-items-center w-100">
-                                            ${thumbnailImg}
-                                            <div class="flex-grow-1">
-                                                <div class="fw-bold" style="color: #666;">${l.title}</div>
-                                                ${l.description ? `<div class="text-muted small mt-1">${l.description}</div>` : ''}
-                                            </div>
-                                        </div>
-                                    </div>`;
-                            }
+                                    </div>
+                                </div>`;
                         });
                     } else {
                         lessonHtml = '<div class="text-muted small p-3 text-center">Lessons coming soon.</div>';
                     }
 
-                    // ACCORDION ITEM
                     htmlContent += `
                         <div class="accordion-item course-module">
                             <h2 class="accordion-header" id="heading${mod.id}">
