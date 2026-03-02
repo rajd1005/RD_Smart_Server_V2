@@ -353,7 +353,7 @@ function moveWatermark() {
 }
 
 
-// --- FORM SUBMIT HANDLERS WITH AUTO CLOSE MODAL FIX ---
+// --- FORM SUBMIT HANDLERS (FIXED ERROR EXPOSURE) ---
 const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
     formAdminSettings.addEventListener('submit', async (e) => {
@@ -372,10 +372,12 @@ if (formAdminSettings) {
             if(res.ok) { 
                 const m = bootstrap.Modal.getInstance(document.getElementById('adminCourseModal'));
                 if(m) m.hide();
-                alert("Settings Saved Successfully!"); 
                 fetchCourses(); 
-            } else { alert("Error saving settings"); }
-        } catch(err) {}
+            } else { 
+                const errData = await res.json().catch(()=>({}));
+                alert("Error saving settings: " + (errData.msg || "Unknown"));
+            }
+        } catch(err) { alert("Network error saving settings."); }
         finally { btn.innerText = "Save Settings"; btn.disabled = false; }
     });
 }
@@ -399,11 +401,13 @@ if (formAddModule) {
             if(res.ok) { 
                 const m = bootstrap.Modal.getInstance(document.getElementById('adminCourseModal'));
                 if(m) m.hide();
-                alert("Module Added!"); 
                 formAddModule.reset(); 
                 fetchCourses(); 
-            } else alert("Error adding module");
-        } catch(e) {}
+            } else {
+                const errData = await res.json().catch(()=>({}));
+                alert("Error adding module: " + (errData.msg || "Unknown database error. Check duplicate title."));
+            }
+        } catch(e) { alert("Network Error"); }
         finally { btn.innerText = "Create Module"; btn.disabled = false; }
     });
 }
@@ -425,14 +429,14 @@ if (formAddLesson) {
         const btn = e.target.querySelector('button'); btn.innerText = "⏳ Uploading & Extracting Thumbnail..."; btn.disabled = true;
         try {
             const res = await fetch('/api/admin/lessons', { method: 'POST', credentials: 'same-origin', body: formData });
-            const data = await res.json();
+            const data = await res.json().catch(()=>({}));
             if(res.ok) { 
                 const m = bootstrap.Modal.getInstance(document.getElementById('adminCourseModal'));
                 if(m) m.hide();
                 alert(data.msg); 
                 formAddLesson.reset(); 
-            } else { alert(data.msg || "Error uploading video."); }
-        } catch(err) {} 
+            } else { alert("Error uploading video: " + (data.msg || "Unknown")); }
+        } catch(err) { alert("Network error uploading video."); } 
         finally { btn.innerText = "Upload Video"; btn.disabled = false; }
     });
 }
@@ -446,7 +450,6 @@ function openEditModule(e, id, title, desc, level, notice, order, showHome, dash
     document.getElementById('editModDisplayOrder').value = order;
     document.getElementById('editModLockNotice').value = (notice !== 'null' && notice !== 'undefined') ? notice : '';
     
-    // FIX: Safely handle legacy null fields so older modules don't accidentally hide themselves
     document.getElementById('editModShowHome').value = (showHome === false || showHome === 'false') ? 'false' : 'true';
     document.getElementById('editModDashVis').value = (dashVis === 'null' || !dashVis) ? 'all' : dashVis;
     
@@ -474,8 +477,11 @@ if (formEditModule) {
                 const m = bootstrap.Modal.getInstance(document.getElementById('editModuleModal'));
                 if(m) m.hide();
                 fetchCourses(); 
-            } else { alert("Error updating module"); }
-        } catch(err) {}
+            } else { 
+                const errData = await res.json().catch(()=>({}));
+                alert("Error updating module: " + (errData.msg || "Unknown")); 
+            }
+        } catch(err) { alert("Network Error"); }
         finally { btn.innerText = "Save Changes"; btn.disabled = false; }
     });
 }
@@ -516,8 +522,11 @@ if (formEditLesson) {
                 const m = bootstrap.Modal.getInstance(document.getElementById('editLessonModal'));
                 if(m) m.hide();
                 fetchCourses(); 
-            } else { alert("Error updating lesson"); }
-        } catch(err) {}
+            } else { 
+                const errData = await res.json().catch(()=>({}));
+                alert("Error updating lesson: " + (errData.msg || "Unknown")); 
+            }
+        } catch(err) { alert("Network Error"); }
         finally { btn.innerText = "Save Changes"; btn.disabled = false; }
     });
 }
