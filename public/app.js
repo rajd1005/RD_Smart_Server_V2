@@ -175,33 +175,47 @@ async function fetchCourses() {
                             <button class="admin-del-btn mt-1" onclick="deleteLesson(event, ${l.id})"><span class="material-icons-round" style="font-size: 16px;">delete</span></button>
                         </div>` : '';
 
+                    // --- NEW: HTML / RICH TEXT DOCUMENT LESSON LOGIC ---
+                    const hasVideo = l.hls_manifest_url && l.hls_manifest_url.length > 5;
                     const overlayIcon = isLocked ? 'lock' : 'play_circle_filled';
+                    const documentIcon = isLocked ? 'lock' : 'article';
                     const iconColor = isLocked ? '#999' : 'var(--blue)';
                     const textColor = isLocked ? '#666' : '#333';
                     const opacityLvl = isLocked ? '0.6' : '1';
-                    const pointerEv = isLocked ? 'not-allowed' : 'pointer';
+                    
+                    let mediaHtml = '';
+                    let onClickAction = '';
+                    let pointerEv = isLocked ? 'not-allowed' : 'auto';
 
-                    const thumbnailImg = l.thumbnail_url 
-                        ? `<div class="thumb-wrapper-full"><img src="${l.thumbnail_url}" loading="lazy"><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${isLocked ? '#ccc' : '#fff'};">${overlayIcon}</span></div></div>` 
-                        : `<div class="thumb-wrapper-full"><div class="w-100 h-100 bg-dark d-flex align-items-center justify-content-center"><span class="material-icons-round" style="font-size:48px; color:#444;">${overlayIcon}</span></div><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${isLocked ? '#ccc' : '#fff'};">${overlayIcon}</span></div></div>`;
+                    if (hasVideo) {
+                        onClickAction = isLocked ? '' : `onclick="openSecureVideo(${l.id})"`;
+                        pointerEv = isLocked ? 'not-allowed' : 'pointer';
+                        
+                        const thumbIconColor = isLocked ? '#ccc' : '#fff';
+                        const thumbnailImg = l.thumbnail_url 
+                            ? `<div class="thumb-wrapper-full"><img src="${l.thumbnail_url}" loading="lazy"><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${thumbIconColor};">${overlayIcon}</span></div></div>` 
+                            : `<div class="thumb-wrapper-full"><div class="w-100 h-100 bg-dark d-flex align-items-center justify-content-center"><span class="material-icons-round" style="font-size:48px; color:#444;">${overlayIcon}</span></div><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${thumbIconColor};">${overlayIcon}</span></div></div>`;
 
-                    const onClickAction = isLocked ? '' : `onclick="openSecureVideo(${l.id})"`;
+                        mediaHtml = `<div class="w-100" style="cursor: ${pointerEv};" ${onClickAction}>${thumbnailImg}</div>`;
+                    }
+
+                    const finalHeaderIcon = hasVideo ? overlayIcon : documentIcon;
 
                     lessonHtml += `
                         <div class="accordion-item lesson-accordion-item">
                             <h2 class="accordion-header" id="hLsn${l.id}">
                                 <button class="accordion-button collapsed lesson-accordion-btn" type="button" data-bs-toggle="collapse" data-bs-target="#cLsn${l.id}" aria-expanded="false" aria-controls="cLsn${l.id}">
-                                    <span class="material-icons-round" style="font-size:16px; margin-right:8px; color:${iconColor};">${overlayIcon}</span>
+                                    <span class="material-icons-round" style="font-size:16px; margin-right:8px; color:${hasVideo ? iconColor : 'var(--blue)'};">${finalHeaderIcon}</span>
                                     <span style="color: ${textColor};">${l.title}</span>
                                 </button>
                             </h2>
                             <div id="cLsn${l.id}" class="accordion-collapse collapse lesson-collapse" aria-labelledby="hLsn${l.id}" data-bs-parent="#accLsn${mod.id}">
                                 <div class="accordion-body p-0" style="background: #fafafa;">
-                                    <div class="lesson-item-content w-100" style="opacity: ${opacityLvl}; cursor: ${pointerEv};" ${onClickAction}>
-                                        ${thumbnailImg}
+                                    <div class="lesson-item-content w-100" style="opacity: ${opacityLvl};">
+                                        ${mediaHtml}
                                         <div class="d-flex justify-content-between align-items-start mt-2">
-                                            <div class="flex-grow-1">
-                                                ${l.description ? `<div class="text-muted" style="font-size: 12px; line-height: 1.4; padding: 0 5px;">${l.description}</div>` : ''}
+                                            <div class="flex-grow-1" style="overflow-wrap: break-word;">
+                                                ${l.description ? `<div class="text-dark" style="font-size: 13px; line-height: 1.6; padding: 0 5px;">${l.description}</div>` : ''}
                                             </div>
                                             ${!isLocked ? adminBtnsLess : ''}
                                         </div>
@@ -353,7 +367,6 @@ function moveWatermark() {
 }
 
 
-// --- FAIL-SAFE ADMIN FORM SUBMIT HANDLERS ---
 const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
     formAdminSettings.addEventListener('submit', async (e) => {
@@ -432,7 +445,9 @@ if (formAddLesson) {
         const thumbEl = document.getElementById('lessonThumbnailFile');
         if (thumbEl && thumbEl.files[0]) formData.append('thumbnail_file', thumbEl.files[0]);
 
-        const btn = e.target.querySelector('button'); btn.innerText = "⏳ Uploading..."; btn.disabled = true;
+        const btn = e.target.querySelector('button'); 
+        btn.innerText = (videoEl && videoEl.files[0]) ? "⏳ Uploading Video..." : "Saving Document..."; 
+        btn.disabled = true;
         
         try {
             const res = await fetch('/api/admin/lessons', { method: 'POST', credentials: 'same-origin', body: formData });
@@ -442,8 +457,9 @@ if (formAddLesson) {
                 if(m) m.hide();
                 alert(data.msg); 
                 formAddLesson.reset(); 
-            } else { alert("Error uploading video: " + (data.msg || "Unknown")); }
-        } catch(err) { alert("Network error uploading video."); } 
+                fetchCourses();
+            } else { alert("Error uploading lesson: " + (data.msg || "Unknown")); }
+        } catch(err) { alert("Network error saving lesson."); } 
         finally { btn.innerText = "Upload Video"; btn.disabled = false; }
     });
 }
@@ -495,12 +511,6 @@ if (formEditModule) {
         } catch(err) { alert("Network Error"); }
         finally { btn.innerText = "Save Changes"; btn.disabled = false; }
     });
-}
-
-async function deleteModule(e, id) {
-    e.stopPropagation();
-    if(!confirm("⚠️ Delete this entire module AND all its videos?")) return;
-    try { const res = await fetch(`/api/admin/modules/${id}`, { method: 'DELETE', credentials: 'same-origin' }); if(res.ok) fetchCourses(); } catch(e) {}
 }
 
 function openEditLesson(e, id, title, desc, order) {
