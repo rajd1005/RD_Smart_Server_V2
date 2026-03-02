@@ -41,15 +41,11 @@ const JWT_SECRET = (process.env.JWT_SECRET || "super_secret_key_123").trim();
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@rdalgo.in").trim();
 const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || "admin123").trim();
 
-// --- SMTP EMAIL CONFIGURATION ---
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: process.env.SMTP_PORT || 587,
     secure: process.env.SMTP_SECURE === 'true', 
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-    }
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
 });
 
 function getClientIp(req) {
@@ -119,10 +115,7 @@ app.get('/api/settings', async (req, res) => {
 app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
     const { accordion_state } = req.body;
     try {
-        await pool.query(
-            "INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value",
-            [accordion_state]
-        );
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state]);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -131,9 +124,7 @@ app.get('/api/public/courses', async (req, res) => {
     try {
         const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order FROM learning_modules ORDER BY display_order ASC");
         const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url FROM lesson_videos ORDER BY display_order ASC");
-        const coursesStructure = modulesResult.rows.map(mod => { 
-            return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; 
-        });
+        const coursesStructure = modulesResult.rows.map(mod => { return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; });
         res.json(coursesStructure);
     } catch (err) { res.status(500).json({ error: "Server Error fetching public courses." }); }
 });
@@ -148,29 +139,44 @@ app.get('/api/public/lesson/:id', async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
 });
 
+// --- ADVANCED LOGIN ENGINE WITH FIRST-TIME SETUP DETECTION ---
 app.post('/api/login', async (req, res) => {
     const { email, password, rememberMe } = req.body;
     const clientIp = getClientIp(req);
     try {
         let userEmail = ""; let userRole = "student"; let userPhone = "";
         let accessLevels = { level_1_status: 'No', level_2_status: 'No', level_3_status: 'No', level_4_status: 'No' };
+        let studentRecord = null;
 
         if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
             userEmail = ADMIN_EMAIL; userRole = "admin"; userPhone = "Admin";
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
         } else {
-            const [rows] = await authPool.query(
-                "SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?",
-                [email, password]
-            );
-            if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
+            // 1. Check if user set a custom password
+            const localCreds = await pool.query("SELECT * FROM user_credentials WHERE email = $1", [email]);
+            if (localCreds.rows.length > 0) {
+                const { salt, hash } = localCreds.rows[0];
+                const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+                if (verifyHash !== hash) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
 
-            const student = rows[0];
-            const expiryDate = new Date(student.student_expiry_date);
+                const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
+                if (rows.length === 0) return res.status(401).json({ success: false, msg: "Account not found in registry." });
+                studentRecord = rows[0];
+            } else {
+                // 2. First Time Login: Using Phone number as password against WP Database
+                const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?", [email, password]);
+                if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
+                
+                // VALID FIRST LOGIN -> Trigger Setup Password Flow
+                const setupToken = jwt.sign({ email: rows[0].student_email, phone: rows[0].student_phone }, JWT_SECRET, { expiresIn: '15m' });
+                return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
+            }
+
+            const expiryDate = new Date(studentRecord.student_expiry_date);
             if (expiryDate < new Date()) return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." });
 
-            userEmail = student.student_email; userPhone = student.student_phone; 
-            accessLevels = { level_1_status: 'Yes', level_2_status: student.level_2_status || 'No', level_3_status: student.level_3_status || 'No', level_4_status: student.level_4_status || 'No' };
+            userEmail = studentRecord.student_email; userPhone = studentRecord.student_phone; 
+            accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
         }
 
         const sessionId = crypto.randomUUID();
@@ -184,9 +190,65 @@ app.post('/api/login', async (req, res) => {
     } catch (error) { res.status(500).json({ success: false, msg: "Database connection error" }); }
 });
 
+// --- NEW: SET PASSWORD API (After First Login) ---
+app.post('/api/set_password', async (req, res) => {
+    const { setupToken, newPassword } = req.body;
+    try {
+        const decoded = jwt.verify(setupToken, JWT_SECRET);
+        const salt = crypto.randomBytes(16).toString('hex');
+        const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
+        await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [decoded.email, salt, hash]);
+        res.json({ success: true, email: decoded.email }); // Client will auto-login with new pass
+    } catch (err) {
+        res.status(401).json({ success: false, msg: "Setup session expired. Please log in again." });
+    }
+});
+
+// --- NEW: FORGOT PASSWORD OTP GENERATOR ---
+app.post('/api/forgot_password', async (req, res) => {
+    const { email } = req.body;
+    try {
+        if (email === ADMIN_EMAIL) return res.status(400).json({ success: false, msg: "Admin password cannot be reset here." });
+        const [rows] = await authPool.query("SELECT student_email FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
+        if (rows.length === 0) return res.status(404).json({ success: false, msg: "Email not found in registry." });
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit OTP
+        await pool.query("INSERT INTO password_resets (email, otp, expires_at) VALUES ($1, $2, NOW() + INTERVAL '15 minutes') ON CONFLICT (email) DO UPDATE SET otp = EXCLUDED.otp, expires_at = EXCLUDED.expires_at", [email, otp]);
+
+        const mailOptions = {
+            from: `"RD Algo Security" <${process.env.SMTP_USER}>`,
+            to: email,
+            subject: `Password Reset OTP - RD Algo`,
+            html: `<div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #ddd; padding: 20px; border-radius: 10px;">
+                    <h2 style="color: #0056b3;">Password Reset</h2>
+                    <p>You requested to reset your password. Use the OTP below to set a new password. This code is valid for 15 minutes.</p>
+                    <div style="font-size: 24px; font-weight: bold; background: #f8f9fa; padding: 15px; text-align: center; letter-spacing: 5px; color: #000; border-radius: 8px;">${otp}</div>
+                    <p style="font-size: 11px; color: #888; margin-top: 20px;">If you didn't request this, please ignore this email.</p>
+                   </div>`
+        };
+        transporter.sendMail(mailOptions).catch(e => console.error(e));
+        res.json({ success: true, msg: "OTP sent to your email." });
+    } catch (err) { res.status(500).json({ success: false, msg: "Server error generating OTP." }); }
+});
+
+// --- NEW: RESET PASSWORD VIA OTP ---
+app.post('/api/reset_password', async (req, res) => {
+    const { email, otp, newPassword } = req.body;
+    try {
+        const result = await pool.query("SELECT * FROM password_resets WHERE email = $1 AND otp = $2 AND expires_at > NOW()", [email, otp]);
+        if (result.rows.length === 0) return res.status(400).json({ success: false, msg: "Invalid or expired OTP." });
+
+        const salt = crypto.randomBytes(16).toString('hex');
+        const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
+        await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [email, salt, hash]);
+        await pool.query("DELETE FROM password_resets WHERE email = $1", [email]); // clear OTP
+        
+        res.json({ success: true, msg: "Password changed successfully. You can now login." });
+    } catch (err) { res.status(500).json({ success: false, msg: "Server error resetting password." }); }
+});
+
 app.post('/api/logout', (req, res) => { res.clearCookie('authToken'); res.json({ success: true }); });
 
-// --- NEW: DIGITAL SIGNATURE & LEGAL DISCLAIMER API ---
 app.post('/api/accept_terms', authenticateToken, async (req, res) => {
     try {
         const userEmail = req.user.email;
@@ -196,7 +258,7 @@ app.post('/api/accept_terms', authenticateToken, async (req, res) => {
         const mailOptions = {
             from: `"RD Algo Compliance" <${process.env.SMTP_USER}>`,
             to: userEmail,
-            cc: ADMIN_EMAIL, // Sends copy to Admin automatically
+            cc: ADMIN_EMAIL, 
             subject: `Legal Disclaimer Accepted - ${userEmail}`,
             html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
@@ -226,14 +288,9 @@ app.post('/api/accept_terms', authenticateToken, async (req, res) => {
             `
         };
 
-        // Sends email asynchronously in the background so the user doesn't wait
         transporter.sendMail(mailOptions).catch(err => console.error("SMTP Mail Error:", err));
-
         res.json({ success: true });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ success: false, msg: "Failed to record agreement." });
-    }
+    } catch (err) { res.status(500).json({ success: false, msg: "Failed to record agreement." }); }
 });
 
 app.get('/api/hls-key/:lessonId/enc.key', async (req, res) => {
@@ -277,10 +334,7 @@ app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
 app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
     const { title, description, required_level, display_order, lock_notice } = req.body;
     try {
-        await pool.query(
-            "INSERT INTO learning_modules (title, description, required_level, display_order, lock_notice) VALUES ($1, $2, $3, $4, $5)", 
-            [title, description, required_level, display_order || 0, lock_notice || '']
-        );
+        await pool.query("INSERT INTO learning_modules (title, description, required_level, display_order, lock_notice) VALUES ($1, $2, $3, $4, $5)", [title, description, required_level, display_order || 0, lock_notice || '']);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -288,10 +342,7 @@ app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
 app.put('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
     const { title, description, required_level, lock_notice, display_order } = req.body;
     try {
-        await pool.query(
-            "UPDATE learning_modules SET title = $1, description = $2, required_level = $3, lock_notice = $4, display_order = $5 WHERE id = $6", 
-            [title, description, required_level, lock_notice || '', display_order || 0, req.params.id]
-        );
+        await pool.query("UPDATE learning_modules SET title = $1, description = $2, required_level = $3, lock_notice = $4, display_order = $5 WHERE id = $6", [title, description, required_level, lock_notice || '', display_order || 0, req.params.id]);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -313,7 +364,6 @@ app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res
 
 app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name: 'video_file', maxCount: 1 }, { name: 'thumbnail_file', maxCount: 1 }]), async (req, res) => {
     const { module_id, title, description, display_order } = req.body;
-    
     if (!req.files || !req.files['video_file']) return res.status(400).json({ success: false, msg: "Video file is required." });
     const videoFile = req.files['video_file'][0];
 
@@ -343,17 +393,13 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
     const m3u8Path = `/hls/${lessonId}/output.m3u8`;
 
     ffmpeg(videoFile.path)
-        .outputOptions([
-            '-profile:v baseline', '-level 3.0', '-s 1280x720', '-start_number 0', '-hls_time 10', '-hls_list_size 0', '-f hls', `-hls_key_info_file ${keyInfoPath}` 
-        ])
+        .outputOptions(['-profile:v baseline', '-level 3.0', '-s 1280x720', '-start_number 0', '-hls_time 10', '-hls_list_size 0', '-f hls', `-hls_key_info_file ${keyInfoPath}`])
         .output(path.join(lessonHlsDir, 'output.m3u8'))
         .on('end', async () => {
             if (fs.existsSync(videoFile.path)) fs.unlinkSync(videoFile.path);
             try { await pool.query("INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6)", [module_id, title, description, m3u8Path, display_order || 0, thumbUrl]); } catch(e) {}
         })
-        .on('error', (err) => {
-            if (fs.existsSync(videoFile.path)) fs.unlinkSync(videoFile.path);
-        })
+        .on('error', (err) => { if (fs.existsSync(videoFile.path)) fs.unlinkSync(videoFile.path); })
         .run();
 
     res.json({ success: true, msg: "Video Uploaded. System is now converting and encrypting it in the background." });
@@ -369,7 +415,6 @@ app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, upload.single('thu
             fs.copyFileSync(req.file.path, destPath);
             fs.unlinkSync(req.file.path); 
             const thumbUrl = '/hls/thumbnails/' + thumbName;
-            
             await pool.query("UPDATE lesson_videos SET title = $1, description = $2, display_order = $3, thumbnail_url = $4 WHERE id = $5", [title, description, display_order || 0, thumbUrl, req.params.id]);
         } else {
             await pool.query("UPDATE lesson_videos SET title = $1, description = $2, display_order = $3 WHERE id = $4", [title, description, display_order || 0, req.params.id]);
