@@ -35,11 +35,25 @@ function checkDisclaimer() {
     }
 }
 
-window.acceptDisclaimer = function() {
-    sessionStorage.setItem('disclaimerAccepted', 'true');
-    const modalEl = document.getElementById('disclaimerModal');
-    const modal = bootstrap.Modal.getInstance(modalEl);
-    if (modal) modal.hide();
+window.acceptDisclaimer = async function() {
+    const btn = document.querySelector('#disclaimerModal .btn-success');
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ Recording Agreement...";
+    btn.disabled = true;
+
+    try {
+        // Trigger server to generate Digital Signature Email to Admin & Student
+        await fetch('/api/accept_terms', { method: 'POST', credentials: 'same-origin' });
+        
+        sessionStorage.setItem('disclaimerAccepted', 'true');
+        const modalEl = document.getElementById('disclaimerModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+    } catch (err) {
+        alert("Error recording agreement. Please try again or check your connection.");
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
 }
 
 window.declineDisclaimer = function() {
