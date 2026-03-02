@@ -74,7 +74,7 @@
         .lesson-accordion-btn { padding: 8px 12px; font-size: 13px; font-weight: 600; background: transparent !important; color: inherit; box-shadow: none !important; min-height: 38px; }
         .lesson-accordion-btn:not(.collapsed) { background: #f8f9fa !important; color: var(--blue) !important; }
         
-        .lesson-item-content { padding: 12px; border-radius: 0; transition: background 0.2s; cursor: pointer; border-top: 1px solid #f0f2f5; }
+        .lesson-item-content { padding: 12px; border-radius: 0; transition: background 0.2s; border-top: 1px solid #f0f2f5; }
         .lesson-item-content:hover { background-color: #f9fbfd; }
         
         .thumb-wrapper-full { position: relative; width: 100%; border-radius: 6px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); aspect-ratio: 16/9; margin-bottom: 10px; }
@@ -186,7 +186,7 @@
                             <button class="nav-link active fw-bold text-uppercase" id="tab-module" data-bs-toggle="tab" data-bs-target="#pane-module" type="button" role="tab" style="font-size: 10px;">1. Add Module</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link fw-bold text-uppercase" id="tab-lesson" data-bs-toggle="tab" data-bs-target="#pane-lesson" type="button" role="tab" style="font-size: 10px;">2. Add Video</button>
+                            <button class="nav-link fw-bold text-uppercase" id="tab-lesson" data-bs-toggle="tab" data-bs-target="#pane-lesson" type="button" role="tab" style="font-size: 10px;">2. Add Lesson</button>
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link fw-bold text-uppercase" id="tab-settings" data-bs-toggle="tab" data-bs-target="#pane-settings" type="button" role="tab" style="font-size: 10px;">3. Settings</button>
@@ -253,26 +253,26 @@
                                     <select id="lessonModuleId" class="form-select" required><option value="">Select...</option></select>
                                 </div>
                                 <div class="mb-2">
-                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Video Title</label>
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Lesson Title</label>
                                     <input type="text" id="lessonTitle" class="form-control" required>
                                 </div>
                                 <div class="mb-2">
-                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
-                                    <input type="text" id="lessonDesc" class="form-control">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description / Rich Text (HTML Allowed)</label>
+                                    <textarea id="lessonDesc" class="form-control" rows="4" placeholder="Write text or paste HTML embeds here..."></textarea>
                                 </div>
                                 <div class="mb-2">
                                     <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
                                     <input type="number" id="lessonDisplayOrder" class="form-control" value="0" required>
                                 </div>
                                 <div class="mb-2">
-                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Upload Custom Thumbnail (Or Leave Blank for Auto-Capture)</label>
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Upload Thumbnail (Optional)</label>
                                     <input type="file" id="lessonThumbnailFile" class="form-control" accept="image/*">
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Upload MP4 Video</label>
-                                    <input type="file" id="lessonVideoFile" class="form-control" accept="video/mp4,video/x-m4v,video/*" required>
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Upload MP4 Video (Optional)</label>
+                                    <input type="file" id="lessonVideoFile" class="form-control" accept="video/mp4,video/x-m4v,video/*">
                                 </div>
-                                <button type="submit" class="btn btn-sm btn-success w-100" style="padding:8px; border-radius:4px;">Upload Video</button>
+                                <button type="submit" class="btn btn-sm btn-success w-100" style="padding:8px; border-radius:4px;">Save Lesson</button>
                             </form>
                         </div>
 
@@ -369,19 +369,19 @@
         <div class="modal-dialog modal-dialog-centered" style="max-width: 320px;">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title mb-0">Edit Video Information</h5>
+                    <h5 class="modal-title mb-0">Edit Lesson Information</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
                 </div>
                 <div class="modal-body">
                     <form id="formEditLesson">
                         <input type="hidden" id="editLessonId">
                         <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Video Title</label>
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Lesson Title</label>
                             <input type="text" id="editLessonTitle" class="form-control" required>
                         </div>
                         <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
-                            <input type="text" id="editLessonDesc" class="form-control">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description / Rich Text</label>
+                            <textarea id="editLessonDesc" class="form-control" rows="4"></textarea>
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
