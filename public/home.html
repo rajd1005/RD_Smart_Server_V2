@@ -57,7 +57,6 @@
         .gallery-date { font-size: 11px; font-weight: 700; opacity: 0.95; text-shadow: 1px 1px 3px rgba(0,0,0,0.9); margin-bottom: 5px; letter-spacing: 0.3px; }
         .gallery-brand { font-size: 10px; font-weight: 900; color: #000; background: #fff; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.4); }
 
-        /* CALL WIDGET CSS */
         .call-summary-cards { display: flex; gap: 8px; margin-bottom: 15px; }
         .call-summary-card { flex: 1; background: #f8f9fa; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 5px; text-align: center; }
         .call-summary-card h3 { margin: 0; font-size: 10px; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; }
@@ -278,7 +277,6 @@
             }
         });
 
-        // --- NEW: INITIALIZE CALL WIDGET FETCH & LOGIC ---
         async function initCallWidget() {
             try {
                 const settingsRes = await fetch('/api/settings');
@@ -291,26 +289,22 @@
                         mode: "range",
                         dateFormat: "d-m-Y",
                         defaultDate: (function () {
-                            const now = new Date();
-                            const istOffset = 5.5 * 60 * 60 * 1000;
-                            const todayIST = new Date(now.getTime() + istOffset);
-                            const past30 = new Date(todayIST);
-                            past30.setDate(todayIST.getDate() - 29);
-                            return [past30, todayIST];
+                            const today = new Date();
+                            const past30 = new Date();
+                            past30.setDate(today.getDate() - 29);
+                            return [past30, today];
                         })(),
                         onReady: function (selectedDates) {
                             if (selectedDates.length > 0) {
-                                const istOffset = 5.5 * 60 * 60 * 1000;
-                                const start = new Date(selectedDates[0].getTime() + istOffset).toISOString().split('T')[0];
-                                const end = new Date((selectedDates[1] || selectedDates[0]).getTime() + istOffset).toISOString().split('T')[0];
+                                const start = selectedDates[0].toLocaleDateString('en-CA');
+                                const end = (selectedDates[1] || selectedDates[0]).toLocaleDateString('en-CA');
                                 loadCallData(start, end);
                             }
                         },
                         onClose: function (selectedDates) {
                             if (selectedDates.length > 0) {
-                                const istOffset = 5.5 * 60 * 60 * 1000;
-                                const start = new Date(selectedDates[0].getTime() + istOffset).toISOString().split('T')[0];
-                                const end = new Date((selectedDates[1] || selectedDates[0]).getTime() + istOffset).toISOString().split('T')[0];
+                                const start = selectedDates[0].toLocaleDateString('en-CA');
+                                const end = (selectedDates[1] || selectedDates[0]).toLocaleDateString('en-CA');
                                 loadCallData(start, end);
                             }
                         }
@@ -323,6 +317,7 @@
         
         function groupByDate(data) {
             const grouped = {};
+            if (!Array.isArray(data)) return grouped;
             data.forEach(item => {
                 const date = item.form_date;
                 if (!grouped[date]) grouped[date] = [];
@@ -336,11 +331,12 @@
             document.getElementById('call-summary').innerHTML = '';
             document.getElementById('call-report-output').innerHTML = '';
 
+            // Note: Verify the token parameter matches your CRM exactly
             fetch(`/api/public/call-report?start=${start}&end=${end}`)
                 .then(res => res.json())
                 .then(json => {
                     document.getElementById('call-loader').style.display = 'none';
-                    if (!json.success || !json.show_widget) return;
+                    if (!json.success || !json.show_widget || !json.data) return;
 
                     const data = json.data;
                     const grouped = groupByDate(data);
@@ -432,7 +428,6 @@
                     document.getElementById('call-loader').style.display = 'none';
                 });
         }
-
 
         async function loadGallery() {
             try {
@@ -755,6 +750,7 @@
             wmEl.style.left = Math.floor(Math.random() * (maxX - minX + 1)) + minX + 'px'; wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
         }
 
+        // TRIGGER ON PAGE LOAD
         initCallWidget();
         loadGallery();
         fetchPublicCourses();
