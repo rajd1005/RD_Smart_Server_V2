@@ -1,7 +1,6 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-// Connect to Railway PostgreSQL
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
@@ -62,25 +61,22 @@ const initDb = async () => {
     ('show_gallery', 'true')
     ON CONFLICT (setting_key) DO NOTHING;`;
 
-    // Apply schema upgrades safely without dropping data
-    const upgradeModulesTable1 = `ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS lock_notice TEXT;`;
-    const upgradeModulesTable2 = `ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN DEFAULT TRUE;`;
-    const upgradeModulesTable3 = `ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS dashboard_visibility VARCHAR(20) DEFAULT 'all';`;
-    const upgradeLessonsTable = `ALTER TABLE lesson_videos ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;`;
-
     try {
         await pool.query(queryTrades);
         await pool.query(queryLogs); 
         await pool.query(queryLearningModules); 
-        await pool.query(upgradeModulesTable1); 
-        await pool.query(upgradeModulesTable2); 
-        await pool.query(upgradeModulesTable3); 
         await pool.query(queryLessonVideos); 
-        await pool.query(upgradeLessonsTable); 
         await pool.query(querySettings);
         await pool.query(queryUserCreds);
         await pool.query(queryPasswordResets);
         await pool.query(populateDefaultSettings);
+
+        // INDEPENDENT FAIL-SAFE UPGRADES
+        try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS lock_notice TEXT;`); } catch(e){}
+        try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN DEFAULT TRUE;`); } catch(e){}
+        try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS dashboard_visibility VARCHAR(20) DEFAULT 'all';`); } catch(e){}
+        try { await pool.query(`ALTER TABLE lesson_videos ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;`); } catch(e){}
+
         console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Layout)");
     } catch (err) {
         console.error("❌ Database Error:", err);
