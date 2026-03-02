@@ -16,17 +16,14 @@ const userData = {
     role: localStorage.getItem('userRole')
 };
 
-// ONLY EXECUTES ON THE SECURE INDEX.HTML DASHBOARD
 window.onload = function() {
     initDatePicker();
     fetchTrades(); 
     fetchCourses(); 
     applyRoleRestrictions(); 
     
-    // FIXED: By default, users will directly see the Learn Tab, Not Trade.
     switchSection('learning'); 
     
-    // Trigger Legal Disclaimer Check
     if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
         const modalEl = document.getElementById('disclaimerModal');
         if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
@@ -91,7 +88,6 @@ function switchSection(section) {
 function toggleAccordions(action) {
     const allCollapses = document.querySelectorAll('.accordion-collapse');
     const allButtons = document.querySelectorAll('.accordion-button');
-    
     if (action === 'all') {
         allCollapses.forEach(el => el.classList.add('show'));
         allButtons.forEach(el => { el.classList.remove('collapsed'); el.setAttribute('aria-expanded', 'true'); });
@@ -101,15 +97,12 @@ function toggleAccordions(action) {
     } else if (action === 'first') {
         allCollapses.forEach(el => el.classList.remove('show'));
         allButtons.forEach(el => { el.classList.add('collapsed'); el.setAttribute('aria-expanded', 'false'); });
-        
         const firstModCollapse = document.querySelector('.course-module > .accordion-collapse');
         const firstModBtn = document.querySelector('.course-module > .accordion-header > .accordion-button');
-        
         if (firstModCollapse && firstModBtn) {
             firstModCollapse.classList.add('show');
             firstModBtn.classList.remove('collapsed');
             firstModBtn.setAttribute('aria-expanded', 'true');
-            
             const firstLessonCollapse = firstModCollapse.querySelector('.lesson-collapse');
             const firstLessonBtn = firstModCollapse.querySelector('.lesson-accordion-btn');
             if (firstLessonCollapse && firstLessonBtn) {
@@ -144,10 +137,14 @@ async function fetchCourses() {
             }
         }
 
-        globalModules.forEach((mod, index) => {
-            if (userData.role !== 'admin' && mod.required_level === 'demo') return; 
-
+        globalModules.forEach((mod) => {
             const isLocked = userData.role !== 'admin' && mod.required_level !== 'demo' && accessLevels[mod.required_level] !== 'Yes';
+            
+            // --- NEW: Dynamic Dashboard Visibility Rules ---
+            if (userData.role !== 'admin') {
+                if (mod.dashboard_visibility === 'hidden') return;
+                if (mod.dashboard_visibility === 'accessible' && isLocked) return;
+            }
             
             const safeTitle = (mod.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             const safeDesc = (mod.description || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
@@ -155,7 +152,7 @@ async function fetchCourses() {
             
             const adminBtnsMod = userData.role === 'admin' ? `
                 <div class="d-flex align-items-center ms-auto me-3">
-                    <button class="admin-edit-btn" onclick="openEditModule(event, ${mod.id}, '${safeTitle}', '${safeDesc}', '${mod.required_level}', '${safeNotice}', ${mod.display_order || 0})"><span class="material-icons-round" style="font-size: 18px;">edit</span></button>
+                    <button class="admin-edit-btn" onclick="openEditModule(event, ${mod.id}, '${safeTitle}', '${safeDesc}', '${mod.required_level}', '${safeNotice}', ${mod.display_order || 0}, ${mod.show_on_home}, '${mod.dashboard_visibility || 'all'}')"><span class="material-icons-round" style="font-size: 18px;">edit</span></button>
                     <button class="admin-del-btn" onclick="deleteModule(event, ${mod.id})"><span class="material-icons-round" style="font-size: 18px;">delete</span></button>
                 </div>` : '';
 
@@ -185,9 +182,10 @@ async function fetchCourses() {
                     const opacityLvl = isLocked ? '0.6' : '1';
                     const pointerEv = isLocked ? 'not-allowed' : 'pointer';
 
+                    // --- NEW: BIG FULL-SIZE THUMBNAILS WITH AUTO-FALLBACK ---
                     const thumbnailImg = l.thumbnail_url 
-                        ? `<div class="thumb-wrapper-compact"><img src="${l.thumbnail_url}"><div class="thumb-play-overlay-compact"><span class="material-icons-round">${overlayIcon}</span></div></div>` 
-                        : `<span class="material-icons-round lesson-icon-compact" style="color:${iconColor};">${overlayIcon}</span>`;
+                        ? `<div class="thumb-wrapper-full"><img src="${l.thumbnail_url}" loading="lazy"><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${isLocked ? '#ccc' : '#fff'};">${overlayIcon}</span></div></div>` 
+                        : `<div class="thumb-wrapper-full"><div class="w-100 h-100 bg-dark d-flex align-items-center justify-content-center"><span class="material-icons-round" style="font-size:48px; color:#444;">${overlayIcon}</span></div><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${isLocked ? '#ccc' : '#fff'};">${overlayIcon}</span></div></div>`;
 
                     const onClickAction = isLocked ? '' : `onclick="openSecureVideo(${l.id})"`;
 
@@ -201,12 +199,14 @@ async function fetchCourses() {
                             </h2>
                             <div id="cLsn${l.id}" class="accordion-collapse collapse lesson-collapse" aria-labelledby="hLsn${l.id}" data-bs-parent="#accLsn${mod.id}">
                                 <div class="accordion-body p-0" style="background: #fafafa;">
-                                    <div class="lesson-item-content d-flex align-items-center w-100" style="opacity: ${opacityLvl}; cursor: ${pointerEv};" ${onClickAction}>
+                                    <div class="lesson-item-content w-100" style="opacity: ${opacityLvl}; cursor: ${pointerEv};" ${onClickAction}>
                                         ${thumbnailImg}
-                                        <div class="flex-grow-1">
-                                            ${l.description ? `<div class="text-muted" style="font-size: 11px; margin-bottom: 4px; line-height: 1.3;">${l.description}</div>` : ''}
+                                        <div class="d-flex justify-content-between align-items-start mt-2">
+                                            <div class="flex-grow-1">
+                                                ${l.description ? `<div class="text-muted" style="font-size: 12px; line-height: 1.4; padding: 0 5px;">${l.description}</div>` : ''}
+                                            </div>
+                                            ${!isLocked ? adminBtnsLess : ''}
                                         </div>
-                                        ${!isLocked ? adminBtnsLess : ''}
                                     </div>
                                 </div>
                             </div>
@@ -239,31 +239,27 @@ async function fetchCourses() {
         
         container.innerHTML = htmlContent || '<div class="p-4 text-center text-muted">No courses found.</div>';
         
-        // --- FETCH ADMIN SETTINGS & APPLY GLOBALLY ---
         try {
             const settingsRes = await fetch('/api/settings');
             const settings = await settingsRes.json();
             
-            // Apply Accordion Defaults
             const defaultState = settings.accordion_state || 'first';
             setTimeout(() => { toggleAccordions(defaultState); }, 100);
-            
             const adminSettingDropdown = document.getElementById('adminAccordionState');
             if (adminSettingDropdown) adminSettingDropdown.value = defaultState;
 
-            // Apply Hide Trade Tab
             const hideTradeTab = settings.hide_trade_tab === 'true';
             const adminHideCheck = document.getElementById('adminHideTradeTab');
             if (adminHideCheck) adminHideCheck.checked = hideTradeTab;
 
+            const showGallery = settings.show_gallery !== 'false';
+            const adminGalleryCheck = document.getElementById('adminShowGallery');
+            if (adminGalleryCheck) adminGalleryCheck.checked = showGallery;
+
             const navTradeBtn = document.getElementById('navTradeBtn');
             if (navTradeBtn) {
-                // Completely hide Trade Tab from Students if Admin enabled the setting
-                if (hideTradeTab && userData.role !== 'admin') {
-                    navTradeBtn.style.display = 'none';
-                } else {
-                    navTradeBtn.style.display = 'flex';
-                }
+                if (hideTradeTab && userData.role !== 'admin') navTradeBtn.style.display = 'none';
+                else navTradeBtn.style.display = 'flex';
             }
 
         } catch (e) {
@@ -364,12 +360,13 @@ if (formAdminSettings) {
         e.preventDefault();
         const state = document.getElementById('adminAccordionState').value;
         const hideTrade = document.getElementById('adminHideTradeTab').checked ? 'true' : 'false';
+        const showGallery = document.getElementById('adminShowGallery').checked ? 'true' : 'false';
         try {
             const res = await fetch('/api/admin/settings', { 
                 method: 'PUT', 
                 headers: {'Content-Type': 'application/json'}, 
                 credentials: 'same-origin', 
-                body: JSON.stringify({ accordion_state: state, hide_trade_tab: hideTrade }) 
+                body: JSON.stringify({ accordion_state: state, hide_trade_tab: hideTrade, show_gallery: showGallery }) 
             });
             if(res.ok) { alert("Settings Saved!"); fetchCourses(); } else { alert("Error saving settings"); }
         } catch(err) {}
@@ -381,9 +378,13 @@ if (formAddModule) {
     formAddModule.addEventListener('submit', async (e) => {
         e.preventDefault();
         const data = {
-            title: document.getElementById('modTitle').value, description: document.getElementById('modDesc').value, 
-            required_level: document.getElementById('modLevel').value, display_order: document.getElementById('modDisplayOrder').value,
-            lock_notice: document.getElementById('modLockNotice').value
+            title: document.getElementById('modTitle').value, 
+            description: document.getElementById('modDesc').value, 
+            required_level: document.getElementById('modLevel').value, 
+            display_order: document.getElementById('modDisplayOrder').value,
+            lock_notice: document.getElementById('modLockNotice').value,
+            show_on_home: document.getElementById('modShowHome').value === 'true',
+            dashboard_visibility: document.getElementById('modDashVis').value
         };
         try {
             const res = await fetch('/api/admin/modules', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
@@ -406,22 +407,26 @@ if (formAddLesson) {
         const thumbFile = document.getElementById('lessonThumbnailFile').files[0];
         if (thumbFile) formData.append('thumbnail_file', thumbFile);
 
-        const btn = e.target.querySelector('button'); btn.innerText = "⏳ Uploading & Encrypting..."; btn.disabled = true;
+        const btn = e.target.querySelector('button'); btn.innerText = "⏳ Uploading & Extracting Thumbnail..."; btn.disabled = true;
         try {
             const res = await fetch('/api/admin/lessons', { method: 'POST', credentials: 'same-origin', body: formData });
             const data = await res.json();
             if(res.ok) { alert(data.msg); formAddLesson.reset(); } else { alert(data.msg || "Error uploading video."); }
         } catch(err) {} 
-        finally { btn.innerText = "Upload Video File"; btn.disabled = false; }
+        finally { btn.innerText = "Upload Video"; btn.disabled = false; }
     });
 }
 
-function openEditModule(e, id, title, desc, level, notice, order) {
+function openEditModule(e, id, title, desc, level, notice, order, showHome, dashVis) {
     e.stopPropagation();
-    document.getElementById('editModId').value = id; document.getElementById('editModTitle').value = title;
+    document.getElementById('editModId').value = id; 
+    document.getElementById('editModTitle').value = title;
     document.getElementById('editModDesc').value = (desc !== 'null' && desc !== 'undefined') ? desc : '';
-    document.getElementById('editModLevel').value = level; document.getElementById('editModDisplayOrder').value = order;
+    document.getElementById('editModLevel').value = level; 
+    document.getElementById('editModDisplayOrder').value = order;
     document.getElementById('editModLockNotice').value = (notice !== 'null' && notice !== 'undefined') ? notice : '';
+    document.getElementById('editModShowHome').value = showHome ? 'true' : 'false';
+    document.getElementById('editModDashVis').value = dashVis || 'all';
     bootstrap.Modal.getOrCreateInstance(document.getElementById('editModuleModal')).show();
 }
 
@@ -431,9 +436,13 @@ if (formEditModule) {
         e.preventDefault();
         const id = document.getElementById('editModId').value;
         const data = {
-            title: document.getElementById('editModTitle').value, description: document.getElementById('editModDesc').value,
-            required_level: document.getElementById('editModLevel').value, display_order: document.getElementById('editModDisplayOrder').value,
-            lock_notice: document.getElementById('editModLockNotice').value
+            title: document.getElementById('editModTitle').value, 
+            description: document.getElementById('editModDesc').value,
+            required_level: document.getElementById('editModLevel').value, 
+            display_order: document.getElementById('editModDisplayOrder').value,
+            lock_notice: document.getElementById('editModLockNotice').value,
+            show_on_home: document.getElementById('editModShowHome').value === 'true',
+            dashboard_visibility: document.getElementById('editModDashVis').value
         };
         try {
             const res = await fetch(`/api/admin/modules/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
@@ -447,7 +456,6 @@ async function deleteModule(e, id) {
     if(!confirm("⚠️ Delete this entire module AND all its videos?")) return;
     try { const res = await fetch(`/api/admin/modules/${id}`, { method: 'DELETE', credentials: 'same-origin' }); if(res.ok) fetchCourses(); } catch(e) {}
 }
-
 
 function openEditLesson(e, id, title, desc, order) {
     e.stopPropagation();
