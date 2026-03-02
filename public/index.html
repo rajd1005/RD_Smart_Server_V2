@@ -423,32 +423,6 @@
         </div>
     </div>
 
-    <div class="modal fade" id="disclaimerModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 400px; margin: 0 auto;">
-            <div class="modal-content" style="border-radius: 12px; border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
-                <div class="modal-header border-bottom-0 pb-0 justify-content-center">
-                    <h5 class="modal-title fw-bold text-danger d-flex align-items-center" style="font-size: 16px;">
-                        <span class="material-icons-round me-2">gavel</span> Mandatory Disclaimer
-                    </h5>
-                </div>
-                <div class="modal-body px-4 pt-3 pb-2" style="font-size: 12px; line-height: 1.6; color: #444;">
-                    <p class="fw-bold mb-3 text-dark text-center" style="font-size: 13px;">Please read and accept to access the dashboard.</p>
-                    
-                    <div class="mb-3 p-3 bg-light rounded border">
-                        <div class="mb-2"><strong><span class="text-danger">1.</span> Not SEBI Registered:</strong> We are NOT registered with SEBI or any regulatory body. We are not financial advisors.</div>
-                        <div class="mb-2"><strong><span class="text-danger">2.</span> Educational Only:</strong> All content, signals, and setups are strictly for educational and learning purposes.</div>
-                        <div class="mb-2"><strong><span class="text-danger">3.</span> Paper Trading:</strong> Do NOT take live real-money trades. Use virtual money (paper trading) only to test and learn.</div>
-                        <div class="mb-0"><strong><span class="text-danger">4.</span> Your Responsibility:</strong> Trading carries massive risk. You are 100% responsible for your own actions. We accept NO liability for any financial losses.</div>
-                    </div>
-                </div>
-                <div class="modal-footer d-flex flex-nowrap border-top-0 pt-0 px-4 pb-4">
-                    <button type="button" class="btn btn-light border flex-grow-1 fw-bold" onclick="declineDisclaimer()" style="border-radius: 6px; padding: 10px; font-size: 12px; color: #555;">Decline</button>
-                    <button type="button" class="btn btn-success flex-grow-1 fw-bold ms-2" onclick="acceptDisclaimer()" style="border-radius: 6px; padding: 10px; font-size: 12px;">I Agree & Accept</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="/socket.io/socket.io.js"></script>
