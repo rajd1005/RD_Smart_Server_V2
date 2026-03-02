@@ -61,10 +61,10 @@
         
         #noData { padding: 50px; text-align: center; color: var(--text-secondary); }
 
-        /* DEFAULT: LEARN TAB IS VISIBLE, TRADE IS HIDDEN */
         #learningSection { display: block; padding: 10px; }
         #tradeSection { display: none; }
         
+        /* COMPACT LMS ACCORDION STYLES */
         .accordion-item { border: 1px solid var(--border-color); border-radius: 8px !important; margin-bottom: 6px; background: #fff; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         .accordion-button { padding: 10px 12px; font-weight: 700; color: #000; background: #f8f9fa; box-shadow: none !important; font-size: 14px; min-height: 44px; }
         .accordion-button:not(.collapsed) { background: #e3f2fd; color: var(--blue); }
@@ -95,7 +95,10 @@
         .modal-content { border-radius: 8px; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
         .modal-header { padding: 12px 15px 0; border-bottom: none; }
         .modal-title { font-size: 15px; font-weight: 700; color: #000; }
-        .modal-body { padding: 15px; }
+        
+        /* ADMIN TABS CSS */
+        .nav-tabs .nav-link { color: var(--text-secondary); border: none; border-bottom: 2px solid transparent; padding: 10px 5px; }
+        .nav-tabs .nav-link.active { color: var(--blue); background: transparent; border-bottom: 2px solid var(--blue); font-weight: bold; }
 
         #videoPlayerContainer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; display: none; }
         .video-js { width: 100% !important; height: 100% !important; }
@@ -174,89 +177,108 @@
     </div>
 
     <div class="modal fade" id="adminCourseModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 380px;">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title mb-0">Admin Course Manager</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
                 </div>
-                <div class="modal-body">
-                    <h6 class="fw-bold text-primary border-bottom pb-2" style="font-size: 13px;">1. Add New Module</h6>
-                    <form id="formAddModule" class="mb-4">
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Module Title</label>
-                            <input type="text" id="modTitle" class="form-control" required>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Short Description</label>
-                            <input type="text" id="modDesc" class="form-control">
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Access Level</label>
-                            <select id="modLevel" class="form-select" required>
-                                <option value="demo">Demo / Public</option>
-                                <option value="level_1_status">Level 1 (All Access)</option>
-                                <option value="level_2_status">Requires Level 2</option>
-                                <option value="level_3_status">Requires Level 3</option>
-                                <option value="level_4_status">Requires Level 4</option>
-                            </select>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
-                            <input type="number" id="modDisplayOrder" class="form-control" value="0" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Custom Lock Notice (HTML Allowed)</label>
-                            <input type="text" id="modLockNotice" class="form-control">
-                        </div>
-                        <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Create Module</button>
-                    </form>
+                <div class="modal-body p-0">
+                    
+                    <ul class="nav nav-tabs nav-justified px-3 pt-2" id="adminTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active fw-bold text-uppercase" id="tab-module" data-bs-toggle="tab" data-bs-target="#pane-module" type="button" role="tab" style="font-size: 10px;">1. Add Module</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-uppercase" id="tab-lesson" data-bs-toggle="tab" data-bs-target="#pane-lesson" type="button" role="tab" style="font-size: 10px;">2. Add Video</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-uppercase" id="tab-settings" data-bs-toggle="tab" data-bs-target="#pane-settings" type="button" role="tab" style="font-size: 10px;">3. Settings</button>
+                        </li>
+                    </ul>
 
-                    <h6 class="fw-bold text-primary border-bottom pb-2" style="font-size: 13px;">2. Add New Video Lesson</h6>
-                    <form id="formAddLesson" class="mb-4">
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Select Module</label>
-                            <select id="lessonModuleId" class="form-select" required><option value="">Select...</option></select>
+                    <div class="tab-content p-3" id="adminTabsContent">
+                        
+                        <div class="tab-pane fade show active" id="pane-module" role="tabpanel">
+                            <form id="formAddModule">
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Module Title</label>
+                                    <input type="text" id="modTitle" class="form-control" required>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Short Description</label>
+                                    <input type="text" id="modDesc" class="form-control">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Access Level</label>
+                                    <select id="modLevel" class="form-select" required>
+                                        <option value="demo">Demo / Public</option>
+                                        <option value="level_1_status">Level 1 (All Access)</option>
+                                        <option value="level_2_status">Requires Level 2</option>
+                                        <option value="level_3_status">Requires Level 3</option>
+                                        <option value="level_4_status">Requires Level 4</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
+                                    <input type="number" id="modDisplayOrder" class="form-control" value="0" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Custom Lock Notice (HTML Allowed)</label>
+                                    <input type="text" id="modLockNotice" class="form-control">
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Create Module</button>
+                            </form>
                         </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Video Title</label>
-                            <input type="text" id="lessonTitle" class="form-control" required>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
-                            <input type="text" id="lessonDesc" class="form-control">
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
-                            <input type="number" id="lessonDisplayOrder" class="form-control" value="0" required>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Upload Thumbnail (Optional)</label>
-                            <input type="file" id="lessonThumbnailFile" class="form-control" accept="image/*">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Upload MP4 Video</label>
-                            <input type="file" id="lessonVideoFile" class="form-control" accept="video/mp4,video/x-m4v,video/*" required>
-                        </div>
-                        <button type="submit" class="btn btn-sm btn-success w-100" style="padding:8px; border-radius:4px;">Upload Video</button>
-                    </form>
 
-                    <h6 class="fw-bold text-primary border-bottom pb-2" style="font-size: 13px;">3. Global View Settings</h6>
-                    <form id="formAdminSettings">
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Default Accordion State</label>
-                            <select id="adminAccordionState" class="form-select mb-2" required>
-                                <option value="first">Open 1st Module & 1st Video</option>
-                                <option value="all">Open All Modules & Videos</option>
-                                <option value="none">Close All</option>
-                            </select>
+                        <div class="tab-pane fade" id="pane-lesson" role="tabpanel">
+                            <form id="formAddLesson">
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Select Module</label>
+                                    <select id="lessonModuleId" class="form-select" required><option value="">Select...</option></select>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Video Title</label>
+                                    <input type="text" id="lessonTitle" class="form-control" required>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
+                                    <input type="text" id="lessonDesc" class="form-control">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
+                                    <input type="number" id="lessonDisplayOrder" class="form-control" value="0" required>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Upload Thumbnail (Optional)</label>
+                                    <input type="file" id="lessonThumbnailFile" class="form-control" accept="image/*">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Upload MP4 Video</label>
+                                    <input type="file" id="lessonVideoFile" class="form-control" accept="video/mp4,video/x-m4v,video/*" required>
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-success w-100" style="padding:8px; border-radius:4px;">Upload Video</button>
+                            </form>
                         </div>
-                        <div class="mb-3 d-flex align-items-center">
-                            <input type="checkbox" class="custom-check m-0" id="adminHideTradeTab">
-                            <label class="form-check-label ms-2 fw-bold" for="adminHideTradeTab" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Hide Trade Tab for All Users</label>
+
+                        <div class="tab-pane fade" id="pane-settings" role="tabpanel">
+                            <form id="formAdminSettings">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Default Accordion State</label>
+                                    <select id="adminAccordionState" class="form-select mb-2" required>
+                                        <option value="first">Open 1st Module & 1st Video</option>
+                                        <option value="all">Open All Modules & Videos</option>
+                                        <option value="none">Close All</option>
+                                    </select>
+                                </div>
+                                <div class="mb-4 d-flex align-items-center">
+                                    <input type="checkbox" class="custom-check m-0" id="adminHideTradeTab">
+                                    <label class="form-check-label ms-2 fw-bold" for="adminHideTradeTab" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Hide Trade Tab for All Users</label>
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-warning w-100 fw-bold" style="padding:8px; border-radius:4px;">Save Settings</button>
+                            </form>
                         </div>
-                        <button type="submit" class="btn btn-sm btn-warning w-100 fw-bold" style="padding:8px; border-radius:4px;">Save Settings</button>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>
