@@ -163,7 +163,6 @@ app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// --- FIXED: TEXT IS COMPLETELY HIDDEN IF LOCKED ---
 app.get('/api/public/courses', async (req, res) => {
     try {
         const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility FROM learning_modules ORDER BY display_order ASC");
@@ -344,7 +343,6 @@ app.get('/api/hls-key/:lessonId/enc.key', async (req, res) => {
     } catch (err) { res.status(403).send('Forbidden'); }
 });
 
-// --- FIXED: TEXT IS COMPLETELY HIDDEN IF LOCKED ---
 app.get('/api/courses', authenticateToken, async (req, res) => {
     try {
         const modulesResult = await pool.query("SELECT * FROM learning_modules ORDER BY display_order ASC");
@@ -448,8 +446,9 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
         const thumbName = crypto.randomUUID() + '.jpg';
         try {
             await new Promise((resolve, reject) => {
+                // FIXED: Preserving Native Video Aspect Ratio for Screenshots
                 ffmpeg(videoFile.path)
-                    .screenshots({ timestamps: ['00:00:01.000'], filename: thumbName, folder: thumbDir, size: '1280x720' })
+                    .screenshots({ timestamps: ['00:00:01.000'], filename: thumbName, folder: thumbDir })
                     .on('end', resolve).on('error', reject);
             });
             thumbUrl = '/hls/thumbnails/' + thumbName;
@@ -470,8 +469,18 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
 
     const m3u8Path = `/hls/${lessonId}/output.m3u8`;
 
+    // FIXED: Preserving Video Resolution Aspect Ratio for HLS Conversion
     ffmpeg(videoFile.path)
-        .outputOptions(['-profile:v baseline', '-level 3.0', '-s 1280x720', '-start_number 0', '-hls_time 10', '-hls_list_size 0', '-f hls', `-hls_key_info_file ${keyInfoPath}`])
+        .outputOptions([
+            '-profile:v baseline', 
+            '-level 3.0', 
+            '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', // Prevent x264 crash while preserving dynamic aspect ratio
+            '-start_number 0', 
+            '-hls_time 10', 
+            '-hls_list_size 0', 
+            '-f hls', 
+            `-hls_key_info_file ${keyInfoPath}`
+        ])
         .output(path.join(lessonHlsDir, 'output.m3u8'))
         .on('end', async () => {
             if (fs.existsSync(videoFile.path)) fs.unlinkSync(videoFile.path);
