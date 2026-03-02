@@ -28,10 +28,13 @@ document.addEventListener('show.bs.collapse', function (e) {
     }
 });
 
-// --- NEW: LEGAL DISCLAIMER LOGIC ---
+// FIXED: Only trigger legal disclaimer popup on the secure index.html page
 function checkDisclaimer() {
     if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('disclaimerModal')).show();
+        const modalEl = document.getElementById('disclaimerModal');
+        if (modalEl) {
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
     }
 }
 
@@ -42,7 +45,6 @@ window.acceptDisclaimer = async function() {
     btn.disabled = true;
 
     try {
-        // Trigger server to generate Digital Signature Email to Admin & Student
         await fetch('/api/accept_terms', { method: 'POST', credentials: 'same-origin' });
         
         sessionStorage.setItem('disclaimerAccepted', 'true');
@@ -67,7 +69,6 @@ window.onload = function() {
     applyRoleRestrictions(); 
     switchSection('learning'); 
     
-    // Automatically trigger legal warning check on load
     checkDisclaimer();
 };
 
