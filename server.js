@@ -49,7 +49,6 @@ const transporter = nodemailer.createTransport({
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
 });
 
-// --- NEW: GALLERY MYSQL CONNECTION ---
 const galleryPool = mysql.createPool({
     host: process.env.GALLERY_DB_HOST,
     user: process.env.GALLERY_DB_USER,
@@ -153,14 +152,11 @@ function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
-// --- NEW: FETCH GALLERY API ---
+// --- EXACT DB MATCH: FETCH GALLERY API ---
 app.get('/api/public/gallery', async (req, res) => {
     try {
-        // ⚠️ IMPORTANT: Change 'your_table_name' to your Table Name.
-        // ⚠️ IMPORTANT: Change 'your_image_column' to your Image URL Column Name.
-        // ⚠️ IMPORTANT: Change 'id' if your primary key column is named differently.
-        const [rows] = await galleryPool.query("SELECT image_url AS image_url FROM wp_central_image_gallery ORDER BY id DESC LIMIT 15");
-        res.json({ success: true, images: rows.map(r => r.image_url) });
+        const [rows] = await galleryPool.query("SELECT id, image_url, trade_date, name FROM wp_central_image_gallery ORDER BY id DESC LIMIT 15");
+        res.json({ success: true, images: rows });
     } catch (err) {
         console.error("Gallery DB Error:", err);
         res.status(500).json({ success: false, msg: "Failed to fetch gallery images." });
