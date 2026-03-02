@@ -58,7 +58,8 @@ const initDb = async () => {
     INSERT INTO system_settings (setting_key, setting_value) VALUES 
     ('accordion_state', 'first'),
     ('hide_trade_tab', 'false'),
-    ('show_gallery', 'true')
+    ('show_gallery', 'true'),
+    ('show_call_widget', 'true')
     ON CONFLICT (setting_key) DO NOTHING;`;
 
     try {
@@ -71,13 +72,12 @@ const initDb = async () => {
         await pool.query(queryPasswordResets);
         await pool.query(populateDefaultSettings);
 
-        // INDEPENDENT FAIL-SAFE UPGRADES
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS lock_notice TEXT;`); } catch(e){}
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN DEFAULT TRUE;`); } catch(e){}
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS dashboard_visibility VARCHAR(20) DEFAULT 'all';`); } catch(e){}
         try { await pool.query(`ALTER TABLE lesson_videos ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;`); } catch(e){}
 
-        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Layout)");
+        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls)");
     } catch (err) {
         console.error("❌ Database Error:", err);
     }
