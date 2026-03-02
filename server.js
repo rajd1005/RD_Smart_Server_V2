@@ -54,15 +54,17 @@ function getClientIp(req) {
     return ip.trim().replace('::ffff:', '');
 }
 
+// FIXED: Removed strict IP check to prevent Proxy/Cloudflare from causing instant disconnects
 const authenticateToken = async (req, res, next) => {
     const token = req.cookies.authToken;
     if (!token) return res.status(401).json({ success: false, msg: "Not authenticated" });
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        const currentIp = getClientIp(req);
-        if (decoded.ip !== currentIp) { res.clearCookie('authToken'); return res.status(403).json({ success: false, msg: "IP changed. Please login again." }); }
-        const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY login_time DESC LIMIT 1", [decoded.email]);
-        if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { res.clearCookie('authToken'); return res.status(403).json({ success: false, msg: "Logged in from another device. Session expired." }); }
+        const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY id DESC LIMIT 1", [decoded.email]);
+        if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { 
+            res.clearCookie('authToken'); 
+            return res.status(403).json({ success: false, msg: "Logged in from another device. Session expired." }); 
+        }
         req.user = decoded;
         next();
     } catch (err) {
@@ -76,18 +78,23 @@ const isAdmin = (req, res, next) => {
     next();
 };
 
+// FIXED: Adjusted redirect logic and Database sort query
 app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
         const token = req.cookies.authToken;
         if (!token) return res.redirect('/home.html');
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            const currentIp = getClientIp(req);
-            if (decoded.ip !== currentIp) { res.clearCookie('authToken'); return res.redirect('/home.html'); }
-            const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY login_time DESC LIMIT 1", [decoded.email]);
-            if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { res.clearCookie('authToken'); return res.redirect('/home.html'); }
+            const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY id DESC LIMIT 1", [decoded.email]);
+            if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { 
+                res.clearCookie('authToken'); 
+                return res.redirect('/home.html'); 
+            }
             next(); 
-        } catch (err) { res.clearCookie('authToken'); return res.redirect('/home.html'); }
+        } catch (err) { 
+            res.clearCookie('authToken'); 
+            return res.redirect('/home.html'); 
+        }
     } else { next(); }
 });
 
@@ -115,7 +122,10 @@ app.get('/api/settings', async (req, res) => {
 app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
     const { accordion_state } = req.body;
     try {
-        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state]);
+        await pool.query(
+            "INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value",
+            [accordion_state]
+        );
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -139,9 +149,9 @@ app.get('/api/public/lesson/:id', async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
 });
 
-// --- ADVANCED LOGIN ENGINE WITH FIRST-TIME SETUP DETECTION ---
 app.post('/api/login', async (req, res) => {
-    const { email, password, rememberMe } = req.body;
+    const { password, rememberMe } = req.body;
+    const email = req.body.email.trim();
     const clientIp = getClientIp(req);
     try {
         let userEmail = ""; let userRole = "student"; let userPhone = "";
@@ -152,7 +162,6 @@ app.post('/api/login', async (req, res) => {
             userEmail = ADMIN_EMAIL; userRole = "admin"; userPhone = "Admin";
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
         } else {
-            // 1. Check if user set a custom password
             const localCreds = await pool.query("SELECT * FROM user_credentials WHERE email = $1", [email]);
             if (localCreds.rows.length > 0) {
                 const { salt, hash } = localCreds.rows[0];
@@ -163,11 +172,9 @@ app.post('/api/login', async (req, res) => {
                 if (rows.length === 0) return res.status(401).json({ success: false, msg: "Account not found in registry." });
                 studentRecord = rows[0];
             } else {
-                // 2. First Time Login: Using Phone number as password against WP Database
                 const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?", [email, password]);
                 if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
                 
-                // VALID FIRST LOGIN -> Trigger Setup Password Flow
                 const setupToken = jwt.sign({ email: rows[0].student_email, phone: rows[0].student_phone }, JWT_SECRET, { expiresIn: '15m' });
                 return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
             }
@@ -184,13 +191,20 @@ app.post('/api/login', async (req, res) => {
         await pool.query("DELETE FROM login_logs WHERE login_time < NOW() - INTERVAL '30 days'");
 
         const token = jwt.sign({ email: userEmail, phone: userPhone, ip: clientIp, sessionId: sessionId, role: userRole, accessLevels: accessLevels }, JWT_SECRET, { expiresIn: rememberMe ? '30d' : '1d' });
-        res.cookie('authToken', token, { httpOnly: true, secure: req.secure || req.headers['x-forwarded-proto'] === 'https', sameSite: 'lax', maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 });
+        
+        // FIXED: Explicitly set path: '/' to ensure the browser sends the cookie on the dashboard redirect
+        res.cookie('authToken', token, { 
+            httpOnly: true, 
+            secure: req.secure || req.headers['x-forwarded-proto'] === 'https', 
+            sameSite: 'lax', 
+            path: '/', 
+            maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 
+        });
 
         res.json({ success: true, msg: "Login successful", email: userEmail, phone: userPhone, role: userRole, accessLevels: accessLevels });
     } catch (error) { res.status(500).json({ success: false, msg: "Database connection error" }); }
 });
 
-// --- NEW: SET PASSWORD API (After First Login) ---
 app.post('/api/set_password', async (req, res) => {
     const { setupToken, newPassword } = req.body;
     try {
@@ -198,13 +212,12 @@ app.post('/api/set_password', async (req, res) => {
         const salt = crypto.randomBytes(16).toString('hex');
         const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
         await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [decoded.email, salt, hash]);
-        res.json({ success: true, email: decoded.email }); // Client will auto-login with new pass
+        res.json({ success: true, email: decoded.email });
     } catch (err) {
         res.status(401).json({ success: false, msg: "Setup session expired. Please log in again." });
     }
 });
 
-// --- NEW: FORGOT PASSWORD OTP GENERATOR ---
 app.post('/api/forgot_password', async (req, res) => {
     const { email } = req.body;
     try {
@@ -212,7 +225,7 @@ app.post('/api/forgot_password', async (req, res) => {
         const [rows] = await authPool.query("SELECT student_email FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
         if (rows.length === 0) return res.status(404).json({ success: false, msg: "Email not found in registry." });
 
-        const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
         await pool.query("INSERT INTO password_resets (email, otp, expires_at) VALUES ($1, $2, NOW() + INTERVAL '15 minutes') ON CONFLICT (email) DO UPDATE SET otp = EXCLUDED.otp, expires_at = EXCLUDED.expires_at", [email, otp]);
 
         const mailOptions = {
@@ -231,7 +244,6 @@ app.post('/api/forgot_password', async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, msg: "Server error generating OTP." }); }
 });
 
-// --- NEW: RESET PASSWORD VIA OTP ---
 app.post('/api/reset_password', async (req, res) => {
     const { email, otp, newPassword } = req.body;
     try {
@@ -241,13 +253,13 @@ app.post('/api/reset_password', async (req, res) => {
         const salt = crypto.randomBytes(16).toString('hex');
         const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
         await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [email, salt, hash]);
-        await pool.query("DELETE FROM password_resets WHERE email = $1", [email]); // clear OTP
+        await pool.query("DELETE FROM password_resets WHERE email = $1", [email]);
         
         res.json({ success: true, msg: "Password changed successfully. You can now login." });
     } catch (err) { res.status(500).json({ success: false, msg: "Server error resetting password." }); }
 });
 
-app.post('/api/logout', (req, res) => { res.clearCookie('authToken'); res.json({ success: true }); });
+app.post('/api/logout', (req, res) => { res.clearCookie('authToken', { path: '/' }); res.json({ success: true }); });
 
 app.post('/api/accept_terms', authenticateToken, async (req, res) => {
     try {
