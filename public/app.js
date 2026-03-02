@@ -16,27 +16,20 @@ const userData = {
     role: localStorage.getItem('userRole')
 };
 
-document.addEventListener('show.bs.collapse', function (e) {
-    if (!e.target.classList.contains('lesson-collapse')) {
-        const firstLessonCollapse = e.target.querySelector('.lesson-collapse');
-        const firstLessonBtn = e.target.querySelector('.lesson-accordion-btn');
-        if (firstLessonCollapse && firstLessonBtn && !firstLessonCollapse.classList.contains('show')) {
-            firstLessonCollapse.classList.add('show');
-            firstLessonBtn.classList.remove('collapsed');
-            firstLessonBtn.setAttribute('aria-expanded', 'true');
-        }
-    }
-});
-
-// FIXED: Only trigger legal disclaimer popup on the secure index.html page
-function checkDisclaimer() {
+// ONLY EXECUTES ON THE SECURE INDEX.HTML DASHBOARD
+window.onload = function() {
+    initDatePicker();
+    fetchTrades(); 
+    fetchCourses(); 
+    applyRoleRestrictions(); 
+    switchSection('learning'); 
+    
+    // Trigger Legal Disclaimer Check
     if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
         const modalEl = document.getElementById('disclaimerModal');
-        if (modalEl) {
-            bootstrap.Modal.getOrCreateInstance(modalEl).show();
-        }
+        if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
     }
-}
+};
 
 window.acceptDisclaimer = async function() {
     const btn = document.querySelector('#disclaimerModal .btn-success');
@@ -46,7 +39,6 @@ window.acceptDisclaimer = async function() {
 
     try {
         await fetch('/api/accept_terms', { method: 'POST', credentials: 'same-origin' });
-        
         sessionStorage.setItem('disclaimerAccepted', 'true');
         const modalEl = document.getElementById('disclaimerModal');
         const modal = bootstrap.Modal.getInstance(modalEl);
@@ -58,19 +50,19 @@ window.acceptDisclaimer = async function() {
     }
 }
 
-window.declineDisclaimer = function() {
-    logout();
-}
+window.declineDisclaimer = function() { logout(); }
 
-window.onload = function() {
-    initDatePicker();
-    fetchTrades(); 
-    fetchCourses(); 
-    applyRoleRestrictions(); 
-    switchSection('learning'); 
-    
-    checkDisclaimer();
-};
+document.addEventListener('show.bs.collapse', function (e) {
+    if (!e.target.classList.contains('lesson-collapse')) {
+        const firstLessonCollapse = e.target.querySelector('.lesson-collapse');
+        const firstLessonBtn = e.target.querySelector('.lesson-accordion-btn');
+        if (firstLessonCollapse && firstLessonBtn && !firstLessonCollapse.classList.contains('show')) {
+            firstLessonCollapse.classList.add('show');
+            firstLessonBtn.classList.remove('collapsed');
+            firstLessonBtn.setAttribute('aria-expanded', 'true');
+        }
+    }
+});
 
 function switchSection(section) {
     if (section === 'trade') {
@@ -346,7 +338,6 @@ function moveWatermark() {
     wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
 }
 
-
 const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
     formAdminSettings.addEventListener('submit', async (e) => {
@@ -430,7 +421,6 @@ async function deleteModule(e, id) {
     if(!confirm("⚠️ Delete this entire module AND all its videos?")) return;
     try { const res = await fetch(`/api/admin/modules/${id}`, { method: 'DELETE', credentials: 'same-origin' }); if(res.ok) fetchCourses(); } catch(e) {}
 }
-
 
 function openEditLesson(e, id, title, desc, order) {
     e.stopPropagation();
