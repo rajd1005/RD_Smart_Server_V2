@@ -41,11 +41,25 @@ const initDb = async () => {
         setting_value VARCHAR(255)
     );`;
 
+    // --- NEW: Custom Passwords and OTP Tables ---
+    const queryUserCreds = `
+    CREATE TABLE IF NOT EXISTS user_credentials (
+        email VARCHAR(255) PRIMARY KEY,
+        salt VARCHAR(255) NOT NULL,
+        hash VARCHAR(255) NOT NULL
+    );`;
+
+    const queryPasswordResets = `
+    CREATE TABLE IF NOT EXISTS password_resets (
+        email VARCHAR(255) PRIMARY KEY,
+        otp VARCHAR(10) NOT NULL,
+        expires_at TIMESTAMP NOT NULL
+    );`;
+
     const populateDefaultSettings = `
     INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', 'first')
     ON CONFLICT (setting_key) DO NOTHING;`;
 
-    // Safely upgrade existing tables
     const upgradeModulesTable = `ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS lock_notice TEXT;`;
     const upgradeLessonsTable = `ALTER TABLE lesson_videos ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;`;
 
@@ -57,8 +71,10 @@ const initDb = async () => {
         await pool.query(queryLessonVideos); 
         await pool.query(upgradeLessonsTable); 
         await pool.query(querySettings);
+        await pool.query(queryUserCreds);
+        await pool.query(queryPasswordResets);
         await pool.query(populateDefaultSettings);
-        console.log("✅ Database Tables Verified/Created (Trades + LMS + Settings)");
+        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth)");
     } catch (err) {
         console.error("❌ Database Error:", err);
     }
