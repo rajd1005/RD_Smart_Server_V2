@@ -85,7 +85,6 @@ const isAdmin = (req, res, next) => {
     next();
 };
 
-// --- SMART DASHBOARD PAGE ROUTER ---
 app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -112,7 +111,6 @@ app.use(async (req, res, next) => {
             return res.redirect('/home.html'); 
         }
     } 
-    // SMART BOUNCE: Prevents logged in users from getting stuck on home.html
     else if (req.path === '/home.html') {
         const token = req.cookies.authToken;
         if (token) {
@@ -152,13 +150,12 @@ app.get('/api/settings', async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error" }); }
 });
 
+// UPDATED: Saves the hide_trade_tab setting
 app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
-    const { accordion_state } = req.body;
+    const { accordion_state, hide_trade_tab } = req.body;
     try {
-        await pool.query(
-            "INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value",
-            [accordion_state]
-        );
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state || 'first']);
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('hide_trade_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [hide_trade_tab || 'false']);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
