@@ -25,6 +25,10 @@
         .navbar { background: #fff; border-bottom: 1px solid var(--border-color); padding: 8px 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); }
         .navbar-brand { font-size: 18px; font-weight: 900; color: #000; letter-spacing: -0.5px; margin: 0;}
         
+        /* NEW: GALLERY CAROUSEL CSS */
+        .gallery-carousel { background: #fff; border-bottom: 1px solid var(--border-color); margin-bottom: 10px; }
+        .carousel-inner img { width: 100%; height: 220px; object-fit: cover; }
+        
         .curriculum-container { flex-grow: 1; padding: 10px; }
 
         .accordion-item { border: 1px solid var(--border-color); border-radius: 12px !important; margin-bottom: 6px; background: #fff; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
@@ -74,6 +78,19 @@
             <div class="navbar-brand">RD Algo</div>
             <button class="btn btn-sm btn-primary fw-bold px-3 py-1" style="border-radius: 4px; font-size:12px;" data-bs-toggle="modal" data-bs-target="#loginModal">Login</button>
         </nav>
+
+        <div id="galleryCarousel" class="carousel slide gallery-carousel" data-bs-ride="carousel" data-bs-interval="3000" style="display:none;">
+            <div class="carousel-inner" id="galleryContainer">
+                </div>
+            <button class="carousel-control-prev" type="button" data-bs-target="#galleryCarousel" data-bs-slide="prev">
+                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                <span class="visually-hidden">Previous</span>
+            </button>
+            <button class="carousel-control-next" type="button" data-bs-target="#galleryCarousel" data-bs-slide="next">
+                <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                <span class="visually-hidden">Next</span>
+            </button>
+        </div>
 
         <div class="curriculum-container">
             <div class="accordion" id="publicCourseContainer">
@@ -201,7 +218,6 @@
 
         document.getElementById('videoPlayerContainer').addEventListener('contextmenu', e => e.preventDefault());
 
-        // Auto-open first lesson on module expand
         document.addEventListener('show.bs.collapse', function (e) {
             if (!e.target.classList.contains('lesson-collapse')) {
                 const firstLessonCollapse = e.target.querySelector('.lesson-collapse');
@@ -213,6 +229,28 @@
                 }
             }
         });
+
+        // --- NEW: FETCH AND POPULATE GALLERY ---
+        async function loadGallery() {
+            try {
+                const res = await fetch('/api/public/gallery');
+                const data = await res.json();
+                if (data.success && data.images && data.images.length > 0) {
+                    const container = document.getElementById('galleryContainer');
+                    let html = '';
+                    data.images.forEach((imgUrl, index) => {
+                        const activeClass = index === 0 ? 'active' : '';
+                        html += `<div class="carousel-item ${activeClass}">
+                                    <img src="${imgUrl}" class="d-block w-100" alt="Trading Gallery">
+                                 </div>`;
+                    });
+                    container.innerHTML = html;
+                    document.getElementById('galleryCarousel').style.display = 'block';
+                }
+            } catch (err) {
+                console.error("Gallery failed to load.");
+            }
+        }
 
         function switchAuthView(viewId) {
             document.getElementById('viewLogin').classList.add('d-none');
@@ -461,6 +499,8 @@
             wmEl.style.left = Math.floor(Math.random() * (maxX - minX + 1)) + minX + 'px'; wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
         }
 
+        // TRIGGER ON PAGE LOAD
+        loadGallery();
         fetchPublicCourses();
     </script>
 </body>
