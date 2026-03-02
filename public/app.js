@@ -140,7 +140,6 @@ async function fetchCourses() {
         globalModules.forEach((mod) => {
             const isLocked = userData.role !== 'admin' && mod.required_level !== 'demo' && accessLevels[mod.required_level] !== 'Yes';
             
-            // --- NEW: Dynamic Dashboard Visibility Rules ---
             if (userData.role !== 'admin') {
                 if (mod.dashboard_visibility === 'hidden') return;
                 if (mod.dashboard_visibility === 'accessible' && isLocked) return;
@@ -182,7 +181,6 @@ async function fetchCourses() {
                     const opacityLvl = isLocked ? '0.6' : '1';
                     const pointerEv = isLocked ? 'not-allowed' : 'pointer';
 
-                    // --- NEW: BIG FULL-SIZE THUMBNAILS WITH AUTO-FALLBACK ---
                     const thumbnailImg = l.thumbnail_url 
                         ? `<div class="thumb-wrapper-full"><img src="${l.thumbnail_url}" loading="lazy"><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${isLocked ? '#ccc' : '#fff'};">${overlayIcon}</span></div></div>` 
                         : `<div class="thumb-wrapper-full"><div class="w-100 h-100 bg-dark d-flex align-items-center justify-content-center"><span class="material-icons-round" style="font-size:48px; color:#444;">${overlayIcon}</span></div><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${isLocked ? '#ccc' : '#fff'};">${overlayIcon}</span></div></div>`;
@@ -354,10 +352,13 @@ function moveWatermark() {
     wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
 }
 
+
+// --- FORM SUBMIT HANDLERS WITH AUTO CLOSE MODAL FIX ---
 const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
     formAdminSettings.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
         const state = document.getElementById('adminAccordionState').value;
         const hideTrade = document.getElementById('adminHideTradeTab').checked ? 'true' : 'false';
         const showGallery = document.getElementById('adminShowGallery').checked ? 'true' : 'false';
@@ -368,8 +369,14 @@ if (formAdminSettings) {
                 credentials: 'same-origin', 
                 body: JSON.stringify({ accordion_state: state, hide_trade_tab: hideTrade, show_gallery: showGallery }) 
             });
-            if(res.ok) { alert("Settings Saved!"); fetchCourses(); } else { alert("Error saving settings"); }
+            if(res.ok) { 
+                const m = bootstrap.Modal.getInstance(document.getElementById('adminCourseModal'));
+                if(m) m.hide();
+                alert("Settings Saved Successfully!"); 
+                fetchCourses(); 
+            } else { alert("Error saving settings"); }
         } catch(err) {}
+        finally { btn.innerText = "Save Settings"; btn.disabled = false; }
     });
 }
 
@@ -377,6 +384,7 @@ const formAddModule = document.getElementById('formAddModule');
 if (formAddModule) {
     formAddModule.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const btn = e.target.querySelector('button'); btn.innerText = "Creating..."; btn.disabled = true;
         const data = {
             title: document.getElementById('modTitle').value, 
             description: document.getElementById('modDesc').value, 
@@ -388,8 +396,15 @@ if (formAddModule) {
         };
         try {
             const res = await fetch('/api/admin/modules', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
-            if(res.ok) { alert("Module Added!"); formAddModule.reset(); fetchCourses(); } else alert("Error adding module");
+            if(res.ok) { 
+                const m = bootstrap.Modal.getInstance(document.getElementById('adminCourseModal'));
+                if(m) m.hide();
+                alert("Module Added!"); 
+                formAddModule.reset(); 
+                fetchCourses(); 
+            } else alert("Error adding module");
         } catch(e) {}
+        finally { btn.innerText = "Create Module"; btn.disabled = false; }
     });
 }
 
@@ -411,7 +426,12 @@ if (formAddLesson) {
         try {
             const res = await fetch('/api/admin/lessons', { method: 'POST', credentials: 'same-origin', body: formData });
             const data = await res.json();
-            if(res.ok) { alert(data.msg); formAddLesson.reset(); } else { alert(data.msg || "Error uploading video."); }
+            if(res.ok) { 
+                const m = bootstrap.Modal.getInstance(document.getElementById('adminCourseModal'));
+                if(m) m.hide();
+                alert(data.msg); 
+                formAddLesson.reset(); 
+            } else { alert(data.msg || "Error uploading video."); }
         } catch(err) {} 
         finally { btn.innerText = "Upload Video"; btn.disabled = false; }
     });
@@ -425,8 +445,11 @@ function openEditModule(e, id, title, desc, level, notice, order, showHome, dash
     document.getElementById('editModLevel').value = level; 
     document.getElementById('editModDisplayOrder').value = order;
     document.getElementById('editModLockNotice').value = (notice !== 'null' && notice !== 'undefined') ? notice : '';
-    document.getElementById('editModShowHome').value = showHome ? 'true' : 'false';
-    document.getElementById('editModDashVis').value = dashVis || 'all';
+    
+    // FIX: Safely handle legacy null fields so older modules don't accidentally hide themselves
+    document.getElementById('editModShowHome').value = (showHome === false || showHome === 'false') ? 'false' : 'true';
+    document.getElementById('editModDashVis').value = (dashVis === 'null' || !dashVis) ? 'all' : dashVis;
+    
     bootstrap.Modal.getOrCreateInstance(document.getElementById('editModuleModal')).show();
 }
 
@@ -434,6 +457,7 @@ const formEditModule = document.getElementById('formEditModule');
 if (formEditModule) {
     formEditModule.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
         const id = document.getElementById('editModId').value;
         const data = {
             title: document.getElementById('editModTitle').value, 
@@ -446,8 +470,13 @@ if (formEditModule) {
         };
         try {
             const res = await fetch(`/api/admin/modules/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
-            if(res.ok) { bootstrap.Modal.getInstance(document.getElementById('editModuleModal')).hide(); fetchCourses(); } else { alert("Error updating module"); }
+            if(res.ok) { 
+                const m = bootstrap.Modal.getInstance(document.getElementById('editModuleModal'));
+                if(m) m.hide();
+                fetchCourses(); 
+            } else { alert("Error updating module"); }
         } catch(err) {}
+        finally { btn.innerText = "Save Changes"; btn.disabled = false; }
     });
 }
 
@@ -456,6 +485,7 @@ async function deleteModule(e, id) {
     if(!confirm("⚠️ Delete this entire module AND all its videos?")) return;
     try { const res = await fetch(`/api/admin/modules/${id}`, { method: 'DELETE', credentials: 'same-origin' }); if(res.ok) fetchCourses(); } catch(e) {}
 }
+
 
 function openEditLesson(e, id, title, desc, order) {
     e.stopPropagation();
@@ -470,6 +500,7 @@ const formEditLesson = document.getElementById('formEditLesson');
 if (formEditLesson) {
     formEditLesson.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
         const id = document.getElementById('editLessonId').value;
         const formData = new FormData();
         formData.append('title', document.getElementById('editLessonTitle').value);
@@ -481,8 +512,13 @@ if (formEditLesson) {
 
         try {
             const res = await fetch(`/api/admin/lessons/${id}`, { method: 'PUT', credentials: 'same-origin', body: formData });
-            if(res.ok) { bootstrap.Modal.getInstance(document.getElementById('editLessonModal')).hide(); fetchCourses(); } else { alert("Error updating lesson"); }
+            if(res.ok) { 
+                const m = bootstrap.Modal.getInstance(document.getElementById('editLessonModal'));
+                if(m) m.hide();
+                fetchCourses(); 
+            } else { alert("Error updating lesson"); }
         } catch(err) {}
+        finally { btn.innerText = "Save Changes"; btn.disabled = false; }
     });
 }
 
