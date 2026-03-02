@@ -54,20 +54,30 @@ function getClientIp(req) {
     return ip.trim().replace('::ffff:', '');
 }
 
-// FIXED: Removed aggressive IP-lock check. Now securely relies strictly on Session ID.
+// --- GLOBAL DEBUG LOGGER ---
+const debugLog = (msg) => console.log(`[AUTH DEBUG] ${msg}`);
+
+// --- API AUTHENTICATION MIDDLEWARE ---
 const authenticateToken = async (req, res, next) => {
     const token = req.cookies.authToken;
-    if (!token) return res.status(401).json({ success: false, msg: "Not authenticated" });
+    if (!token) {
+        debugLog(`API Blocked (No Cookie): ${req.path}`);
+        return res.status(401).json({ success: false, msg: "Not authenticated" });
+    }
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY login_time DESC LIMIT 1", [decoded.email]);
+        // FIXED: Using ORDER BY id DESC ensures 100% deterministic session validation
+        const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY id DESC LIMIT 1", [decoded.email]);
+        
         if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { 
+            debugLog(`API Blocked (Session Mismatch): ${req.path} for ${decoded.email}`);
             res.clearCookie('authToken', { path: '/' }); 
             return res.status(403).json({ success: false, msg: "Logged in from another device. Session expired." }); 
         }
         req.user = decoded;
         next();
     } catch (err) {
+        debugLog(`API Blocked (JWT Error): ${req.path} - ${err.message}`);
         res.clearCookie('authToken', { path: '/' });
         return res.status(403).json({ success: false, msg: "Session expired" });
     }
@@ -78,24 +88,40 @@ const isAdmin = (req, res, next) => {
     next();
 };
 
-// FIXED: Removed the IP-lock here that was causing the Redirect Loop to home.html!
+// --- PAGE ROUTER (DASHBOARD REDIRECTOR) ---
 app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
+        // Prevent browser from caching a 302 redirect
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        
         const token = req.cookies.authToken;
-        if (!token) return res.redirect('/home.html');
+        debugLog(`Page Access: ${req.path} | Cookie present: ${!!token}`);
+        
+        if (!token) {
+            debugLog(`Redirecting to /home.html (No Cookie)`);
+            return res.redirect('/home.html');
+        }
+        
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY login_time DESC LIMIT 1", [decoded.email]);
+            const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY id DESC LIMIT 1", [decoded.email]);
+            
             if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { 
+                debugLog(`Redirecting to /home.html (Session Mismatch). DB: ${rows[0].session_id}, JWT: ${decoded.sessionId}`);
                 res.clearCookie('authToken', { path: '/' }); 
                 return res.redirect('/home.html'); 
             }
+            
+            debugLog(`✅ Dashboard Access Granted for: ${decoded.email}`);
             next(); 
         } catch (err) { 
+            debugLog(`Redirecting to /home.html (JWT Verification Failed): ${err.message}`);
             res.clearCookie('authToken', { path: '/' }); 
             return res.redirect('/home.html'); 
         }
-    } else { next(); }
+    } else { 
+        next(); 
+    }
 });
 
 app.use(express.static(path.join(__dirname, 'public'))); 
@@ -134,9 +160,7 @@ app.get('/api/public/courses', async (req, res) => {
     try {
         const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order FROM learning_modules ORDER BY display_order ASC");
         const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url FROM lesson_videos ORDER BY display_order ASC");
-        const coursesStructure = modulesResult.rows.map(mod => { 
-            return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; 
-        });
+        const coursesStructure = modulesResult.rows.map(mod => { return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; });
         res.json(coursesStructure);
     } catch (err) { res.status(500).json({ error: "Server Error fetching public courses." }); }
 });
@@ -155,6 +179,9 @@ app.post('/api/login', async (req, res) => {
     const { password, rememberMe } = req.body;
     const email = req.body.email.trim();
     const clientIp = getClientIp(req);
+    
+    debugLog(`Login Attempt Initiated for: ${email}`);
+
     try {
         let userEmail = ""; let userRole = "student"; let userPhone = "";
         let accessLevels = { level_1_status: 'No', level_2_status: 'No', level_3_status: 'No', level_4_status: 'No' };
@@ -178,11 +205,15 @@ app.post('/api/login', async (req, res) => {
                 if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
                 
                 const setupToken = jwt.sign({ email: rows[0].student_email, phone: rows[0].student_phone }, JWT_SECRET, { expiresIn: '15m' });
+                debugLog(`First Time Setup Required for: ${email}`);
                 return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
             }
 
             const expiryDate = new Date(studentRecord.student_expiry_date);
-            if (expiryDate < new Date()) return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." });
+            if (expiryDate < new Date()) {
+                debugLog(`Account Expired for: ${email}`);
+                return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." });
+            }
 
             userEmail = studentRecord.student_email; userPhone = studentRecord.student_phone; 
             accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
@@ -192,12 +223,24 @@ app.post('/api/login', async (req, res) => {
         await pool.query("INSERT INTO login_logs (email, session_id, ip_address) VALUES ($1, $2, $3)", [userEmail, sessionId, clientIp]);
         await pool.query("DELETE FROM login_logs WHERE login_time < NOW() - INTERVAL '30 days'");
 
-        // FIXED: Removed the dynamic IP from the payload to prevent tracking errors
         const token = jwt.sign({ email: userEmail, phone: userPhone, sessionId: sessionId, role: userRole, accessLevels: accessLevels }, JWT_SECRET, { expiresIn: rememberMe ? '30d' : '1d' });
-        res.cookie('authToken', token, { httpOnly: true, secure: req.secure || req.headers['x-forwarded-proto'] === 'https', sameSite: 'lax', path: '/', maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 });
+        
+        const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
+        debugLog(`Issuing JWT Cookie -> Secure: ${isSecure}, Session: ${sessionId}`);
+
+        res.cookie('authToken', token, { 
+            httpOnly: true, 
+            secure: isSecure, 
+            sameSite: 'lax', 
+            path: '/', 
+            maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 
+        });
 
         res.json({ success: true, msg: "Login successful", email: userEmail, phone: userPhone, role: userRole, accessLevels: accessLevels });
-    } catch (error) { res.status(500).json({ success: false, msg: "Database connection error" }); }
+    } catch (error) { 
+        debugLog(`Login DB Error: ${error.message}`);
+        res.status(500).json({ success: false, msg: "Database connection error" }); 
+    }
 });
 
 app.post('/api/set_password', async (req, res) => {
@@ -207,6 +250,7 @@ app.post('/api/set_password', async (req, res) => {
         const salt = crypto.randomBytes(16).toString('hex');
         const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
         await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [decoded.email, salt, hash]);
+        debugLog(`Password securely setup for: ${decoded.email}`);
         res.json({ success: true, email: decoded.email }); 
     } catch (err) {
         res.status(401).json({ success: false, msg: "Setup session expired. Please log in again." });
@@ -235,6 +279,7 @@ app.post('/api/forgot_password', async (req, res) => {
                    </div>`
         };
         transporter.sendMail(mailOptions).catch(e => console.error(e));
+        debugLog(`OTP Sent to: ${email}`);
         res.json({ success: true, msg: "OTP sent to your email." });
     } catch (err) { res.status(500).json({ success: false, msg: "Server error generating OTP." }); }
 });
@@ -250,11 +295,15 @@ app.post('/api/reset_password', async (req, res) => {
         await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [email, salt, hash]);
         await pool.query("DELETE FROM password_resets WHERE email = $1", [email]); 
         
+        debugLog(`Password successfully reset via OTP for: ${email}`);
         res.json({ success: true, msg: "Password changed successfully. You can now login." });
     } catch (err) { res.status(500).json({ success: false, msg: "Server error resetting password." }); }
 });
 
-app.post('/api/logout', (req, res) => { res.clearCookie('authToken', { path: '/' }); res.json({ success: true }); });
+app.post('/api/logout', (req, res) => { 
+    res.clearCookie('authToken', { path: '/' }); 
+    res.json({ success: true }); 
+});
 
 app.post('/api/accept_terms', authenticateToken, async (req, res) => {
     try {
@@ -296,12 +345,9 @@ app.post('/api/accept_terms', authenticateToken, async (req, res) => {
         };
 
         transporter.sendMail(mailOptions).catch(err => console.error("SMTP Mail Error:", err));
-
+        debugLog(`Legal Agreement Recorded & Emailed for: ${userEmail}`);
         res.json({ success: true });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ success: false, msg: "Failed to record agreement." });
-    }
+    } catch (err) { res.status(500).json({ success: false, msg: "Failed to record agreement." }); }
 });
 
 app.get('/api/hls-key/:lessonId/enc.key', async (req, res) => {
@@ -375,7 +421,6 @@ app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res
 
 app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name: 'video_file', maxCount: 1 }, { name: 'thumbnail_file', maxCount: 1 }]), async (req, res) => {
     const { module_id, title, description, display_order } = req.body;
-    
     if (!req.files || !req.files['video_file']) return res.status(400).json({ success: false, msg: "Video file is required." });
     const videoFile = req.files['video_file'][0];
 
