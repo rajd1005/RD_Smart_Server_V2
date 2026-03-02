@@ -133,6 +133,26 @@ function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
+
+// --- NEW: CRM CALL REPORT PROXY API ---
+app.get('/api/public/call-report', async (req, res) => {
+    const { start, end } = req.query;
+    try {
+        const settingRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'show_call_widget'");
+        const showWidget = settingRes.rows.length > 0 ? settingRes.rows[0].setting_value : 'true';
+        if (showWidget !== 'true') return res.json({ success: true, show_widget: false, data: [] });
+
+        const url = `https://crm.rdalgo.in/wp-admin/admin-ajax.php?action=get_call_data&token=secure123&start=${start}&end=${end}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        res.json({ success: true, show_widget: true, data: data.data || [] });
+    } catch (err) {
+        console.error("Call Report Proxy Error:", err);
+        res.status(500).json({ success: false, msg: "Failed to fetch call report." });
+    }
+});
+
+
 app.get('/api/public/gallery', async (req, res) => {
     try {
         const settingRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'show_gallery'");
@@ -153,12 +173,14 @@ app.get('/api/settings', async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error" }); }
 });
 
+// UPDATED: Added show_call_widget to the Admin Settings save logic
 app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
-    const { accordion_state, hide_trade_tab, show_gallery } = req.body;
+    const { accordion_state, hide_trade_tab, show_gallery, show_call_widget } = req.body;
     try {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state || 'first']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('hide_trade_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [hide_trade_tab || 'false']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_gallery', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_gallery || 'true']);
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_call_widget', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_call_widget || 'true']);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -446,7 +468,6 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
         const thumbName = crypto.randomUUID() + '.jpg';
         try {
             await new Promise((resolve, reject) => {
-                // FIXED: Preserving Native Video Aspect Ratio for Screenshots
                 ffmpeg(videoFile.path)
                     .screenshots({ timestamps: ['00:00:01.000'], filename: thumbName, folder: thumbDir })
                     .on('end', resolve).on('error', reject);
@@ -469,12 +490,11 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
 
     const m3u8Path = `/hls/${lessonId}/output.m3u8`;
 
-    // FIXED: Preserving Video Resolution Aspect Ratio for HLS Conversion
     ffmpeg(videoFile.path)
         .outputOptions([
             '-profile:v baseline', 
             '-level 3.0', 
-            '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', // Prevent x264 crash while preserving dynamic aspect ratio
+            '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
             '-start_number 0', 
             '-hls_time 10', 
             '-hls_list_size 0', 
