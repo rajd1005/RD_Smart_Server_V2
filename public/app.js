@@ -16,7 +16,6 @@ const userData = {
     role: localStorage.getItem('userRole')
 };
 
-// --- NEW: AUTO-OPEN FIRST VIDEO WHEN MODULE OPENS ---
 document.addEventListener('show.bs.collapse', function (e) {
     if (!e.target.classList.contains('lesson-collapse')) {
         const firstLessonCollapse = e.target.querySelector('.lesson-collapse');
@@ -29,12 +28,33 @@ document.addEventListener('show.bs.collapse', function (e) {
     }
 });
 
+// --- NEW: LEGAL DISCLAIMER LOGIC ---
+function checkDisclaimer() {
+    if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('disclaimerModal')).show();
+    }
+}
+
+window.acceptDisclaimer = function() {
+    sessionStorage.setItem('disclaimerAccepted', 'true');
+    const modalEl = document.getElementById('disclaimerModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
+}
+
+window.declineDisclaimer = function() {
+    logout();
+}
+
 window.onload = function() {
     initDatePicker();
     fetchTrades(); 
     fetchCourses(); 
     applyRoleRestrictions(); 
     switchSection('learning'); 
+    
+    // Automatically trigger legal warning check on load
+    checkDisclaimer();
 };
 
 function switchSection(section) {
@@ -189,7 +209,6 @@ async function fetchCourses() {
                 lessonHtml += '<div class="text-muted p-3 text-center" style="font-size:12px;">No videos yet.</div>';
             }
 
-            // REMOVED BADGE LOGIC HERE
             htmlContent += `
                 <div class="accordion-item course-module">
                     <h2 class="accordion-header" id="heading${mod.id}">
@@ -628,7 +647,7 @@ async function deleteSelected() {
 }
 
 async function logout() {
-    try { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); localStorage.clear(); window.location.href = '/home.html'; } catch (err) {}
+    try { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); sessionStorage.clear(); localStorage.clear(); window.location.href = '/home.html'; } catch (err) {}
 }
 
 document.getElementById('filterSymbol').addEventListener('change', () => applyFilters());
