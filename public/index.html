@@ -77,8 +77,8 @@
         .lesson-item-content { padding: 12px; border-radius: 0; transition: background 0.2s; border-top: 1px solid #f0f2f5; }
         .lesson-item-content:hover { background-color: #f9fbfd; }
         
-        .thumb-wrapper-full { position: relative; width: 100%; border-radius: 6px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); aspect-ratio: 16/9; margin-bottom: 10px; cursor: pointer; }
-        .thumb-wrapper-full img { width: 100%; height: 100%; object-fit: cover; opacity: 0.85; transition: opacity 0.2s; pointer-events: none; }
+        .thumb-wrapper-full { position: relative; width: 100%; border-radius: 6px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); max-height: 450px; display: flex; flex-direction: column; justify-content: center; align-items: center; margin-bottom: 10px; cursor: pointer; }
+        .thumb-wrapper-full img { width: 100%; max-height: 450px; object-fit: contain; opacity: 0.85; transition: opacity 0.2s; pointer-events: none; display: block; }
         .lesson-item-content:hover .thumb-wrapper-full img { opacity: 1; }
         .thumb-play-overlay-full { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
         .thumb-play-overlay-full .material-icons-round { color: #fff; font-size: 52px; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.8)); transition: transform 0.2s; }
@@ -99,7 +99,9 @@
         .call-summary-card { flex: 1; background: #f8f9fa; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 5px; text-align: center; }
         .call-summary-card h3 { margin: 0; font-size: 10px; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; }
         .call-summary-card div { font-size: 16px; font-weight: 900; color: #000; margin-top: 4px; }
-        .daily-toggle { font-size: 13px; font-weight: 700; padding: 12px 15px; border: 1px solid var(--border-color); background: #fff; border-radius: 8px; margin-bottom: 6px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+        
+        .daily-toggle { font-size: 13px; font-weight: 700; padding: 12px 10px; border: 1px solid var(--border-color); background: #fff; border-radius: 8px; margin-bottom: 6px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+        
         .daily-details { display: none; padding: 10px 0 15px; }
         .day-header-cards { display: flex; gap: 8px; margin-bottom: 12px; }
         .day-header-cards .card { flex: 1; background: #e3f2fd; color: var(--blue); border: none; padding: 8px; border-radius: 6px; text-align: center; font-size: 10px; font-weight: 700; box-shadow: none; text-transform: uppercase; }
