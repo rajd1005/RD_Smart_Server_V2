@@ -54,21 +54,21 @@ function getClientIp(req) {
     return ip.trim().replace('::ffff:', '');
 }
 
-// FIXED: Removed strict IP check to prevent Proxy/Cloudflare from causing instant disconnects
+// FIXED: Removed aggressive IP-lock check. Now securely relies strictly on Session ID.
 const authenticateToken = async (req, res, next) => {
     const token = req.cookies.authToken;
     if (!token) return res.status(401).json({ success: false, msg: "Not authenticated" });
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY id DESC LIMIT 1", [decoded.email]);
+        const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY login_time DESC LIMIT 1", [decoded.email]);
         if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { 
-            res.clearCookie('authToken'); 
+            res.clearCookie('authToken', { path: '/' }); 
             return res.status(403).json({ success: false, msg: "Logged in from another device. Session expired." }); 
         }
         req.user = decoded;
         next();
     } catch (err) {
-        res.clearCookie('authToken');
+        res.clearCookie('authToken', { path: '/' });
         return res.status(403).json({ success: false, msg: "Session expired" });
     }
 };
@@ -78,21 +78,21 @@ const isAdmin = (req, res, next) => {
     next();
 };
 
-// FIXED: Adjusted redirect logic and Database sort query
+// FIXED: Removed the IP-lock here that was causing the Redirect Loop to home.html!
 app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
         const token = req.cookies.authToken;
         if (!token) return res.redirect('/home.html');
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY id DESC LIMIT 1", [decoded.email]);
+            const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY login_time DESC LIMIT 1", [decoded.email]);
             if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { 
-                res.clearCookie('authToken'); 
+                res.clearCookie('authToken', { path: '/' }); 
                 return res.redirect('/home.html'); 
             }
             next(); 
         } catch (err) { 
-            res.clearCookie('authToken'); 
+            res.clearCookie('authToken', { path: '/' }); 
             return res.redirect('/home.html'); 
         }
     } else { next(); }
@@ -134,7 +134,9 @@ app.get('/api/public/courses', async (req, res) => {
     try {
         const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order FROM learning_modules ORDER BY display_order ASC");
         const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url FROM lesson_videos ORDER BY display_order ASC");
-        const coursesStructure = modulesResult.rows.map(mod => { return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; });
+        const coursesStructure = modulesResult.rows.map(mod => { 
+            return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; 
+        });
         res.json(coursesStructure);
     } catch (err) { res.status(500).json({ error: "Server Error fetching public courses." }); }
 });
@@ -190,16 +192,9 @@ app.post('/api/login', async (req, res) => {
         await pool.query("INSERT INTO login_logs (email, session_id, ip_address) VALUES ($1, $2, $3)", [userEmail, sessionId, clientIp]);
         await pool.query("DELETE FROM login_logs WHERE login_time < NOW() - INTERVAL '30 days'");
 
-        const token = jwt.sign({ email: userEmail, phone: userPhone, ip: clientIp, sessionId: sessionId, role: userRole, accessLevels: accessLevels }, JWT_SECRET, { expiresIn: rememberMe ? '30d' : '1d' });
-        
-        // FIXED: Explicitly set path: '/' to ensure the browser sends the cookie on the dashboard redirect
-        res.cookie('authToken', token, { 
-            httpOnly: true, 
-            secure: req.secure || req.headers['x-forwarded-proto'] === 'https', 
-            sameSite: 'lax', 
-            path: '/', 
-            maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 
-        });
+        // FIXED: Removed the dynamic IP from the payload to prevent tracking errors
+        const token = jwt.sign({ email: userEmail, phone: userPhone, sessionId: sessionId, role: userRole, accessLevels: accessLevels }, JWT_SECRET, { expiresIn: rememberMe ? '30d' : '1d' });
+        res.cookie('authToken', token, { httpOnly: true, secure: req.secure || req.headers['x-forwarded-proto'] === 'https', sameSite: 'lax', path: '/', maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 });
 
         res.json({ success: true, msg: "Login successful", email: userEmail, phone: userPhone, role: userRole, accessLevels: accessLevels });
     } catch (error) { res.status(500).json({ success: false, msg: "Database connection error" }); }
@@ -212,7 +207,7 @@ app.post('/api/set_password', async (req, res) => {
         const salt = crypto.randomBytes(16).toString('hex');
         const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
         await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [decoded.email, salt, hash]);
-        res.json({ success: true, email: decoded.email });
+        res.json({ success: true, email: decoded.email }); 
     } catch (err) {
         res.status(401).json({ success: false, msg: "Setup session expired. Please log in again." });
     }
@@ -225,7 +220,7 @@ app.post('/api/forgot_password', async (req, res) => {
         const [rows] = await authPool.query("SELECT student_email FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
         if (rows.length === 0) return res.status(404).json({ success: false, msg: "Email not found in registry." });
 
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otp = Math.floor(100000 + Math.random() * 900000).toString(); 
         await pool.query("INSERT INTO password_resets (email, otp, expires_at) VALUES ($1, $2, NOW() + INTERVAL '15 minutes') ON CONFLICT (email) DO UPDATE SET otp = EXCLUDED.otp, expires_at = EXCLUDED.expires_at", [email, otp]);
 
         const mailOptions = {
@@ -253,7 +248,7 @@ app.post('/api/reset_password', async (req, res) => {
         const salt = crypto.randomBytes(16).toString('hex');
         const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
         await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [email, salt, hash]);
-        await pool.query("DELETE FROM password_resets WHERE email = $1", [email]);
+        await pool.query("DELETE FROM password_resets WHERE email = $1", [email]); 
         
         res.json({ success: true, msg: "Password changed successfully. You can now login." });
     } catch (err) { res.status(500).json({ success: false, msg: "Server error resetting password." }); }
@@ -301,8 +296,12 @@ app.post('/api/accept_terms', authenticateToken, async (req, res) => {
         };
 
         transporter.sendMail(mailOptions).catch(err => console.error("SMTP Mail Error:", err));
+
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false, msg: "Failed to record agreement." }); }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, msg: "Failed to record agreement." });
+    }
 });
 
 app.get('/api/hls-key/:lessonId/enc.key', async (req, res) => {
@@ -376,6 +375,7 @@ app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res
 
 app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name: 'video_file', maxCount: 1 }, { name: 'thumbnail_file', maxCount: 1 }]), async (req, res) => {
     const { module_id, title, description, display_order } = req.body;
+    
     if (!req.files || !req.files['video_file']) return res.status(400).json({ success: false, msg: "Video file is required." });
     const videoFile = req.files['video_file'][0];
 
