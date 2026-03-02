@@ -16,17 +16,14 @@ const userData = {
     role: localStorage.getItem('userRole')
 };
 
-// ONLY EXECUTES ON THE SECURE INDEX.HTML DASHBOARD
+// INITIALIZE DASHBOARD (LEARN TAB AS DEFAULT)
 window.onload = function() {
     initDatePicker();
     fetchTrades(); 
     fetchCourses(); 
     applyRoleRestrictions(); 
+    switchSection('learning'); 
     
-    // FIX: Instantly show the Trading Dashboard on successful load!
-    switchSection('trade'); 
-    
-    // Trigger Legal Disclaimer Check
     if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
         const modalEl = document.getElementById('disclaimerModal');
         if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
@@ -239,15 +236,32 @@ async function fetchCourses() {
         
         container.innerHTML = htmlContent || '<div class="p-4 text-center text-muted">No courses found.</div>';
         
+        // --- FETCH ADMIN SETTINGS & APPLY GLOBALLY ---
         try {
             const settingsRes = await fetch('/api/settings');
             const settings = await settingsRes.json();
-            const defaultState = settings.accordion_state || 'first';
             
+            // Apply Accordion Defaults
+            const defaultState = settings.accordion_state || 'first';
             setTimeout(() => { toggleAccordions(defaultState); }, 100);
             
             const adminSettingDropdown = document.getElementById('adminAccordionState');
             if (adminSettingDropdown) adminSettingDropdown.value = defaultState;
+
+            // Apply Hide Trade Tab
+            const hideTradeTab = settings.hide_trade_tab === 'true';
+            const adminHideCheck = document.getElementById('adminHideTradeTab');
+            if (adminHideCheck) adminHideCheck.checked = hideTradeTab;
+
+            const navTradeBtn = document.getElementById('navTradeBtn');
+            if (navTradeBtn) {
+                if (hideTradeTab && userData.role !== 'admin') {
+                    navTradeBtn.style.display = 'none';
+                } else {
+                    navTradeBtn.style.display = 'flex';
+                }
+            }
+
         } catch (e) {
             setTimeout(() => { toggleAccordions('first'); }, 100);
         }
@@ -345,8 +359,14 @@ if (formAdminSettings) {
     formAdminSettings.addEventListener('submit', async (e) => {
         e.preventDefault();
         const state = document.getElementById('adminAccordionState').value;
+        const hideTrade = document.getElementById('adminHideTradeTab').checked ? 'true' : 'false';
         try {
-            const res = await fetch('/api/admin/settings', { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({ accordion_state: state }) });
+            const res = await fetch('/api/admin/settings', { 
+                method: 'PUT', 
+                headers: {'Content-Type': 'application/json'}, 
+                credentials: 'same-origin', 
+                body: JSON.stringify({ accordion_state: state, hide_trade_tab: hideTrade }) 
+            });
             if(res.ok) { alert("Settings Saved!"); fetchCourses(); } else { alert("Error saving settings"); }
         } catch(err) {}
     });
