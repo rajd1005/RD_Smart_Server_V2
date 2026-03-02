@@ -152,10 +152,16 @@ function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
-// --- EXACT DB MATCH: FETCH GALLERY API ---
+// --- EXACT DB MATCH: FETCH GALLERY API (LAST 30 DAYS & RECENT FIRST) ---
 app.get('/api/public/gallery', async (req, res) => {
     try {
-        const [rows] = await galleryPool.query("SELECT id, image_url, trade_date, name FROM wp_central_image_gallery ORDER BY id DESC LIMIT 15");
+        const [rows] = await galleryPool.query(`
+            SELECT id, image_url, trade_date, name 
+            FROM wp_central_image_gallery 
+            WHERE trade_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+            ORDER BY trade_date DESC, id DESC 
+            LIMIT 50
+        `);
         res.json({ success: true, images: rows });
     } catch (err) {
         console.error("Gallery DB Error:", err);
