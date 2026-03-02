@@ -2,12 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>INT Forex & Crypto - Rd Algo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RD Algo - Trading Masterclass</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
 
     <style>
@@ -15,62 +14,24 @@
             --bg-color: #f0f2f5; --card-bg: #ffffff;
             --text-primary: #212529; --text-secondary: #878a8d;
             --border-color: #e9ecef;
-            --green: #00b346; --red: #ff3b30; --blue: #007aff;
+            --blue: #007aff; --dark-blue: #0056b3;
+            --green: #00b346; --red: #ff3b30;
         }
         
         body { background-color: #dbe0e5; font-family: 'Roboto', sans-serif; color: var(--text-primary); margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
-        .app-wrapper { max-width: 800px; margin: 0 auto; background-color: var(--bg-color); min-height: 100vh; position: relative; padding-bottom: 60px; box-shadow: 0 0 25px rgba(0,0,0,0.08); }
-
-        .app-header { background: #fff; border-bottom: 1px solid var(--border-color); padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
-        .app-title { font-size: 16px; font-weight: 700; color: #000; letter-spacing: -0.5px; }
-        .server-time { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
-
-        .stats-bar { background: #fff; padding: 10px 15px; display: flex; gap: 15px; overflow-x: auto; border-bottom: 1px solid var(--border-color); margin-bottom: 10px; }
-        .stats-bar::-webkit-scrollbar { display: none; }
-        .stat-item { min-width: 80px; display: flex; flex-direction: column; }
-        .stat-lbl { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 500; }
-        .stat-val { font-size: 15px; font-weight: 700; color: #000; line-height: 1.1; }
-        .val-green { color: var(--green); }
-        .val-red { color: var(--red); }
-
-        .trade-list { padding: 0 10px; }
-        .trade-card { background: #fff; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); position: relative; }
-        .tc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-        .tc-mid { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-        .tc-bot { display: flex; justify-content: space-between; background: #f8f9fa; padding: 6px 8px; border-radius: 4px; font-size: 11px; }
-        .tc-symbol { font-size: 15px; font-weight: 700; color: #000; }
-        .tc-profit { font-size: 16px; font-weight: 700; text-align: right; }
-        .tc-time { font-size: 10px; color: var(--text-secondary); }
-        .c-green { color: var(--green); } .c-red { color: var(--red); }
-        .type-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 2px 5px; border-radius: 3px; }
-        .bg-buy { background: #e3f2fd; color: var(--blue); } .bg-sell { background: #ffebee; color: var(--red); }
-        .status-txt { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-        .detail-grp { display: flex; gap: 10px; }
-        .dt-item { display: flex; flex-direction: column; }
-        .dt-lbl { font-size: 9px; color: var(--text-secondary); margin-bottom: 1px; }
-        .dt-val { font-weight: 600; color: #333; }
-
-        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; margin: 0 auto; width: 100%; max-width: 800px; background: #fff; border-top: 1px solid var(--border-color); padding: 8px 0; display: flex; justify-content: space-around; z-index: 999; }
-        .b-btn { background: none; border: none; display: flex; flex-direction: column; align-items: center; font-size: 10px; color: var(--text-secondary); font-weight: 500; }
-        .b-btn .material-icons-round { font-size: 22px; margin-bottom: 2px; }
-        .b-active { color: var(--blue); } .b-del { color: var(--red); }
         
-        .offcanvas-bottom { height: auto !important; border-radius: 15px 15px 0 0; left: 0; right: 0; margin: 0 auto; max-width: 800px; }
-        .custom-check { width: 18px; height: 18px; margin-right: 10px; border-radius: 4px; border: 2px solid #ccc; }
-        .custom-check:checked { background-color: var(--blue); border-color: var(--blue); }
-        
-        #noData { padding: 50px; text-align: center; color: var(--text-secondary); }
+        .app-wrapper { max-width: 800px; margin: 0 auto; background-color: var(--bg-color); min-height: 100vh; display: flex; flex-direction: column; position: relative; box-shadow: 0 0 25px rgba(0,0,0,0.08); }
 
-        #learningSection { display: block; padding: 10px; }
-        #tradeSection { display: none; }
+        .navbar { background: #fff; border-bottom: 1px solid var(--border-color); padding: 8px 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); }
+        .navbar-brand { font-size: 18px; font-weight: 900; color: #000; letter-spacing: -0.5px; margin: 0;}
         
-        /* COMPACT LMS ACCORDION STYLES */
-        .accordion-item { border: 1px solid var(--border-color); border-radius: 8px !important; margin-bottom: 6px; background: #fff; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .curriculum-container { flex-grow: 1; padding: 10px; }
+
+        .accordion-item { border: 1px solid var(--border-color); border-radius: 12px !important; margin-bottom: 6px; background: #fff; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         .accordion-button { padding: 10px 12px; font-weight: 700; color: #000; background: #f8f9fa; box-shadow: none !important; font-size: 14px; min-height: 44px; }
         .accordion-button:not(.collapsed) { background: #e3f2fd; color: var(--blue); }
         .accordion-button::after { transform: scale(0.8); }
         
-        /* NESTED LESSON ACCORDION */
         .lesson-accordion-item { border: none !important; border-top: 1px solid var(--border-color) !important; border-radius: 0 !important; margin: 0 !important; box-shadow: none !important; }
         .lesson-accordion-item:first-child { border-top: none !important; }
         .lesson-accordion-btn { padding: 8px 12px; font-size: 13px; font-weight: 600; background: transparent !important; color: inherit; box-shadow: none !important; min-height: 38px; }
@@ -78,8 +39,7 @@
         
         .lesson-item-content { padding: 8px 12px; border-radius: 0; transition: background 0.2s; cursor: pointer; border-top: 1px solid #f0f2f5; }
         .lesson-item-content:hover { background-color: #f9fbfd; }
-        
-        /* COMPACT THUMBNAILS */
+
         .thumb-wrapper-compact { position: relative; width: 100px; height: 56px; flex-shrink: 0; margin-right: 12px; border-radius: 4px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); }
         .thumb-wrapper-compact img { width: 100%; height: 100%; object-fit: cover; opacity: 0.85; transition: opacity 0.2s; }
         .lesson-item-content:hover .thumb-wrapper-compact img { opacity: 1; }
@@ -92,312 +52,420 @@
         .lock-notice { background-color: #fff3cd; color: #856404; padding: 6px 12px; font-size: 11px; font-weight: 600; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
         .lock-notice a { color: #0056b3; text-decoration: underline; }
 
-        /* COMPACT FORMS & MODALS */
-        .form-control, .form-select { font-size: 13px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-color); }
-        .form-control:focus, .form-select:focus { border-color: var(--blue); box-shadow: 0 0 0 0.2rem rgba(0, 122, 255, 0.15); }
-        .modal-content { border-radius: 8px; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
-        .modal-header { padding: 12px 15px 0; border-bottom: none; }
-        .modal-title { font-size: 15px; font-weight: 700; color: #000; }
-        .modal-body { padding: 15px; }
+        .footer { text-align: center; padding: 20px; color: var(--text-secondary); font-size: 11px; margin-top: auto; border-top: 1px solid var(--border-color); background: #fff; }
 
-        /* VIDEO PLAYER */
+        .form-control { font-size: 13px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-color); }
+        .form-control:focus { border-color: var(--blue); box-shadow: 0 0 0 0.2rem rgba(0, 122, 255, 0.15); }
+        .custom-check { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #ccc; cursor: pointer; margin-top: 0; }
+        .custom-check:checked { background-color: var(--blue); border-color: var(--blue); }
+        .modal-content { border-radius: 8px; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+
         #videoPlayerContainer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; display: none; }
         .video-js { width: 100% !important; height: 100% !important; }
         .close-video { position: absolute; top: 15px; right: 15px; z-index: 2010; color: #fff; background: rgba(0,0,0,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
         
-        #dynamicWatermark {
-            position: absolute; color: rgba(255, 0, 0, 0.85); font-family: 'Roboto', sans-serif;
-            font-size: clamp(11px, 3.5vmin, 24px); font-weight: 900; text-align: center;
-            line-height: 1.3; pointer-events: none; z-index: 2005; white-space: nowrap; display: none;
-            text-shadow: 1px 1px 3px rgba(0,0,0,0.9), -1px -1px 3px rgba(255,255,255,0.4); 
-            transition: top 3s ease-in-out, left 3s ease-in-out; 
-        }
-
-        .admin-edit-btn { color: var(--blue); background: none; border: none; font-size: 14px; padding: 5px; }
-        .admin-del-btn { color: var(--red); background: none; border: none; font-size: 14px; padding: 5px; }
+        #dynamicWatermark { position: absolute; color: rgba(255, 0, 0, 0.85); font-family: 'Roboto', sans-serif; font-size: clamp(11px, 3.5vmin, 24px); font-weight: 900; text-align: center; line-height: 1.3; pointer-events: none; z-index: 2005; white-space: nowrap; display: none; text-shadow: 1px 1px 3px rgba(0,0,0,0.9), -1px -1px 3px rgba(255,255,255,0.4); transition: top 3s ease-in-out, left 3s ease-in-out; }
     </style>
 </head>
 <body>
 
     <div class="app-wrapper">
+        <nav class="navbar d-flex justify-content-between align-items-center">
+            <div class="navbar-brand">RD Algo</div>
+            <button class="btn btn-sm btn-primary fw-bold px-3 py-1" style="border-radius: 4px; font-size:12px;" data-bs-toggle="modal" data-bs-target="#loginModal">Login</button>
+        </nav>
 
-        <header class="app-header">
-            <div class="d-flex align-items-center">
-                <div class="app-title">INT Forex & Crypto</div>
-                <div id="activeDateDisplay" style="font-size: 10px; background: #e3f2fd; color: var(--blue); padding: 2px 6px; border-radius: 4px; margin-left: 8px; font-weight: 600;">Today</div>
-            </div>
-            <div class="d-flex align-items-center">
-                <div class="server-time" id="clock" style="margin-right: 15px;">00:00:00</div>
-                <button onclick="logout()" style="background:none; border:none; color:var(--red); padding:0; display:flex; align-items:center;">
-                    <span class="material-icons-round">logout</span>
-                </button>
-            </div>
-        </header>
-
-        <div id="tradeSection">
-            <div class="stats-bar">
-                <div class="stat-item"><span class="stat-lbl">Points</span><span class="stat-val" id="totalPips">0.00</span></div>
-                <div class="stat-item"><span class="stat-lbl">Active</span><span class="stat-val" id="activeTrades">0</span></div>
-                <div class="stat-item"><span class="stat-lbl">Win Rate</span><span class="stat-val" id="winRate">0%</span></div>
-                <div class="stat-item"><span class="stat-lbl">Signals</span><span class="stat-val" id="totalTrades">0</span></div>
-            </div>
-            <div class="trade-list" id="tradeListContainer"></div>
-            <div id="noData" style="display:none;"><span class="material-icons-round" style="font-size:32px; opacity:0.3;">toc</span><div class="mt-2 text-muted small">No trades found</div></div>
-        </div>
-
-        <div id="learningSection">
-            <div class="d-flex justify-content-between align-items-center mb-2 px-1">
-                <div id="adminAccordionControls" style="display:none;">
-                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleAccordions('all')" style="font-size: 11px;">Open All</button>
-                    <button class="btn btn-sm btn-outline-secondary ms-1" onclick="toggleAccordions('none')" style="font-size: 11px;">Close All</button>
-                    <button class="btn btn-sm btn-outline-primary ms-1" onclick="toggleAccordions('first')" style="font-size: 11px;">Open 1st</button>
-                </div>
-                <button id="btnAdminCourseManager" class="btn btn-sm btn-dark fw-bold ms-auto" style="display:none; font-size: 11px;" data-bs-toggle="modal" data-bs-target="#adminCourseModal">⚙️ Admin Manager</button>
-            </div>
-            
-            <div class="accordion" id="courseModuleContainer">
-                <div class="p-4 text-center text-muted">Loading courses...</div>
+        <div class="curriculum-container">
+            <div class="accordion" id="publicCourseContainer">
+                <div class="p-5 text-center text-muted fw-bold" style="font-size:13px;">Loading courses...</div>
             </div>
         </div>
 
-        <nav class="bottom-nav" id="navDefault">
-            <button class="b-btn" id="navTradeBtn" onclick="switchSection('trade')"><span class="material-icons-round">analytics</span>Trade</button>
-            <button class="b-btn b-active" id="navLearnBtn" onclick="switchSection('learning')"><span class="material-icons-round">school</span>Learn</button>
-            <button class="b-btn" id="btnRefresh" onclick="fetchTrades()" style="display:none;"><span class="material-icons-round">refresh</span>Refresh</button>
-            <button class="b-btn" id="btnFilter" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterSheet" style="display:none;"><span class="material-icons-round">filter_list</span>Filter</button>
-            <button class="b-btn" id="btnSelect" onclick="toggleSelectionMode()" style="display:none;"><span class="material-icons-round" id="selectIcon">check_circle</span>Select</button>
-            <button class="b-btn b-del" id="btnDelete" onclick="deleteSelected()" style="display:none;"><span class="material-icons-round">delete</span>Delete</button>
-        </nav>
+        <div class="footer">
+            &copy; 2024 RD Algo. All rights reserved.<br>
+            Access restricted to verified students.
+        </div>
+    </div>
 
-        <nav class="bottom-nav" id="navSelection" style="display:none;">
-            <button class="b-btn" onclick="toggleSelectionMode()"><span class="material-icons-round">close</span>Cancel</button>
-            <button class="b-btn b-active" onclick="selectAllTrades()"><span class="material-icons-round">done_all</span>Select All</button>
-            <button class="b-btn b-del" onclick="deleteSelected()"><span class="material-icons-round">delete_forever</span>Delete</button>
-        </nav>
-
-    </div><div id="videoPlayerContainer">
+    <div id="videoPlayerContainer">
         <button class="close-video" onclick="closeVideoPlayer()"><span class="material-icons-round">close</span></button>
         <div id="dynamicWatermark"></div>
         <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" disablePictureInPicture controlsList="nodownload nofullscreen noremoteplayback"></video>
     </div>
 
-    <div class="modal fade" id="adminCourseModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 380px;">
+    <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 320px; margin: 0 auto;">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title mb-0">Admin Course Manager</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
+                <div class="modal-header border-0 pb-0">
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="font-size: 10px;"></button>
                 </div>
-                <div class="modal-body">
-                    <h6 class="fw-bold text-primary border-bottom pb-2" style="font-size: 13px;">1. Add New Module</h6>
-                    <form id="formAddModule" class="mb-4">
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Module Title</label>
-                            <input type="text" id="modTitle" class="form-control" required>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Short Description</label>
-                            <input type="text" id="modDesc" class="form-control">
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Access Level</label>
-                            <select id="modLevel" class="form-select" required>
-                                <option value="demo">Demo / Public</option>
-                                <option value="level_1_status">Level 1 (All Access)</option>
-                                <option value="level_2_status">Requires Level 2</option>
-                                <option value="level_3_status">Requires Level 3</option>
-                                <option value="level_4_status">Requires Level 4</option>
-                            </select>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
-                            <input type="number" id="modDisplayOrder" class="form-control" value="0" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Custom Lock Notice (HTML Allowed)</label>
-                            <input type="text" id="modLockNotice" class="form-control">
-                        </div>
-                        <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Create Module</button>
-                    </form>
+                <div class="modal-body px-4 pb-4 pt-0">
 
-                    <h6 class="fw-bold text-primary border-bottom pb-2" style="font-size: 13px;">2. Add New Video Lesson</h6>
-                    <form id="formAddLesson" class="mb-4">
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Select Module</label>
-                            <select id="lessonModuleId" class="form-select" required><option value="">Select...</option></select>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Video Title</label>
-                            <input type="text" id="lessonTitle" class="form-control" required>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
-                            <input type="text" id="lessonDesc" class="form-control">
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
-                            <input type="number" id="lessonDisplayOrder" class="form-control" value="0" required>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Upload Thumbnail (Optional)</label>
-                            <input type="file" id="lessonThumbnailFile" class="form-control" accept="image/*">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Upload MP4 Video</label>
-                            <input type="file" id="lessonVideoFile" class="form-control" accept="video/mp4,video/x-m4v,video/*" required>
-                        </div>
-                        <button type="submit" class="btn btn-sm btn-success w-100" style="padding:8px; border-radius:4px;">Upload Video</button>
-                    </form>
-
-                    <h6 class="fw-bold text-primary border-bottom pb-2" style="font-size: 13px;">3. Global View Settings</h6>
-                    <form id="formAdminSettings">
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Default Accordion State</label>
-                            <select id="adminAccordionState" class="form-select" required>
-                                <option value="first">Open 1st Module & 1st Video</option>
-                                <option value="all">Open All Modules & Videos</option>
-                                <option value="none">Close All</option>
-                            </select>
-                        </div>
-                        <button type="submit" class="btn btn-sm btn-warning w-100 fw-bold" style="padding:8px; border-radius:4px;">Save Settings</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="editModuleModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 320px;">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title mb-0">Edit Module</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="formEditModule">
-                        <input type="hidden" id="editModId">
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Module Title</label>
-                            <input type="text" id="editModTitle" class="form-control" required>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
-                            <input type="text" id="editModDesc" class="form-control">
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Access Level</label>
-                            <select id="editModLevel" class="form-select" required>
-                                <option value="demo">Demo / Public</option>
-                                <option value="level_1_status">Level 1 (All Access)</option>
-                                <option value="level_2_status">Requires Level 2</option>
-                                <option value="level_3_status">Requires Level 3</option>
-                                <option value="level_4_status">Requires Level 4</option>
-                            </select>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
-                            <input type="number" id="editModDisplayOrder" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Custom Lock Notice</label>
-                            <input type="text" id="editModLockNotice" class="form-control">
-                        </div>
-                        <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Save Changes</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="editLessonModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 320px;">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title mb-0">Edit Video Information</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="formEditLesson">
-                        <input type="hidden" id="editLessonId">
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Video Title</label>
-                            <input type="text" id="editLessonTitle" class="form-control" required>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
-                            <input type="text" id="editLessonDesc" class="form-control">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
-                            <input type="number" id="editLessonDisplayOrder" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Update Thumbnail</label>
-                            <input type="file" id="editLessonThumbnailFile" class="form-control" accept="image/*">
-                        </div>
-                        <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Save Changes</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="offcanvas offcanvas-bottom" tabindex="-1" id="filterSheet">
-        <div class="offcanvas-header pb-0"><h6 class="offcanvas-title fw-bold">Filter Options</h6><button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button></div>
-        <div class="offcanvas-body pt-2">
-        <div class="row g-2">
-                <div class="col-12">
-                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Date / Range</label>
-                    <input type="text" id="filterDateRange" class="form-control" placeholder="Select Date(s)..." style="background-color: #fff;">
-                </div>
-                <div class="col-6">
-                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Type</label>
-                    <select id="filterType" class="form-select"><option value="ALL">All</option><option value="BUY">Buy</option><option value="SELL">Sell</option></select>
-                </div>
-                <div class="col-6">
-                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Status</label>
-                    <select id="filterStatus" class="form-select"><option value="ALL">All</option><option value="OPEN">Running</option><option value="TP">Profitable</option><option value="SL">Loss</option></select>
-                </div>
-                <div class="col-12">
-                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Symbol</label>
-                    <select id="filterSymbol" class="form-select"><option value="">All Symbols</option></select>
-                </div>
-            </div>
-            <button class="btn btn-primary w-100 mt-3 fw-bold" style="padding:8px; border-radius:4px;" data-bs-dismiss="offcanvas" onclick="applyFilters()">Apply</button>
-        </div>
-    </div>
-
-    <div class="modal fade" id="disclaimerModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 400px; margin: 0 auto;">
-            <div class="modal-content" style="border-radius: 12px; border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
-                <div class="modal-header border-bottom-0 pb-0 justify-content-center">
-                    <h5 class="modal-title fw-bold text-danger d-flex align-items-center" style="font-size: 16px;">
-                        <span class="material-icons-round me-2">gavel</span> Mandatory Disclaimer
-                    </h5>
-                </div>
-                <div class="modal-body px-4 pt-3 pb-2" style="font-size: 12px; line-height: 1.6; color: #444;">
-                    <p class="fw-bold mb-3 text-dark text-center" style="font-size: 13px;">Please read and accept to access the dashboard.</p>
-                    
-                    <div class="mb-3 p-3 bg-light rounded border">
-                        <div class="mb-2"><strong><span class="text-danger">1.</span> Not SEBI Registered:</strong> We are NOT registered with SEBI or any regulatory body. We are not financial advisors.</div>
-                        <div class="mb-2"><strong><span class="text-danger">2.</span> Educational Only:</strong> All content, signals, and setups are strictly for educational and learning purposes.</div>
-                        <div class="mb-2"><strong><span class="text-danger">3.</span> Paper Trading:</strong> Do NOT take live real-money trades. Use virtual money (paper trading) only to test and learn.</div>
-                        <div class="mb-0"><strong><span class="text-danger">4.</span> Your Responsibility:</strong> Trading carries massive risk. You are 100% responsible for your own actions. We accept NO liability for any financial losses.</div>
+                    <div id="viewLogin">
+                        <h5 class="text-center fw-bold mb-1">Student Access</h5>
+                        <p class="text-muted small text-center mb-3" style="font-size: 11px; line-height: 1.3;">Login to access your dashboard.</p>
+                        
+                        <form id="loginForm">
+                            <div class="mb-2">
+                                <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Email ID</label>
+                                <input type="email" id="loginEmail" class="form-control" required>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Password</label>
+                                <div class="position-relative">
+                                    <input type="password" id="loginPassword" class="form-control pe-4" required>
+                                    <span class="material-icons-round position-absolute top-50 end-0 translate-middle-y me-2 text-muted" style="cursor:pointer; font-size:16px;" onclick="togglePassword('loginPassword', this)">visibility_off</span>
+                                </div>
+                                <div class="text-end mt-1"><a href="#" class="text-decoration-none" style="font-size: 10px; color: var(--blue); font-weight: 600;" onclick="switchAuthView('viewForgot')">Forgot Password?</a></div>
+                            </div>
+                            <div class="mb-3 d-flex align-items-center">
+                                <input type="checkbox" class="custom-check m-0" id="loginRemember">
+                                <label class="form-check-label ms-2 fw-bold" for="loginRemember" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Save Password</label>
+                            </div>
+                            <div id="loginErrorMsg" class="text-danger mb-2 text-center fw-bold" style="display:none; font-size: 11px;"></div>
+                            <button type="submit" class="btn btn-primary w-100 fw-bold" id="loginBtn" style="font-size: 13px; padding: 8px; border-radius: 4px; border: none;">Login</button>
+                        </form>
                     </div>
-                </div>
-                <div class="modal-footer d-flex flex-nowrap border-top-0 pt-0 px-4 pb-4">
-                    <button type="button" class="btn btn-light border flex-grow-1 fw-bold" onclick="declineDisclaimer()" style="border-radius: 6px; padding: 10px; font-size: 12px; color: #555;">Decline</button>
-                    <button type="button" class="btn btn-success flex-grow-1 fw-bold ms-2" onclick="acceptDisclaimer()" style="border-radius: 6px; padding: 10px; font-size: 12px;">I Agree & Accept</button>
+
+                    <div id="viewSetup" class="d-none">
+                        <h5 class="text-center fw-bold mb-1 text-primary">Welcome!</h5>
+                        <p class="text-muted small text-center mb-3" style="font-size: 11px; line-height: 1.3;">For your security, please create a custom password.</p>
+                        
+                        <form id="setupForm">
+                            <div class="mb-2">
+                                <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">New Password</label>
+                                <div class="position-relative">
+                                    <input type="password" id="setupNewPass" class="form-control pe-4" minlength="6" required>
+                                    <span class="material-icons-round position-absolute top-50 end-0 translate-middle-y me-2 text-muted" style="cursor:pointer; font-size:16px;" onclick="togglePassword('setupNewPass', this)">visibility_off</span>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Confirm Password</label>
+                                <input type="password" id="setupConfPass" class="form-control" minlength="6" required>
+                            </div>
+                            <div id="setupErrorMsg" class="text-danger mb-2 text-center fw-bold" style="display:none; font-size: 11px;"></div>
+                            <button type="submit" class="btn btn-success w-100 fw-bold" id="setupBtn" style="font-size: 13px; padding: 8px; border-radius: 4px; border: none;">Save & Continue</button>
+                        </form>
+                    </div>
+
+                    <div id="viewForgot" class="d-none">
+                        <h5 class="text-center fw-bold mb-1">Reset Password</h5>
+                        <p class="text-muted small text-center mb-3" style="font-size: 11px; line-height: 1.3;">Enter your registered email to receive an OTP.</p>
+                        
+                        <form id="forgotForm">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Registered Email</label>
+                                <input type="email" id="forgotEmail" class="form-control" required>
+                            </div>
+                            <div id="forgotErrorMsg" class="text-danger mb-2 text-center fw-bold" style="display:none; font-size: 11px;"></div>
+                            <button type="submit" class="btn btn-primary w-100 fw-bold mb-2" id="forgotBtn" style="font-size: 13px; padding: 8px; border-radius: 4px; border: none;">Send OTP</button>
+                            <div class="text-center"><a href="#" class="text-decoration-none" style="font-size: 11px; color: var(--text-secondary); font-weight: 600;" onclick="switchAuthView('viewLogin')">Back to Login</a></div>
+                        </form>
+                    </div>
+
+                    <div id="viewReset" class="d-none">
+                        <h5 class="text-center fw-bold mb-1 text-success">Verify OTP</h5>
+                        <p class="text-muted small text-center mb-3" id="resetDescText" style="font-size: 11px; line-height: 1.3;">We sent a 6-digit code to your email.</p>
+                        
+                        <form id="resetForm">
+                            <div class="mb-2">
+                                <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">6-Digit OTP</label>
+                                <input type="text" id="resetOtp" class="form-control text-center fw-bold" style="letter-spacing: 3px;" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">New Password</label>
+                                <div class="position-relative">
+                                    <input type="password" id="resetNewPass" class="form-control pe-4" minlength="6" required>
+                                    <span class="material-icons-round position-absolute top-50 end-0 translate-middle-y me-2 text-muted" style="cursor:pointer; font-size:16px;" onclick="togglePassword('resetNewPass', this)">visibility_off</span>
+                                </div>
+                            </div>
+                            <div id="resetErrorMsg" class="text-danger mb-2 text-center fw-bold" style="display:none; font-size: 11px;"></div>
+                            <button type="submit" class="btn btn-success w-100 fw-bold mb-2" id="resetBtn" style="font-size: 13px; padding: 8px; border-radius: 4px; border: none;">Confirm & Reset</button>
+                            <div class="text-center"><a href="#" class="text-decoration-none" style="font-size: 11px; color: var(--text-secondary); font-weight: 600;" onclick="switchAuthView('viewLogin')">Cancel</a></div>
+                        </form>
+                    </div>
+
                 </div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="/socket.io/socket.io.js"></script>
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-    <script src="app.js"></script>
-    <script>setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-GB'); }, 1000);</script>
+    <script>
+        let videoPlayer = null; 
+        let watermarkInterval = null; 
+        let tempSetupToken = null;
+        let tempResetEmail = null;
+
+        document.getElementById('videoPlayerContainer').addEventListener('contextmenu', function(e) { e.preventDefault(); });
+
+        function openLoginModal() {
+            switchAuthView('viewLogin');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('loginModal')).show();
+        }
+
+        function switchAuthView(viewId) {
+            document.getElementById('viewLogin').classList.add('d-none');
+            document.getElementById('viewSetup').classList.add('d-none');
+            document.getElementById('viewForgot').classList.add('d-none');
+            document.getElementById('viewReset').classList.add('d-none');
+            document.getElementById(viewId).classList.remove('d-none');
+        }
+
+        function togglePassword(inputId, iconEl) {
+            const input = document.getElementById(inputId);
+            if (input.type === "password") { input.type = "text"; iconEl.innerText = "visibility"; } 
+            else { input.type = "password"; iconEl.innerText = "visibility_off"; }
+        }
+
+        // --- AUTH FLOW LOGIC ---
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const rememberMe = document.getElementById('loginRemember').checked;
+            const errorMsg = document.getElementById('loginErrorMsg');
+            const btn = document.getElementById('loginBtn');
+
+            btn.disabled = true; errorMsg.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, rememberMe }) });
+                const data = await res.json();
+                
+                if (data.requires_setup) {
+                    tempSetupToken = data.setupToken;
+                    document.getElementById('loginPassword').value = '';
+                    switchAuthView('viewSetup');
+                } else if (data.success) {
+                    localStorage.setItem('userRole', data.role);
+                    localStorage.setItem('userEmail', data.email);
+                    localStorage.setItem('userPhone', data.phone);
+                    localStorage.setItem('accessLevels', JSON.stringify(data.accessLevels));
+                    window.location.href = '/'; 
+                } else {
+                    errorMsg.innerText = data.msg;
+                    errorMsg.style.display = 'block';
+                }
+            } catch (err) { errorMsg.innerText = "Server connection error."; errorMsg.style.display = 'block'; }
+            btn.disabled = false;
+        });
+
+        document.getElementById('setupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newPass = document.getElementById('setupNewPass').value;
+            const confPass = document.getElementById('setupConfPass').value;
+            const errorMsg = document.getElementById('setupErrorMsg');
+            const btn = document.getElementById('setupBtn');
+
+            if (newPass !== confPass) { errorMsg.innerText = "Passwords do not match."; errorMsg.style.display = 'block'; return; }
+            
+            btn.disabled = true; btn.innerText = "Saving..."; errorMsg.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/set_password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ setupToken: tempSetupToken, newPassword: newPass }) });
+                const data = await res.json();
+                if (data.success) {
+                    alert("Password set successfully! Please log in.");
+                    document.getElementById('loginPassword').value = '';
+                    switchAuthView('viewLogin');
+                } else {
+                    errorMsg.innerText = data.msg; errorMsg.style.display = 'block';
+                }
+            } catch (err) { errorMsg.innerText = "Server error."; errorMsg.style.display = 'block'; }
+            btn.disabled = false; btn.innerText = "Save & Continue";
+        });
+
+        document.getElementById('forgotForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            tempResetEmail = document.getElementById('forgotEmail').value;
+            const errorMsg = document.getElementById('forgotErrorMsg');
+            const btn = document.getElementById('forgotBtn');
+
+            btn.disabled = true; btn.innerText = "Sending..."; errorMsg.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/forgot_password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: tempResetEmail }) });
+                const data = await res.json();
+                if (data.success) {
+                    switchAuthView('viewReset');
+                } else {
+                    errorMsg.innerText = data.msg; errorMsg.style.display = 'block';
+                }
+            } catch (err) { errorMsg.innerText = "Server error."; errorMsg.style.display = 'block'; }
+            btn.disabled = false; btn.innerText = "Send OTP";
+        });
+
+        document.getElementById('resetForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const otp = document.getElementById('resetOtp').value;
+            const newPass = document.getElementById('resetNewPass').value;
+            const errorMsg = document.getElementById('resetErrorMsg');
+            const btn = document.getElementById('resetBtn');
+
+            btn.disabled = true; btn.innerText = "Verifying..."; errorMsg.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/reset_password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: tempResetEmail, otp: otp, newPassword: newPass }) });
+                const data = await res.json();
+                if (data.success) {
+                    alert(data.msg);
+                    document.getElementById('loginPassword').value = '';
+                    switchAuthView('viewLogin');
+                } else {
+                    errorMsg.innerText = data.msg; errorMsg.style.display = 'block';
+                }
+            } catch (err) { errorMsg.innerText = "Server error."; errorMsg.style.display = 'block'; }
+            btn.disabled = false; btn.innerText = "Confirm & Reset";
+        });
+
+
+        // --- UI TOGGLER ---
+        document.addEventListener('show.bs.collapse', function (e) {
+            if (!e.target.classList.contains('lesson-collapse')) {
+                const firstLessonCollapse = e.target.querySelector('.lesson-collapse');
+                const firstLessonBtn = e.target.querySelector('.lesson-accordion-btn');
+                if (firstLessonCollapse && firstLessonBtn && !firstLessonCollapse.classList.contains('show')) {
+                    firstLessonCollapse.classList.add('show');
+                    firstLessonBtn.classList.remove('collapsed');
+                    firstLessonBtn.setAttribute('aria-expanded', 'true');
+                }
+            }
+        });
+
+        function toggleAccordions(action) {
+            const allCollapses = document.querySelectorAll('.accordion-collapse');
+            const allButtons = document.querySelectorAll('.accordion-button');
+            if (action === 'all') { allCollapses.forEach(el => el.classList.add('show')); allButtons.forEach(el => { el.classList.remove('collapsed'); el.setAttribute('aria-expanded', 'true'); }); } 
+            else if (action === 'none') { allCollapses.forEach(el => el.classList.remove('show')); allButtons.forEach(el => { el.classList.add('collapsed'); el.setAttribute('aria-expanded', 'false'); }); } 
+            else if (action === 'first') {
+                allCollapses.forEach(el => el.classList.remove('show')); allButtons.forEach(el => { el.classList.add('collapsed'); el.setAttribute('aria-expanded', 'false'); });
+                const firstModCollapse = document.querySelector('.course-module > .accordion-collapse');
+                const firstModBtn = document.querySelector('.course-module > .accordion-header > .accordion-button');
+                if (firstModCollapse && firstModBtn) {
+                    firstModCollapse.classList.add('show'); firstModBtn.classList.remove('collapsed'); firstModBtn.setAttribute('aria-expanded', 'true');
+                    const firstLessonCollapse = firstModCollapse.querySelector('.lesson-collapse'); const firstLessonBtn = firstModCollapse.querySelector('.lesson-accordion-btn');
+                    if (firstLessonCollapse && firstLessonBtn) { firstLessonCollapse.classList.add('show'); firstLessonBtn.classList.remove('collapsed'); firstLessonBtn.setAttribute('aria-expanded', 'true'); }
+                }
+            }
+        }
+
+        async function fetchPublicCourses() {
+            const container = document.getElementById('publicCourseContainer');
+            try {
+                const response = await fetch('/api/public/courses');
+                const modules = await response.json();
+                if (modules.length === 0) { container.innerHTML = '<div class="p-4 text-center text-muted" style="font-size:13px;">No courses added yet.</div>'; return; }
+                let htmlContent = '';
+                modules.forEach((mod, index) => {
+                    const isDemo = mod.required_level === 'demo';
+                    let displayNoticeHtml = '';
+                    if (!isDemo) {
+                        let displayNotice = mod.lock_notice ? mod.lock_notice : `⚠️ Locked. Login or register to unlock.`;
+                        displayNoticeHtml = `<div class="lock-notice">${displayNotice}</div>`;
+                    }
+                    let lessonHtml = '';
+                    if (mod.lessons && mod.lessons.length > 0) {
+                        lessonHtml += `<div class="accordion w-100" id="accLsn${mod.id}">`;
+                        mod.lessons.forEach(l => {
+                            const overlayIcon = isDemo ? 'play_circle_filled' : 'lock'; const iconColor = isDemo ? 'var(--blue)' : '#999'; const textColor = isDemo ? '#333' : '#666';
+                            const onClickAction = isDemo ? `openDemoVideo(${l.id})` : `openLoginModal()`;
+                            const thumbnailImg = l.thumbnail_url ? `<div class="thumb-wrapper-compact"><img src="${l.thumbnail_url}"><div class="thumb-play-overlay-compact"><span class="material-icons-round">${overlayIcon}</span></div></div>` : `<span class="material-icons-round lesson-icon-compact" style="color:${iconColor};">${overlayIcon}</span>`;
+                            lessonHtml += `
+                                <div class="accordion-item lesson-accordion-item">
+                                    <h2 class="accordion-header" id="hLsn${l.id}">
+                                        <button class="accordion-button collapsed lesson-accordion-btn" type="button" data-bs-toggle="collapse" data-bs-target="#cLsn${l.id}" aria-expanded="false" aria-controls="cLsn${l.id}">
+                                            <span class="material-icons-round" style="font-size:16px; margin-right:8px; color:${iconColor};">${overlayIcon}</span>
+                                            <span style="color: ${textColor};">${l.title}</span>
+                                        </button>
+                                    </h2>
+                                    <div id="cLsn${l.id}" class="accordion-collapse collapse lesson-collapse" aria-labelledby="hLsn${l.id}" data-bs-parent="#accLsn${mod.id}">
+                                        <div class="accordion-body p-0" style="background: #fafafa;">
+                                            <div class="lesson-item-content d-flex align-items-center w-100" onclick="${onClickAction}">
+                                                ${thumbnailImg}
+                                                <div class="flex-grow-1">${l.description ? `<div class="text-muted" style="font-size: 11px; margin-bottom: 4px; line-height: 1.3;">${l.description}</div>` : ''}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>`;
+                        });
+                        lessonHtml += `</div>`;
+                    } else { lessonHtml = '<div class="text-muted p-3 text-center" style="font-size:12px;">No videos yet.</div>'; }
+                    htmlContent += `
+                        <div class="accordion-item course-module">
+                            <h2 class="accordion-header" id="heading${mod.id}">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${mod.id}" aria-expanded="false" aria-controls="collapse${mod.id}">
+                                    <div class="d-flex align-items-center flex-grow-1"><span class="mb-0 fw-bold" style="font-size:14px;">${mod.title}</span></div>
+                                </button>
+                            </h2>
+                            ${displayNoticeHtml}
+                            <div id="collapse${mod.id}" class="accordion-collapse collapse" aria-labelledby="heading${mod.id}"><div class="accordion-body p-0">${lessonHtml}</div></div>
+                        </div>`;
+                });
+                container.innerHTML = htmlContent;
+                try {
+                    const settingsRes = await fetch('/api/settings'); const settings = await settingsRes.json();
+                    setTimeout(() => { toggleAccordions(settings.accordion_state || 'first'); }, 100);
+                } catch (e) { setTimeout(() => { toggleAccordions('first'); }, 100); }
+            } catch (err) { container.innerHTML = `<div class="p-3 text-danger text-center" style="font-size:13px;">❌ Failed to load curriculum.</div>`; }
+        }
+        
+        async function openDemoVideo(lessonId) {
+            if (!videoPlayer) {
+                videoPlayer = videojs('my-video', { hls: { overrideNative: true }, html5: { vhs: { overrideNative: true } }, controlBar: { fullscreenToggle: false, pictureInPictureToggle: false }});
+                videoPlayer.el().addEventListener('contextmenu', function(e) { e.preventDefault(); });
+                videoPlayer.on('loadedmetadata', async function() {
+                    const vw = videoPlayer.videoWidth(); const vh = videoPlayer.videoHeight();
+                    if (screen.orientation && screen.orientation.lock) { try { if (vw > vh) { await screen.orientation.lock("landscape"); } else { await screen.orientation.lock("portrait"); } } catch (e) { } }
+                });
+            }
+            videoPlayer.reset(); stopWatermark();
+            try {
+                const response = await fetch(`/api/public/lesson/${lessonId}`);
+                if (!response.ok) { alert("❌ Failed to load demo."); return; }
+                const data = await response.json();
+                videoPlayer.src({ src: data.hlsUrl, type: 'application/x-mpegURL' });
+                const playerContainer = document.getElementById('videoPlayerContainer');
+                playerContainer.style.display = 'block';
+                if (playerContainer.requestFullscreen) { await playerContainer.requestFullscreen().catch(e => {}); } 
+                else if (playerContainer.webkitRequestFullscreen) { await playerContainer.webkitRequestFullscreen().catch(e => {}); }
+                startWatermark(); videoPlayer.play();
+            } catch(err) { alert("🚨 Error loading video stream."); }
+        }
+
+        function closeVideoPlayer() {
+            if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
+            if (screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch (e) {} }
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                if (document.exitFullscreen) { document.exitFullscreen().catch(e => {}); } else if (document.webkitExitFullscreen) { document.webkitExitFullscreen().catch(e => {}); }
+            }
+            stopWatermark(); document.getElementById('videoPlayerContainer').style.display = 'none';
+        }
+
+        function startWatermark() {
+            const wmEl = document.getElementById('dynamicWatermark');
+            wmEl.innerHTML = `RD ALGO DEMO<br>Register to Unlock<br>Rdalgo.in`; wmEl.style.display = 'block';
+            if (watermarkInterval) clearInterval(watermarkInterval); moveWatermark(); watermarkInterval = setInterval(moveWatermark, 3000); 
+        }
+
+        function stopWatermark() { if (watermarkInterval) clearInterval(watermarkInterval); watermarkInterval = null; document.getElementById('dynamicWatermark').style.display = 'none'; }
+
+        function moveWatermark() {
+            const wmEl = document.getElementById('dynamicWatermark'); const container = document.getElementById('videoPlayerContainer');
+            if (!videoPlayer) return;
+            const vw = videoPlayer.videoWidth(); const vh = videoPlayer.videoHeight();
+            if (!vw || !vh) { wmEl.style.left = '50%'; wmEl.style.top = '50%'; wmEl.style.transform = 'translate(-50%, -50%)'; return; } else { wmEl.style.transform = 'none'; }
+            const cw = container.clientWidth; const ch = container.clientHeight; const videoRatio = vw / vh; const containerRatio = cw / ch;
+            let renderedWidth, renderedHeight, offsetX, offsetY;
+            if (videoRatio > containerRatio) { renderedWidth = cw; renderedHeight = cw / videoRatio; offsetX = 0; offsetY = (ch - renderedHeight) / 2; } 
+            else { renderedHeight = ch; renderedWidth = ch * videoRatio; offsetX = (cw - renderedWidth) / 2; offsetY = 0; }
+            const minX = offsetX + 10; const maxX = Math.max(minX, offsetX + renderedWidth - wmEl.clientWidth - 10);
+            const minY = offsetY + 50; const maxY = Math.max(minY, offsetY + renderedHeight - wmEl.clientHeight - 20);
+            wmEl.style.left = Math.floor(Math.random() * (maxX - minX + 1)) + minX + 'px'; wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
+        }
+
+        fetchPublicCourses();
+    </script>
 </body>
 </html>
