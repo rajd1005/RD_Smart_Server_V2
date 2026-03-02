@@ -353,15 +353,17 @@ function moveWatermark() {
 }
 
 
-// --- FORM SUBMIT HANDLERS (FIXED ERROR EXPOSURE) ---
+// --- FAIL-SAFE ADMIN FORM SUBMIT HANDLERS ---
 const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
     formAdminSettings.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
-        const state = document.getElementById('adminAccordionState').value;
-        const hideTrade = document.getElementById('adminHideTradeTab').checked ? 'true' : 'false';
-        const showGallery = document.getElementById('adminShowGallery').checked ? 'true' : 'false';
+        
+        const state = document.getElementById('adminAccordionState')?.value || 'first';
+        const hideTrade = document.getElementById('adminHideTradeTab')?.checked ? 'true' : 'false';
+        const showGallery = document.getElementById('adminShowGallery')?.checked ? 'true' : 'false';
+        
         try {
             const res = await fetch('/api/admin/settings', { 
                 method: 'PUT', 
@@ -387,15 +389,17 @@ if (formAddModule) {
     formAddModule.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button'); btn.innerText = "Creating..."; btn.disabled = true;
+        
         const data = {
-            title: document.getElementById('modTitle').value, 
-            description: document.getElementById('modDesc').value, 
-            required_level: document.getElementById('modLevel').value, 
-            display_order: document.getElementById('modDisplayOrder').value,
-            lock_notice: document.getElementById('modLockNotice').value,
-            show_on_home: document.getElementById('modShowHome').value === 'true',
-            dashboard_visibility: document.getElementById('modDashVis').value
+            title: document.getElementById('modTitle')?.value || '', 
+            description: document.getElementById('modDesc')?.value || '', 
+            required_level: document.getElementById('modLevel')?.value || 'demo', 
+            display_order: document.getElementById('modDisplayOrder')?.value || 0,
+            lock_notice: document.getElementById('modLockNotice')?.value || '',
+            show_on_home: document.getElementById('modShowHome')?.value === 'true',
+            dashboard_visibility: document.getElementById('modDashVis')?.value || 'all'
         };
+
         try {
             const res = await fetch('/api/admin/modules', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
             if(res.ok) { 
@@ -405,7 +409,7 @@ if (formAddModule) {
                 fetchCourses(); 
             } else {
                 const errData = await res.json().catch(()=>({}));
-                alert("Error adding module: " + (errData.msg || "Unknown database error. Check duplicate title."));
+                alert("Error adding module: " + (errData.msg || "Database error. Check duplicate title."));
             }
         } catch(e) { alert("Network Error"); }
         finally { btn.innerText = "Create Module"; btn.disabled = false; }
@@ -417,16 +421,19 @@ if (formAddLesson) {
     formAddLesson.addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = new FormData();
-        formData.append('module_id', document.getElementById('lessonModuleId').value);
-        formData.append('title', document.getElementById('lessonTitle').value);
-        formData.append('description', document.getElementById('lessonDesc').value);
-        formData.append('display_order', document.getElementById('lessonDisplayOrder').value);
-        formData.append('video_file', document.getElementById('lessonVideoFile').files[0]);
+        formData.append('module_id', document.getElementById('lessonModuleId')?.value || '');
+        formData.append('title', document.getElementById('lessonTitle')?.value || '');
+        formData.append('description', document.getElementById('lessonDesc')?.value || '');
+        formData.append('display_order', document.getElementById('lessonDisplayOrder')?.value || 0);
         
-        const thumbFile = document.getElementById('lessonThumbnailFile').files[0];
-        if (thumbFile) formData.append('thumbnail_file', thumbFile);
+        const videoEl = document.getElementById('lessonVideoFile');
+        if (videoEl && videoEl.files[0]) formData.append('video_file', videoEl.files[0]);
+        
+        const thumbEl = document.getElementById('lessonThumbnailFile');
+        if (thumbEl && thumbEl.files[0]) formData.append('thumbnail_file', thumbEl.files[0]);
 
-        const btn = e.target.querySelector('button'); btn.innerText = "⏳ Uploading & Extracting Thumbnail..."; btn.disabled = true;
+        const btn = e.target.querySelector('button'); btn.innerText = "⏳ Uploading..."; btn.disabled = true;
+        
         try {
             const res = await fetch('/api/admin/lessons', { method: 'POST', credentials: 'same-origin', body: formData });
             const data = await res.json().catch(()=>({}));
@@ -443,17 +450,21 @@ if (formAddLesson) {
 
 function openEditModule(e, id, title, desc, level, notice, order, showHome, dashVis) {
     e.stopPropagation();
-    document.getElementById('editModId').value = id; 
-    document.getElementById('editModTitle').value = title;
-    document.getElementById('editModDesc').value = (desc !== 'null' && desc !== 'undefined') ? desc : '';
-    document.getElementById('editModLevel').value = level; 
-    document.getElementById('editModDisplayOrder').value = order;
-    document.getElementById('editModLockNotice').value = (notice !== 'null' && notice !== 'undefined') ? notice : '';
+    const modalEl = document.getElementById('editModuleModal');
+    if (!modalEl) { alert("Please use the dashboard to edit modules."); return; }
+
+    const safeSet = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
     
-    document.getElementById('editModShowHome').value = (showHome === false || showHome === 'false') ? 'false' : 'true';
-    document.getElementById('editModDashVis').value = (dashVis === 'null' || !dashVis) ? 'all' : dashVis;
+    safeSet('editModId', id);
+    safeSet('editModTitle', title);
+    safeSet('editModDesc', (desc !== 'null' && desc !== 'undefined') ? desc : '');
+    safeSet('editModLevel', level);
+    safeSet('editModDisplayOrder', order);
+    safeSet('editModLockNotice', (notice !== 'null' && notice !== 'undefined') ? notice : '');
+    safeSet('editModShowHome', (showHome === false || showHome === 'false') ? 'false' : 'true');
+    safeSet('editModDashVis', (dashVis === 'null' || !dashVis) ? 'all' : dashVis);
     
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('editModuleModal')).show();
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
 }
 
 const formEditModule = document.getElementById('formEditModule');
@@ -461,15 +472,15 @@ if (formEditModule) {
     formEditModule.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
-        const id = document.getElementById('editModId').value;
+        const id = document.getElementById('editModId')?.value || '';
         const data = {
-            title: document.getElementById('editModTitle').value, 
-            description: document.getElementById('editModDesc').value,
-            required_level: document.getElementById('editModLevel').value, 
-            display_order: document.getElementById('editModDisplayOrder').value,
-            lock_notice: document.getElementById('editModLockNotice').value,
-            show_on_home: document.getElementById('editModShowHome').value === 'true',
-            dashboard_visibility: document.getElementById('editModDashVis').value
+            title: document.getElementById('editModTitle')?.value || '', 
+            description: document.getElementById('editModDesc')?.value || '',
+            required_level: document.getElementById('editModLevel')?.value || 'demo', 
+            display_order: document.getElementById('editModDisplayOrder')?.value || 0,
+            lock_notice: document.getElementById('editModLockNotice')?.value || '',
+            show_on_home: document.getElementById('editModShowHome')?.value === 'true',
+            dashboard_visibility: document.getElementById('editModDashVis')?.value || 'all'
         };
         try {
             const res = await fetch(`/api/admin/modules/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
@@ -492,14 +503,20 @@ async function deleteModule(e, id) {
     try { const res = await fetch(`/api/admin/modules/${id}`, { method: 'DELETE', credentials: 'same-origin' }); if(res.ok) fetchCourses(); } catch(e) {}
 }
 
-
 function openEditLesson(e, id, title, desc, order) {
     e.stopPropagation();
-    document.getElementById('editLessonId').value = id; document.getElementById('editLessonTitle').value = title;
-    document.getElementById('editLessonDesc').value = (desc !== 'null' && desc !== 'undefined') ? desc : '';
-    document.getElementById('editLessonDisplayOrder').value = order;
-    document.getElementById('editLessonThumbnailFile').value = ''; 
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('editLessonModal')).show();
+    const modalEl = document.getElementById('editLessonModal');
+    if (!modalEl) { alert("Please use the dashboard to edit videos."); return; }
+
+    const safeSet = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
+
+    safeSet('editLessonId', id);
+    safeSet('editLessonTitle', title);
+    safeSet('editLessonDesc', (desc !== 'null' && desc !== 'undefined') ? desc : '');
+    safeSet('editLessonDisplayOrder', order);
+    safeSet('editLessonThumbnailFile', '');
+    
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
 }
 
 const formEditLesson = document.getElementById('formEditLesson');
@@ -507,14 +524,14 @@ if (formEditLesson) {
     formEditLesson.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
-        const id = document.getElementById('editLessonId').value;
+        const id = document.getElementById('editLessonId')?.value || '';
         const formData = new FormData();
-        formData.append('title', document.getElementById('editLessonTitle').value);
-        formData.append('description', document.getElementById('editLessonDesc').value);
-        formData.append('display_order', document.getElementById('editLessonDisplayOrder').value);
+        formData.append('title', document.getElementById('editLessonTitle')?.value || '');
+        formData.append('description', document.getElementById('editLessonDesc')?.value || '');
+        formData.append('display_order', document.getElementById('editLessonDisplayOrder')?.value || 0);
         
-        const thumbFile = document.getElementById('editLessonThumbnailFile').files[0];
-        if (thumbFile) formData.append('thumbnail_file', thumbFile);
+        const thumbEl = document.getElementById('editLessonThumbnailFile');
+        if (thumbEl && thumbEl.files[0]) formData.append('thumbnail_file', thumbEl.files[0]);
 
         try {
             const res = await fetch(`/api/admin/lessons/${id}`, { method: 'PUT', credentials: 'same-origin', body: formData });
@@ -569,6 +586,7 @@ async function fetchTrades() {
 
 function populateSymbolFilter(trades) {
     const symbolSelect = document.getElementById('filterSymbol');
+    if(!symbolSelect) return;
     const currentVal = symbolSelect.value;
     const uniqueSymbols = [...new Set(trades.map(t => t.symbol))].sort();
     symbolSelect.innerHTML = '<option value="">All Symbols</option>';
@@ -577,9 +595,9 @@ function populateSymbolFilter(trades) {
 }
 
 function applyFilters(preserveIds = []) {
-    const filterSymbol = document.getElementById('filterSymbol').value;
-    const filterStatus = document.getElementById('filterStatus').value;
-    const filterType = document.getElementById('filterType').value;
+    const filterSymbol = document.getElementById('filterSymbol')?.value || '';
+    const filterStatus = document.getElementById('filterStatus')?.value || 'ALL';
+    const filterType = document.getElementById('filterType')?.value || 'ALL';
     let startDate = ""; let endDate = "";
     if (datePicker && datePicker.selectedDates.length > 0) {
         const formatOpts = { timeZone: 'Asia/Kolkata' };
@@ -588,9 +606,11 @@ function applyFilters(preserveIds = []) {
     }
     const dateDisplay = document.getElementById('activeDateDisplay');
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    if (!startDate && !endDate) { dateDisplay.innerText = "All Time"; } 
-    else if (startDate === endDate) { dateDisplay.innerText = (startDate === todayStr) ? "Today" : startDate; } 
-    else { dateDisplay.innerText = `${startDate.substring(5)} to ${endDate.substring(5)}`; }
+    if (dateDisplay) {
+        if (!startDate && !endDate) { dateDisplay.innerText = "All Time"; } 
+        else if (startDate === endDate) { dateDisplay.innerText = (startDate === todayStr) ? "Today" : startDate; } 
+        else { dateDisplay.innerText = `${startDate.substring(5)} to ${endDate.substring(5)}`; }
+    }
 
     const filtered = allTrades.reduce((acc, trade) => {
         const tradeDateObj = new Date(trade.created_at);
@@ -629,6 +649,8 @@ function applyFilters(preserveIds = []) {
 function renderTrades(trades, preserveIds) {
     const container = document.getElementById('tradeListContainer');
     const noDataMsg = document.getElementById('noData');
+    if (!container) return;
+    
     if (trades.length === 0) { container.innerHTML = ''; if(noDataMsg) noDataMsg.style.display = 'block'; return; } 
     else { if(noDataMsg) noDataMsg.style.display = 'none'; }
 
@@ -694,8 +716,10 @@ function calculateStats(trades) {
     if(document.getElementById('winRate')) document.getElementById('winRate').innerText = winRate + "%";
     
     const pipsEl = document.getElementById('totalPips');
-    pipsEl.innerText = totalPoints.toFixed(2);
-    pipsEl.className = totalPoints >= 0 ? 'stat-val val-green' : 'stat-val val-red';
+    if (pipsEl) {
+        pipsEl.innerText = totalPoints.toFixed(2);
+        pipsEl.className = totalPoints >= 0 ? 'stat-val val-green' : 'stat-val val-red';
+    }
     
     if(document.getElementById('activeTrades')) document.getElementById('activeTrades').innerText = active;
 }
@@ -735,6 +759,11 @@ async function logout() {
     try { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); sessionStorage.clear(); localStorage.clear(); window.location.href = '/home.html'; } catch (err) {}
 }
 
-document.getElementById('filterSymbol').addEventListener('change', () => applyFilters());
-document.getElementById('filterStatus').addEventListener('change', () => applyFilters());
-document.getElementById('filterType').addEventListener('change', () => applyFilters());
+const filterSymbolEl = document.getElementById('filterSymbol');
+if (filterSymbolEl) filterSymbolEl.addEventListener('change', () => applyFilters());
+
+const filterStatusEl = document.getElementById('filterStatus');
+if (filterStatusEl) filterStatusEl.addEventListener('change', () => applyFilters());
+
+const filterTypeEl = document.getElementById('filterType');
+if (filterTypeEl) filterTypeEl.addEventListener('change', () => applyFilters());
