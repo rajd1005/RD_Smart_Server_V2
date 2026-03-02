@@ -40,7 +40,7 @@
         .lesson-item-content { padding: 12px; border-radius: 0; transition: background 0.2s; border-top: 1px solid #f0f2f5; }
         .lesson-item-content:hover { background-color: #f9fbfd; }
 
-        .thumb-wrapper-full { position: relative; width: 100%; border-radius: 6px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); aspect-ratio: 16/9; margin-bottom: 10px; }
+        .thumb-wrapper-full { position: relative; width: 100%; border-radius: 6px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); aspect-ratio: 16/9; margin-bottom: 10px; cursor: pointer; }
         .thumb-wrapper-full img { width: 100%; height: 100%; object-fit: cover; opacity: 0.85; transition: opacity 0.2s; pointer-events: none; }
         .lesson-item-content:hover .thumb-wrapper-full img { opacity: 1; }
         .thumb-play-overlay-full { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
@@ -416,7 +416,7 @@
                 let demoCount = 0; let otherCount = 0;
 
                 modules.forEach((mod) => {
-                    if (mod.show_on_home === false) return;
+                    if (mod.show_on_home === false) return; 
 
                     const isDemo = mod.required_level === 'demo';
                     let displayNoticeHtml = '';
@@ -433,6 +433,7 @@
                             const isLocked = !isDemo;
 
                             const overlayIcon = isLocked ? 'lock' : 'play_circle_filled'; 
+                            const documentIcon = isLocked ? 'lock' : 'article';
                             const iconColor = isLocked ? '#999' : 'var(--blue)';
                             const textColor = isLocked ? '#666' : '#333';
                             const opacityLvl = isLocked ? '0.6' : '1';
@@ -453,8 +454,9 @@
                                 mediaHtml = `<div class="w-100" style="cursor: ${pointerEv};" ${onClickAction}>${thumbnailImg}</div>`;
                             }
 
-                            const finalHeaderIcon = hasVideo ? overlayIcon : (isLocked ? 'lock' : 'article');
+                            const finalHeaderIcon = hasVideo ? overlayIcon : documentIcon;
 
+                            // FIXED: Added white-space: pre-wrap to support Native line breaks
                             lessonHtml += `
                                 <div class="accordion-item lesson-accordion-item">
                                     <h2 class="accordion-header" id="hLsn${l.id}">
@@ -469,7 +471,7 @@
                                                 ${mediaHtml}
                                                 <div class="d-flex justify-content-between align-items-start">
                                                     <div class="flex-grow-1" style="overflow-wrap: break-word;">
-                                                        ${l.description ? `<div class="text-dark mt-2" style="font-size: 13px; line-height: 1.6; padding: 0 5px;">${l.description}</div>` : ''}
+                                                        ${l.description ? `<div class="text-dark mt-2" style="font-size: 13px; line-height: 1.6; padding: 0 5px; white-space: pre-wrap;">${l.description}</div>` : ''}
                                                     </div>
                                                 </div>
                                             </div>
