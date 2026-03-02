@@ -69,23 +69,17 @@ const debugLog = (msg) => console.log(`[AUTH DEBUG] ${msg}`);
 
 const authenticateToken = async (req, res, next) => {
     const token = req.cookies.authToken;
-    if (!token) {
-        debugLog(`API Blocked (No Cookie): ${req.path}`);
-        return res.status(401).json({ success: false, msg: "Not authenticated" });
-    }
+    if (!token) return res.status(401).json({ success: false, msg: "Not authenticated" });
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY id DESC LIMIT 1", [decoded.email]);
-        
         if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { 
-            debugLog(`API Blocked (Session Mismatch): ${req.path} for ${decoded.email}`);
             res.clearCookie('authToken', { path: '/' }); 
             return res.status(403).json({ success: false, msg: "Logged in from another device. Session expired." }); 
         }
         req.user = decoded;
         next();
     } catch (err) {
-        debugLog(`API Blocked (JWT Error): ${req.path} - ${err.message}`);
         res.clearCookie('authToken', { path: '/' });
         return res.status(403).json({ success: false, msg: "Session expired" });
     }
@@ -100,7 +94,6 @@ app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
         const token = req.cookies.authToken;
-        
         if (!token) return res.redirect('/home.html');
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
@@ -125,9 +118,7 @@ app.use(async (req, res, next) => {
             } catch(err) {}
         }
         next();
-    } else { 
-        next(); 
-    }
+    } else { next(); }
 });
 
 app.use(express.static(path.join(__dirname, 'public'))); 
@@ -175,7 +166,7 @@ app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
 app.get('/api/public/courses', async (req, res) => {
     try {
         const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility FROM learning_modules ORDER BY display_order ASC");
-        const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url FROM lesson_videos ORDER BY display_order ASC");
+        const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url, hls_manifest_url FROM lesson_videos ORDER BY display_order ASC");
         const coursesStructure = modulesResult.rows.map(mod => { return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; });
         res.json(coursesStructure);
     } catch (err) { res.status(500).json({ error: "Server Error fetching public courses." }); }
@@ -340,7 +331,7 @@ app.get('/api/hls-key/:lessonId/enc.key', async (req, res) => {
 app.get('/api/courses', authenticateToken, async (req, res) => {
     try {
         const modulesResult = await pool.query("SELECT * FROM learning_modules ORDER BY display_order ASC");
-        const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url FROM lesson_videos ORDER BY display_order ASC");
+        const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url, hls_manifest_url FROM lesson_videos ORDER BY display_order ASC");
         const coursesStructure = modulesResult.rows.map(mod => { return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; });
         res.json(coursesStructure);
     } catch (err) { res.status(500).json({ error: "Server Error fetching courses." }); }
@@ -358,7 +349,6 @@ app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
 });
 
-// FIXED: Added extensive error logging to Admin Module additions
 app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
     const { title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility } = req.body;
     try {
@@ -367,10 +357,7 @@ app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
             [title, description, required_level, display_order || 0, lock_notice || '', show_on_home, dashboard_visibility || 'all']
         );
         res.json({ success: true });
-    } catch (err) { 
-        console.error("❌ Add Module Error:", err); 
-        res.status(500).json({ success: false, msg: err.message }); 
-    }
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 app.put('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
@@ -381,10 +368,7 @@ app.put('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) =
             [title, description, required_level, lock_notice || '', display_order || 0, show_on_home, dashboard_visibility || 'all', req.params.id]
         );
         res.json({ success: true });
-    } catch (err) { 
-        console.error("❌ Edit Module Error:", err);
-        res.status(500).json({ success: false, msg: err.message }); 
-    }
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
@@ -402,11 +386,24 @@ app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+// --- UPDATED: ADD LESSON NOW SUPPORTS TEXT-ONLY / HTML LESSONS ---
 app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name: 'video_file', maxCount: 1 }, { name: 'thumbnail_file', maxCount: 1 }]), async (req, res) => {
     const { module_id, title, description, display_order } = req.body;
-    if (!req.files || !req.files['video_file']) return res.status(400).json({ success: false, msg: "Video file is required." });
-    const videoFile = req.files['video_file'][0];
+    
+    // IF NO VIDEO IS UPLOADED, SAVE AS A TEXT/HTML DOCUMENT LESSON
+    if (!req.files || !req.files['video_file']) {
+        try {
+            await pool.query(
+                "INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6)", 
+                [module_id, title, description || '', '', display_order || 0, '']
+            );
+            return res.json({ success: true, msg: "Text Document Lesson Added Successfully." });
+        } catch(e) {
+            return res.status(500).json({ success: false, msg: e.message });
+        }
+    }
 
+    const videoFile = req.files['video_file'][0];
     let thumbUrl = '';
     
     if (req.files['thumbnail_file']) {
@@ -450,8 +447,8 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
             if (fs.existsSync(videoFile.path)) fs.unlinkSync(videoFile.path);
             try { 
                 await pool.query("INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6)", 
-                [module_id, title, description, m3u8Path, display_order || 0, thumbUrl]); 
-            } catch(e) { console.error("❌ Background Video DB Insert Failed:", e); }
+                [module_id, title, description || '', m3u8Path, display_order || 0, thumbUrl]); 
+            } catch(e) {}
         })
         .on('error', (err) => { if (fs.existsSync(videoFile.path)) fs.unlinkSync(videoFile.path); })
         .run();
@@ -469,9 +466,9 @@ app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, upload.single('thu
             fs.copyFileSync(req.file.path, destPath);
             fs.unlinkSync(req.file.path); 
             const thumbUrl = '/hls/thumbnails/' + thumbName;
-            await pool.query("UPDATE lesson_videos SET title = $1, description = $2, display_order = $3, thumbnail_url = $4 WHERE id = $5", [title, description, display_order || 0, thumbUrl, req.params.id]);
+            await pool.query("UPDATE lesson_videos SET title = $1, description = $2, display_order = $3, thumbnail_url = $4 WHERE id = $5", [title, description || '', display_order || 0, thumbUrl, req.params.id]);
         } else {
-            await pool.query("UPDATE lesson_videos SET title = $1, description = $2, display_order = $3 WHERE id = $4", [title, description, display_order || 0, req.params.id]);
+            await pool.query("UPDATE lesson_videos SET title = $1, description = $2, display_order = $3 WHERE id = $4", [title, description || '', display_order || 0, req.params.id]);
         }
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
