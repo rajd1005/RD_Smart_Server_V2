@@ -52,7 +52,6 @@
         .lock-notice { background-color: #fff3cd; color: #856404; padding: 6px 12px; font-size: 11px; font-weight: 600; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
         .lock-notice a { color: #0056b3; text-decoration: underline; }
 
-        /* PERFECT 914x685 GALLERY CSS WITH GRADIENT OVERLAY */
         .gallery-carousel { background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .carousel-inner img { width: 100%; aspect-ratio: 914 / 685; object-fit: cover; }
         .gallery-overlay { 
@@ -94,6 +93,12 @@
         </div>
 
         <div id="galleryWrapper" class="px-3 pb-4" style="display:none; flex-grow: 1;">
+            
+            <h6 class="fw-bold mb-3 ms-1" style="color: #000; text-transform: uppercase; font-size: 13px; letter-spacing: 0.5px;">
+                <span class="material-icons-round text-primary me-1" style="font-size: 16px; vertical-align: text-bottom;">trending_up</span>
+                Rd Algo Software Performance
+            </h6>
+
             <div id="galleryCarousel" class="carousel slide gallery-carousel" data-bs-ride="carousel" data-bs-interval="3000">
                 <div class="carousel-inner" id="galleryContainer">
                     </div>
@@ -240,7 +245,6 @@
             }
         });
 
-        // --- NEW: POPULATE GALLERY DATA WITH OVERLAYS ---
         async function loadGallery() {
             try {
                 const res = await fetch('/api/public/gallery');
