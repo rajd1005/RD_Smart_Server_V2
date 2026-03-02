@@ -57,7 +57,6 @@ function getClientIp(req) {
 // --- GLOBAL DEBUG LOGGER ---
 const debugLog = (msg) => console.log(`[AUTH DEBUG] ${msg}`);
 
-// --- API AUTHENTICATION MIDDLEWARE ---
 const authenticateToken = async (req, res, next) => {
     const token = req.cookies.authToken;
     if (!token) {
@@ -66,7 +65,6 @@ const authenticateToken = async (req, res, next) => {
     }
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        // FIXED: Using ORDER BY id DESC ensures 100% deterministic session validation
         const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY id DESC LIMIT 1", [decoded.email]);
         
         if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { 
@@ -88,17 +86,14 @@ const isAdmin = (req, res, next) => {
     next();
 };
 
-// --- PAGE ROUTER (DASHBOARD REDIRECTOR) ---
+// --- FIXED: SECURE DASHBOARD PAGE ROUTER ---
 app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
-        // Prevent browser from caching a 302 redirect
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
         
         const token = req.cookies.authToken;
-        debugLog(`Page Access: ${req.path} | Cookie present: ${!!token}`);
-        
         if (!token) {
-            debugLog(`Redirecting to /home.html (No Cookie)`);
+            debugLog(`Redirecting to /home.html (No Cookie present)`);
             return res.redirect('/home.html');
         }
         
@@ -107,7 +102,7 @@ app.use(async (req, res, next) => {
             const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY id DESC LIMIT 1", [decoded.email]);
             
             if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { 
-                debugLog(`Redirecting to /home.html (Session Mismatch). DB: ${rows[0].session_id}, JWT: ${decoded.sessionId}`);
+                debugLog(`Redirecting to /home.html (Session Mismatch for ${decoded.email})`);
                 res.clearCookie('authToken', { path: '/' }); 
                 return res.redirect('/home.html'); 
             }
@@ -115,7 +110,7 @@ app.use(async (req, res, next) => {
             debugLog(`✅ Dashboard Access Granted for: ${decoded.email}`);
             next(); 
         } catch (err) { 
-            debugLog(`Redirecting to /home.html (JWT Verification Failed): ${err.message}`);
+            debugLog(`Redirecting to /home.html (JWT Failed): ${err.message}`);
             res.clearCookie('authToken', { path: '/' }); 
             return res.redirect('/home.html'); 
         }
@@ -148,10 +143,7 @@ app.get('/api/settings', async (req, res) => {
 app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
     const { accordion_state } = req.body;
     try {
-        await pool.query(
-            "INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value",
-            [accordion_state]
-        );
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state]);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
