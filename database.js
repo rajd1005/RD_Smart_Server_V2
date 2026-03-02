@@ -41,7 +41,6 @@ const initDb = async () => {
         setting_value VARCHAR(255)
     );`;
 
-    // --- NEW: Custom Passwords and OTP Tables ---
     const queryUserCreds = `
     CREATE TABLE IF NOT EXISTS user_credentials (
         email VARCHAR(255) PRIMARY KEY,
@@ -56,8 +55,11 @@ const initDb = async () => {
         expires_at TIMESTAMP NOT NULL
     );`;
 
+    // UPDATED: Added hide_trade_tab default to database setup
     const populateDefaultSettings = `
-    INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', 'first')
+    INSERT INTO system_settings (setting_key, setting_value) VALUES 
+    ('accordion_state', 'first'),
+    ('hide_trade_tab', 'false')
     ON CONFLICT (setting_key) DO NOTHING;`;
 
     const upgradeModulesTable = `ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS lock_notice TEXT;`;
@@ -74,7 +76,7 @@ const initDb = async () => {
         await pool.query(queryUserCreds);
         await pool.query(queryPasswordResets);
         await pool.query(populateDefaultSettings);
-        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth)");
+        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings)");
     } catch (err) {
         console.error("❌ Database Error:", err);
     }
