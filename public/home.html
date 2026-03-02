@@ -25,7 +25,7 @@
         .navbar { background: #fff; border-bottom: 1px solid var(--border-color); padding: 8px 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); }
         .navbar-brand { font-size: 18px; font-weight: 900; color: #000; letter-spacing: -0.5px; margin: 0;}
         
-        .curriculum-container { padding: 10px; }
+        .curriculum-container { flex-grow: 1; padding: 10px; }
 
         .accordion-item { border: 1px solid var(--border-color); border-radius: 12px !important; margin-bottom: 6px; background: #fff; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         .accordion-button { padding: 10px 12px; font-weight: 700; color: #000; background: #f8f9fa; box-shadow: none !important; font-size: 14px; min-height: 44px; }
@@ -41,7 +41,7 @@
         .lesson-item-content:hover { background-color: #f9fbfd; }
 
         .thumb-wrapper-compact { position: relative; width: 100px; height: 56px; flex-shrink: 0; margin-right: 12px; border-radius: 4px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); }
-        .thumb-wrapper-compact img { width: 100%; height: 100%; object-fit: cover; opacity: 0.85; transition: opacity 0.2s; }
+        .thumb-wrapper-compact img { width: 100%; height: 100%; object-fit: cover; opacity: 0.85; transition: opacity 0.2s; pointer-events: none; }
         .lesson-item-content:hover .thumb-wrapper-compact img { opacity: 1; }
         .thumb-play-overlay-compact { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
         .thumb-play-overlay-compact .material-icons-round { color: #fff; font-size: 24px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8)); transition: transform 0.2s; }
@@ -52,16 +52,17 @@
         .lock-notice { background-color: #fff3cd; color: #856404; padding: 6px 12px; font-size: 11px; font-weight: 600; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
         .lock-notice a { color: #0056b3; text-decoration: underline; }
 
-        .gallery-carousel { background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        .carousel-inner img { width: 100%; aspect-ratio: 914 / 685; object-fit: cover; }
+        /* PERFECT 914x685 GALLERY CSS WITH DOWNLOAD PROTECTION */
+        .gallery-carousel { background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); -webkit-touch-callout: none; user-select: none; }
+        .carousel-inner img { width: 100%; aspect-ratio: 914 / 685; object-fit: cover; pointer-events: none; -webkit-user-drag: none; }
         .gallery-overlay { 
             position: absolute; bottom: 0; left: 0; width: 100%; 
-            background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%); 
-            padding: 30px 15px 15px; color: #fff; display: flex; flex-direction: column; align-items: flex-start; 
+            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.2) 50%, transparent 100%); 
+            padding: 40px 15px 12px; color: #fff; display: flex; flex-direction: column; align-items: flex-end; 
+            pointer-events: none; /* Prevents overlay from blocking carousel swipes */
         }
-        .gallery-name { font-size: 15px; font-weight: 800; margin-bottom: 2px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); line-height: 1.2; }
-        .gallery-date { font-size: 11px; font-weight: 600; opacity: 0.85; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); margin-bottom: 6px; }
-        .gallery-brand { font-size: 10px; font-weight: 900; color: #000; background: #fff; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .gallery-date { font-size: 11px; font-weight: 700; opacity: 0.95; text-shadow: 1px 1px 3px rgba(0,0,0,0.9); margin-bottom: 5px; letter-spacing: 0.3px; }
+        .gallery-brand { font-size: 10px; font-weight: 900; color: #000; background: #fff; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.4); }
 
         .footer { text-align: center; padding: 20px; color: var(--text-secondary); font-size: 11px; margin-top: auto; border-top: 1px solid var(--border-color); background: #fff; }
 
@@ -86,15 +87,8 @@
             <button class="btn btn-sm btn-primary fw-bold px-3 py-1" style="border-radius: 4px; font-size:12px;" data-bs-toggle="modal" data-bs-target="#loginModal">Login</button>
         </nav>
 
-        <div class="curriculum-container">
-            <div class="accordion" id="publicCourseContainer">
-                <div class="p-5 text-center text-muted fw-bold" style="font-size:13px;">Loading courses...</div>
-            </div>
-        </div>
-
-        <div id="galleryWrapper" class="px-3 pb-4" style="display:none; flex-grow: 1;">
-            
-            <h6 class="fw-bold mb-3 ms-1" style="color: #000; text-transform: uppercase; font-size: 13px; letter-spacing: 0.5px;">
+        <div id="galleryWrapper" class="px-3 pt-3 pb-1" style="display:none;" oncontextmenu="return false;">
+            <h6 class="fw-bold mb-2 ms-1" style="color: #000; text-transform: uppercase; font-size: 13px; letter-spacing: 0.5px;">
                 <span class="material-icons-round text-primary me-1" style="font-size: 16px; vertical-align: text-bottom;">trending_up</span>
                 Rd Algo Software Performance
             </h6>
@@ -110,6 +104,12 @@
                     <span class="carousel-control-next-icon" aria-hidden="true"></span>
                     <span class="visually-hidden">Next</span>
                 </button>
+            </div>
+        </div>
+
+        <div class="curriculum-container">
+            <div class="accordion" id="publicCourseContainer">
+                <div class="p-5 text-center text-muted fw-bold" style="font-size:13px;">Loading courses...</div>
             </div>
         </div>
 
@@ -245,6 +245,7 @@
             }
         });
 
+        // --- UPDATED GALLERY: Right-Low Alignment, Name Removed, Drag Disabled ---
         async function loadGallery() {
             try {
                 const res = await fetch('/api/public/gallery');
@@ -264,10 +265,9 @@
                         }
 
                         html += `<div class="carousel-item ${activeClass}">
-                                    <div class="position-relative">
-                                        <img src="${img.image_url}" class="d-block w-100" alt="Gallery Image">
+                                    <div class="position-relative w-100 h-100">
+                                        <img src="${img.image_url}" class="d-block w-100" alt="Performance Gallery" draggable="false">
                                         <div class="gallery-overlay">
-                                            <div class="gallery-name">${img.name || 'Update'}</div>
                                             <div class="gallery-date">${formattedDate}</div>
                                             <div class="gallery-brand">RDALGO.IN</div>
                                         </div>
