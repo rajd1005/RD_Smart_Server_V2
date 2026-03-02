@@ -54,7 +54,6 @@ function getClientIp(req) {
     return ip.trim().replace('::ffff:', '');
 }
 
-// --- GLOBAL DEBUG LOGGER ---
 const debugLog = (msg) => console.log(`[AUTH DEBUG] ${msg}`);
 
 const authenticateToken = async (req, res, next) => {
@@ -86,17 +85,16 @@ const isAdmin = (req, res, next) => {
     next();
 };
 
-// --- FIXED: SECURE DASHBOARD PAGE ROUTER ---
+// --- SMART DASHBOARD PAGE ROUTER ---
 app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-        
         const token = req.cookies.authToken;
+        
         if (!token) {
             debugLog(`Redirecting to /home.html (No Cookie present)`);
             return res.redirect('/home.html');
         }
-        
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
             const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY id DESC LIMIT 1", [decoded.email]);
@@ -106,7 +104,6 @@ app.use(async (req, res, next) => {
                 res.clearCookie('authToken', { path: '/' }); 
                 return res.redirect('/home.html'); 
             }
-            
             debugLog(`✅ Dashboard Access Granted for: ${decoded.email}`);
             next(); 
         } catch (err) { 
@@ -114,6 +111,21 @@ app.use(async (req, res, next) => {
             res.clearCookie('authToken', { path: '/' }); 
             return res.redirect('/home.html'); 
         }
+    } 
+    // SMART BOUNCE: Prevents logged in users from getting stuck on home.html
+    else if (req.path === '/home.html') {
+        const token = req.cookies.authToken;
+        if (token) {
+            try {
+                const decoded = jwt.verify(token, JWT_SECRET);
+                const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY id DESC LIMIT 1", [decoded.email]);
+                if (rows.length > 0 && rows[0].session_id === decoded.sessionId) {
+                    debugLog(`User already logged in. Auto-redirecting /home.html back to Dashboard!`);
+                    return res.redirect('/');
+                }
+            } catch(err) {}
+        }
+        next();
     } else { 
         next(); 
     }
@@ -143,7 +155,10 @@ app.get('/api/settings', async (req, res) => {
 app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
     const { accordion_state } = req.body;
     try {
-        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state]);
+        await pool.query(
+            "INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value",
+            [accordion_state]
+        );
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
