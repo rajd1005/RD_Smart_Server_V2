@@ -22,7 +22,9 @@ window.onload = function() {
     fetchTrades(); 
     fetchCourses(); 
     applyRoleRestrictions(); 
-    switchSection('learning'); 
+    
+    // FIX: Instantly show the Trading Dashboard on successful load!
+    switchSection('trade'); 
     
     // Trigger Legal Disclaimer Check
     if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
@@ -421,6 +423,7 @@ async function deleteModule(e, id) {
     if(!confirm("⚠️ Delete this entire module AND all its videos?")) return;
     try { const res = await fetch(`/api/admin/modules/${id}`, { method: 'DELETE', credentials: 'same-origin' }); if(res.ok) fetchCourses(); } catch(e) {}
 }
+
 
 function openEditLesson(e, id, title, desc, order) {
     e.stopPropagation();
