@@ -77,7 +77,6 @@
         .lesson-item-content { padding: 12px; border-radius: 0; transition: background 0.2s; cursor: pointer; border-top: 1px solid #f0f2f5; }
         .lesson-item-content:hover { background-color: #f9fbfd; }
         
-        /* FULL SIZE THUMBNAIL CSS */
         .thumb-wrapper-full { position: relative; width: 100%; border-radius: 6px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); aspect-ratio: 16/9; margin-bottom: 10px; }
         .thumb-wrapper-full img { width: 100%; height: 100%; object-fit: cover; opacity: 0.85; transition: opacity 0.2s; pointer-events: none; }
         .lesson-item-content:hover .thumb-wrapper-full img { opacity: 1; }
@@ -203,6 +202,10 @@
                                     <input type="text" id="modTitle" class="form-control" required>
                                 </div>
                                 <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Short Description</label>
+                                    <input type="text" id="modDesc" class="form-control">
+                                </div>
+                                <div class="mb-2">
                                     <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Access Level</label>
                                     <select id="modLevel" class="form-select" required>
                                         <option value="demo">Demo / Public</option>
@@ -313,6 +316,10 @@
                         <div class="mb-2">
                             <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Module Title</label>
                             <input type="text" id="editModTitle" class="form-control" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
+                            <input type="text" id="editModDesc" class="form-control">
                         </div>
                         <div class="mb-2">
                             <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Access Level</label>
