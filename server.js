@@ -163,11 +163,22 @@ app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+// --- UPDATED: SECURE PUBLIC COURSE FETCH (MASKS CONTENT IF LOCKED) ---
 app.get('/api/public/courses', async (req, res) => {
     try {
         const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility FROM learning_modules ORDER BY display_order ASC");
         const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url, hls_manifest_url FROM lesson_videos ORDER BY display_order ASC");
-        const coursesStructure = modulesResult.rows.map(mod => { return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; });
+        
+        const coursesStructure = modulesResult.rows.map(mod => { 
+            const isLocked = mod.required_level !== 'demo';
+            const safeLessons = lessonsResult.rows.filter(l => l.module_id === mod.id).map(l => {
+                if (isLocked) {
+                    return { ...l, hls_manifest_url: null, description: '🔒 This text content is protected. Please login to view.' };
+                }
+                return l;
+            });
+            return { ...mod, lessons: safeLessons }; 
+        });
         res.json(coursesStructure);
     } catch (err) { res.status(500).json({ error: "Server Error fetching public courses." }); }
 });
@@ -328,11 +339,22 @@ app.get('/api/hls-key/:lessonId/enc.key', async (req, res) => {
     } catch (err) { res.status(403).send('Forbidden'); }
 });
 
+// --- UPDATED: SECURE DASHBOARD COURSE FETCH (MASKS CONTENT IF LOCKED) ---
 app.get('/api/courses', authenticateToken, async (req, res) => {
     try {
         const modulesResult = await pool.query("SELECT * FROM learning_modules ORDER BY display_order ASC");
         const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url, hls_manifest_url FROM lesson_videos ORDER BY display_order ASC");
-        const coursesStructure = modulesResult.rows.map(mod => { return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; });
+        
+        const coursesStructure = modulesResult.rows.map(mod => { 
+            const isLocked = req.user.role !== 'admin' && mod.required_level !== 'demo' && req.user.accessLevels[mod.required_level] !== 'Yes';
+            const safeLessons = lessonsResult.rows.filter(l => l.module_id === mod.id).map(l => {
+                if (isLocked) {
+                    return { ...l, hls_manifest_url: null, description: '🔒 This text content is restricted to your access level.' };
+                }
+                return l;
+            });
+            return { ...mod, lessons: safeLessons }; 
+        });
         res.json(coursesStructure);
     } catch (err) { res.status(500).json({ error: "Server Error fetching courses." }); }
 });
@@ -386,11 +408,9 @@ app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// --- UPDATED: ADD LESSON NOW SUPPORTS TEXT-ONLY / HTML LESSONS ---
 app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name: 'video_file', maxCount: 1 }, { name: 'thumbnail_file', maxCount: 1 }]), async (req, res) => {
     const { module_id, title, description, display_order } = req.body;
     
-    // IF NO VIDEO IS UPLOADED, SAVE AS A TEXT/HTML DOCUMENT LESSON
     if (!req.files || !req.files['video_file']) {
         try {
             await pool.query(
