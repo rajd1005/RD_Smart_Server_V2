@@ -168,7 +168,6 @@ async function fetchCourses() {
                 
                 mod.lessons.forEach(l => {
                     const safeLT = (l.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-                    // FIXED: MUST ESCAPE NEWLINES OR JS WILL CRASH WHEN EDITING MULTI-LINE TEXT
                     const safeLD = (l.description || '').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
                     
                     const adminBtnsLess = userData.role === 'admin' ? `
@@ -195,7 +194,7 @@ async function fetchCourses() {
                         const thumbIconColor = isLocked ? '#ccc' : '#fff';
                         const thumbnailImg = l.thumbnail_url 
                             ? `<div class="thumb-wrapper-full"><img src="${l.thumbnail_url}" loading="lazy"><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${thumbIconColor};">${overlayIcon}</span></div></div>` 
-                            : `<div class="thumb-wrapper-full"><div class="w-100 h-100 bg-dark d-flex align-items-center justify-content-center"><span class="material-icons-round" style="font-size:48px; color:#444;">${overlayIcon}</span></div><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${thumbIconColor};">${overlayIcon}</span></div></div>`;
+                            : `<div class="thumb-wrapper-full"><div class="w-100 h-100 bg-dark d-flex align-items-center justify-content-center" style="min-height: 250px;"><span class="material-icons-round" style="font-size:48px; color:#444;">${overlayIcon}</span></div><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${thumbIconColor};">${overlayIcon}</span></div></div>`;
 
                         mediaHtml = `<div class="w-100" style="cursor: ${pointerEv};" ${onClickAction}>${thumbnailImg}</div>`;
                     }
@@ -268,6 +267,11 @@ async function fetchCourses() {
             const showGallery = settings.show_gallery !== 'false';
             const adminGalleryCheck = document.getElementById('adminShowGallery');
             if (adminGalleryCheck) adminGalleryCheck.checked = showGallery;
+
+            // --- UPDATED: PULL CALL WIDGET SETTING FOR ADMIN VIEW ---
+            const showCallWidget = settings.show_call_widget !== 'false';
+            const adminCallWidgetCheck = document.getElementById('adminShowCallWidget');
+            if (adminCallWidgetCheck) adminCallWidgetCheck.checked = showCallWidget;
 
             const navTradeBtn = document.getElementById('navTradeBtn');
             if (navTradeBtn) {
@@ -368,6 +372,7 @@ function moveWatermark() {
 }
 
 
+// --- FORM SUBMIT HANDLERS (FIXED ERROR EXPOSURE) ---
 const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
     formAdminSettings.addEventListener('submit', async (e) => {
@@ -377,13 +382,14 @@ if (formAdminSettings) {
         const state = document.getElementById('adminAccordionState')?.value || 'first';
         const hideTrade = document.getElementById('adminHideTradeTab')?.checked ? 'true' : 'false';
         const showGallery = document.getElementById('adminShowGallery')?.checked ? 'true' : 'false';
+        const showCallWidget = document.getElementById('adminShowCallWidget')?.checked ? 'true' : 'false';
         
         try {
             const res = await fetch('/api/admin/settings', { 
                 method: 'PUT', 
                 headers: {'Content-Type': 'application/json'}, 
                 credentials: 'same-origin', 
-                body: JSON.stringify({ accordion_state: state, hide_trade_tab: hideTrade, show_gallery: showGallery }) 
+                body: JSON.stringify({ accordion_state: state, hide_trade_tab: hideTrade, show_gallery: showGallery, show_call_widget: showCallWidget }) 
             });
             if(res.ok) { 
                 const m = bootstrap.Modal.getInstance(document.getElementById('adminCourseModal'));
