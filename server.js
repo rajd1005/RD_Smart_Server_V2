@@ -69,23 +69,17 @@ const debugLog = (msg) => console.log(`[AUTH DEBUG] ${msg}`);
 
 const authenticateToken = async (req, res, next) => {
     const token = req.cookies.authToken;
-    if (!token) {
-        debugLog(`API Blocked (No Cookie): ${req.path}`);
-        return res.status(401).json({ success: false, msg: "Not authenticated" });
-    }
+    if (!token) return res.status(401).json({ success: false, msg: "Not authenticated" });
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY id DESC LIMIT 1", [decoded.email]);
-        
         if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { 
-            debugLog(`API Blocked (Session Mismatch): ${req.path} for ${decoded.email}`);
             res.clearCookie('authToken', { path: '/' }); 
             return res.status(403).json({ success: false, msg: "Logged in from another device. Session expired." }); 
         }
         req.user = decoded;
         next();
     } catch (err) {
-        debugLog(`API Blocked (JWT Error): ${req.path} - ${err.message}`);
         res.clearCookie('authToken', { path: '/' });
         return res.status(403).json({ success: false, msg: "Session expired" });
     }
@@ -100,24 +94,16 @@ app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
         const token = req.cookies.authToken;
-        
-        if (!token) {
-            debugLog(`Redirecting to /home.html (No Cookie present)`);
-            return res.redirect('/home.html');
-        }
+        if (!token) return res.redirect('/home.html');
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
             const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY id DESC LIMIT 1", [decoded.email]);
-            
             if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { 
-                debugLog(`Redirecting to /home.html (Session Mismatch for ${decoded.email})`);
                 res.clearCookie('authToken', { path: '/' }); 
                 return res.redirect('/home.html'); 
             }
-            debugLog(`✅ Dashboard Access Granted for: ${decoded.email}`);
             next(); 
         } catch (err) { 
-            debugLog(`Redirecting to /home.html (JWT Failed): ${err.message}`);
             res.clearCookie('authToken', { path: '/' }); 
             return res.redirect('/home.html'); 
         }
@@ -128,16 +114,11 @@ app.use(async (req, res, next) => {
             try {
                 const decoded = jwt.verify(token, JWT_SECRET);
                 const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY id DESC LIMIT 1", [decoded.email]);
-                if (rows.length > 0 && rows[0].session_id === decoded.sessionId) {
-                    debugLog(`User already logged in. Auto-redirecting /home.html back to Dashboard!`);
-                    return res.redirect('/');
-                }
+                if (rows.length > 0 && rows[0].session_id === decoded.sessionId) return res.redirect('/');
             } catch(err) {}
         }
         next();
-    } else { 
-        next(); 
-    }
+    } else { next(); }
 });
 
 app.use(express.static(path.join(__dirname, 'public'))); 
@@ -152,9 +133,13 @@ function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
-// --- EXACT DB MATCH: FETCH GALLERY API (LAST 30 DAYS & RECENT FIRST) ---
 app.get('/api/public/gallery', async (req, res) => {
     try {
+        const settingRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'show_gallery'");
+        const showGallery = settingRes.rows.length > 0 ? settingRes.rows[0].setting_value : 'true';
+        
+        if (showGallery !== 'true') return res.json({ success: true, show_gallery: false, images: [] });
+
         const [rows] = await galleryPool.query(`
             SELECT id, image_url, trade_date, name 
             FROM wp_central_image_gallery 
@@ -162,7 +147,7 @@ app.get('/api/public/gallery', async (req, res) => {
             ORDER BY trade_date DESC, id DESC 
             LIMIT 50
         `);
-        res.json({ success: true, images: rows });
+        res.json({ success: true, show_gallery: true, images: rows });
     } catch (err) {
         console.error("Gallery DB Error:", err);
         res.status(500).json({ success: false, msg: "Failed to fetch gallery images." });
@@ -179,17 +164,18 @@ app.get('/api/settings', async (req, res) => {
 });
 
 app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
-    const { accordion_state, hide_trade_tab } = req.body;
+    const { accordion_state, hide_trade_tab, show_gallery } = req.body;
     try {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state || 'first']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('hide_trade_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [hide_trade_tab || 'false']);
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_gallery', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_gallery || 'true']);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 app.get('/api/public/courses', async (req, res) => {
     try {
-        const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order FROM learning_modules ORDER BY display_order ASC");
+        const modulesResult = await pool.query("SELECT * FROM learning_modules ORDER BY display_order ASC");
         const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url FROM lesson_videos ORDER BY display_order ASC");
         const coursesStructure = modulesResult.rows.map(mod => { return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; });
         res.json(coursesStructure);
@@ -210,9 +196,6 @@ app.post('/api/login', async (req, res) => {
     const { password, rememberMe } = req.body;
     const email = req.body.email.trim();
     const clientIp = getClientIp(req);
-    
-    debugLog(`Login Attempt Initiated for: ${email}`);
-
     try {
         let userEmail = ""; let userRole = "student"; let userPhone = "";
         let accessLevels = { level_1_status: 'No', level_2_status: 'No', level_3_status: 'No', level_4_status: 'No' };
@@ -236,15 +219,11 @@ app.post('/api/login', async (req, res) => {
                 if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
                 
                 const setupToken = jwt.sign({ email: rows[0].student_email, phone: rows[0].student_phone }, JWT_SECRET, { expiresIn: '15m' });
-                debugLog(`First Time Setup Required for: ${email}`);
                 return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
             }
 
             const expiryDate = new Date(studentRecord.student_expiry_date);
-            if (expiryDate < new Date()) {
-                debugLog(`Account Expired for: ${email}`);
-                return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." });
-            }
+            if (expiryDate < new Date()) { return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." }); }
 
             userEmail = studentRecord.student_email; userPhone = studentRecord.student_phone; 
             accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
@@ -255,23 +234,11 @@ app.post('/api/login', async (req, res) => {
         await pool.query("DELETE FROM login_logs WHERE login_time < NOW() - INTERVAL '30 days'");
 
         const token = jwt.sign({ email: userEmail, phone: userPhone, sessionId: sessionId, role: userRole, accessLevels: accessLevels }, JWT_SECRET, { expiresIn: rememberMe ? '30d' : '1d' });
-        
         const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
-        debugLog(`Issuing JWT Cookie -> Secure: ${isSecure}, Session: ${sessionId}`);
-
-        res.cookie('authToken', token, { 
-            httpOnly: true, 
-            secure: isSecure, 
-            sameSite: 'lax', 
-            path: '/', 
-            maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 
-        });
+        res.cookie('authToken', token, { httpOnly: true, secure: isSecure, sameSite: 'lax', path: '/', maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 });
 
         res.json({ success: true, msg: "Login successful", email: userEmail, phone: userPhone, role: userRole, accessLevels: accessLevels });
-    } catch (error) { 
-        debugLog(`Login DB Error: ${error.message}`);
-        res.status(500).json({ success: false, msg: "Database connection error" }); 
-    }
+    } catch (error) { res.status(500).json({ success: false, msg: "Database connection error" }); }
 });
 
 app.post('/api/set_password', async (req, res) => {
@@ -281,11 +248,8 @@ app.post('/api/set_password', async (req, res) => {
         const salt = crypto.randomBytes(16).toString('hex');
         const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
         await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [decoded.email, salt, hash]);
-        debugLog(`Password securely setup for: ${decoded.email}`);
         res.json({ success: true, email: decoded.email }); 
-    } catch (err) {
-        res.status(401).json({ success: false, msg: "Setup session expired. Please log in again." });
-    }
+    } catch (err) { res.status(401).json({ success: false, msg: "Setup session expired. Please log in again." }); }
 });
 
 app.post('/api/forgot_password', async (req, res) => {
@@ -310,7 +274,6 @@ app.post('/api/forgot_password', async (req, res) => {
                    </div>`
         };
         transporter.sendMail(mailOptions).catch(e => console.error(e));
-        debugLog(`OTP Sent to: ${email}`);
         res.json({ success: true, msg: "OTP sent to your email." });
     } catch (err) { res.status(500).json({ success: false, msg: "Server error generating OTP." }); }
 });
@@ -325,16 +288,11 @@ app.post('/api/reset_password', async (req, res) => {
         const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
         await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [email, salt, hash]);
         await pool.query("DELETE FROM password_resets WHERE email = $1", [email]); 
-        
-        debugLog(`Password successfully reset via OTP for: ${email}`);
         res.json({ success: true, msg: "Password changed successfully. You can now login." });
     } catch (err) { res.status(500).json({ success: false, msg: "Server error resetting password." }); }
 });
 
-app.post('/api/logout', (req, res) => { 
-    res.clearCookie('authToken', { path: '/' }); 
-    res.json({ success: true }); 
-});
+app.post('/api/logout', (req, res) => { res.clearCookie('authToken', { path: '/' }); res.json({ success: true }); });
 
 app.post('/api/accept_terms', authenticateToken, async (req, res) => {
     try {
@@ -352,7 +310,6 @@ app.post('/api/accept_terms', authenticateToken, async (req, res) => {
                     <h2 style="color: #0056b3; border-bottom: 2px solid #e9ecef; padding-bottom: 10px;">Official Agreement Record</h2>
                     <p>Dear User,</p>
                     <p>This email serves as a digital signature and official record that you have explicitly read, understood, and agreed to the RD Algo Mandatory Legal Disclaimer to access the platform.</p>
-                    
                     <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #007aff;">
                         <h4 style="margin-top: 0;">Digital Footprint:</h4>
                         <ul style="list-style: none; padding: 0; margin: 0;">
@@ -361,22 +318,12 @@ app.post('/api/accept_terms', authenticateToken, async (req, res) => {
                             <li style="margin-bottom: 5px;"><strong>IP Address:</strong> ${clientIp}</li>
                         </ul>
                     </div>
-
-                    <h4 style="color: #ff3b30;">Accepted Terms & Conditions:</h4>
-                    <div style="background:#fff3cd; color: #856404; padding:15px; border: 1px solid #ffeeba; border-radius: 8px; font-size: 13px;">
-                        <p style="margin-top:0;"><strong>1. Not SEBI Registered:</strong> We are NOT registered with SEBI or any regulatory body. We are not financial advisors.</p>
-                        <p><strong>2. Educational Only:</strong> All content, signals, and setups are strictly for educational and learning purposes.</p>
-                        <p><strong>3. Paper Trading:</strong> Do NOT take live real-money trades. Use virtual money (paper trading) only to test and learn.</p>
-                        <p style="margin-bottom:0;"><strong>4. Your Responsibility:</strong> Trading carries massive risk. You are 100% responsible for your own actions. We accept NO liability for any financial losses.</p>
-                    </div>
-                    
-                    <p style="font-size: 11px; color: #888; margin-top: 30px;">This is an automated legal compliance email. If you did not authorize this agreement, please log out of your account immediately and contact support.</p>
+                    <p style="font-size: 11px; color: #888; margin-top: 30px;">This is an automated legal compliance email.</p>
                 </div>
             `
         };
 
         transporter.sendMail(mailOptions).catch(err => console.error("SMTP Mail Error:", err));
-        debugLog(`Legal Agreement Recorded & Emailed for: ${userEmail}`);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: "Failed to record agreement." }); }
 });
@@ -420,17 +367,19 @@ app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
-    const { title, description, required_level, display_order, lock_notice } = req.body;
+    const { title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility } = req.body;
     try {
-        await pool.query("INSERT INTO learning_modules (title, description, required_level, display_order, lock_notice) VALUES ($1, $2, $3, $4, $5)", [title, description, required_level, display_order || 0, lock_notice || '']);
+        await pool.query("INSERT INTO learning_modules (title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
+            [title, description, required_level, display_order || 0, lock_notice || '', show_on_home, dashboard_visibility || 'all']);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 app.put('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
-    const { title, description, required_level, lock_notice, display_order } = req.body;
+    const { title, description, required_level, lock_notice, display_order, show_on_home, dashboard_visibility } = req.body;
     try {
-        await pool.query("UPDATE learning_modules SET title = $1, description = $2, required_level = $3, lock_notice = $4, display_order = $5 WHERE id = $6", [title, description, required_level, lock_notice || '', display_order || 0, req.params.id]);
+        await pool.query("UPDATE learning_modules SET title = $1, description = $2, required_level = $3, lock_notice = $4, display_order = $5, show_on_home = $6, dashboard_visibility = $7 WHERE id = $8", 
+            [title, description, required_level, lock_notice || '', display_order || 0, show_on_home, dashboard_visibility || 'all', req.params.id]);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -456,6 +405,7 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
     const videoFile = req.files['video_file'][0];
 
     let thumbUrl = '';
+    
     if (req.files['thumbnail_file']) {
         const thumbFile = req.files['thumbnail_file'][0];
         const ext = path.extname(thumbFile.originalname) || '.jpg';
@@ -464,6 +414,17 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
         fs.copyFileSync(thumbFile.path, destPath);
         fs.unlinkSync(thumbFile.path); 
         thumbUrl = '/hls/thumbnails/' + thumbName;
+    } else {
+        // --- NEW: AUTO GENERATE THUMBNAIL FROM VIDEO (First Frame) ---
+        const thumbName = crypto.randomUUID() + '.jpg';
+        try {
+            await new Promise((resolve, reject) => {
+                ffmpeg(videoFile.path)
+                    .screenshots({ timestamps: ['00:00:01.000'], filename: thumbName, folder: thumbDir, size: '1280x720' })
+                    .on('end', resolve).on('error', reject);
+            });
+            thumbUrl = '/hls/thumbnails/' + thumbName;
+        } catch (err) { console.error("Auto-thumbnail failed, skipping.", err); thumbUrl = ''; }
     }
 
     const lessonId = crypto.randomUUID();
