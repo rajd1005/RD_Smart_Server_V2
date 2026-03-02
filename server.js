@@ -9,6 +9,7 @@ const path = require('path');
 const crypto = require('crypto'); 
 const fs = require('fs');
 const multer = require('multer');
+const nodemailer = require('nodemailer');
 
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
@@ -39,6 +40,17 @@ const DELETE_PASSWORD = (process.env.DELETE_PASSWORD || "admin123").trim();
 const JWT_SECRET = (process.env.JWT_SECRET || "super_secret_key_123").trim();
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@rdalgo.in").trim();
 const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || "admin123").trim();
+
+// --- SMTP EMAIL CONFIGURATION ---
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT || 587,
+    secure: process.env.SMTP_SECURE === 'true', 
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+    }
+});
 
 function getClientIp(req) {
     let ip = req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.ip || '';
@@ -174,6 +186,56 @@ app.post('/api/login', async (req, res) => {
 
 app.post('/api/logout', (req, res) => { res.clearCookie('authToken'); res.json({ success: true }); });
 
+// --- NEW: DIGITAL SIGNATURE & LEGAL DISCLAIMER API ---
+app.post('/api/accept_terms', authenticateToken, async (req, res) => {
+    try {
+        const userEmail = req.user.email;
+        const clientIp = getClientIp(req);
+        const istTime = getISTTime();
+
+        const mailOptions = {
+            from: `"RD Algo Compliance" <${process.env.SMTP_USER}>`,
+            to: userEmail,
+            cc: ADMIN_EMAIL, // Sends copy to Admin automatically
+            subject: `Legal Disclaimer Accepted - ${userEmail}`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                    <h2 style="color: #0056b3; border-bottom: 2px solid #e9ecef; padding-bottom: 10px;">Official Agreement Record</h2>
+                    <p>Dear User,</p>
+                    <p>This email serves as a digital signature and official record that you have explicitly read, understood, and agreed to the RD Algo Mandatory Legal Disclaimer to access the platform.</p>
+                    
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #007aff;">
+                        <h4 style="margin-top: 0;">Digital Footprint:</h4>
+                        <ul style="list-style: none; padding: 0; margin: 0;">
+                            <li style="margin-bottom: 5px;"><strong>User Account:</strong> ${userEmail}</li>
+                            <li style="margin-bottom: 5px;"><strong>Date & Time (IST):</strong> ${istTime}</li>
+                            <li style="margin-bottom: 5px;"><strong>IP Address:</strong> ${clientIp}</li>
+                        </ul>
+                    </div>
+
+                    <h4 style="color: #ff3b30;">Accepted Terms & Conditions:</h4>
+                    <div style="background:#fff3cd; color: #856404; padding:15px; border: 1px solid #ffeeba; border-radius: 8px; font-size: 13px;">
+                        <p style="margin-top:0;"><strong>1. Not SEBI Registered:</strong> We are NOT registered with SEBI or any regulatory body. We are not financial advisors.</p>
+                        <p><strong>2. Educational Only:</strong> All content, signals, and setups are strictly for educational and learning purposes.</p>
+                        <p><strong>3. Paper Trading:</strong> Do NOT take live real-money trades. Use virtual money (paper trading) only to test and learn.</p>
+                        <p style="margin-bottom:0;"><strong>4. Your Responsibility:</strong> Trading carries massive risk. You are 100% responsible for your own actions. We accept NO liability for any financial losses.</p>
+                    </div>
+                    
+                    <p style="font-size: 11px; color: #888; margin-top: 30px;">This is an automated legal compliance email. If you did not authorize this agreement, please log out of your account immediately and contact support.</p>
+                </div>
+            `
+        };
+
+        // Sends email asynchronously in the background so the user doesn't wait
+        transporter.sendMail(mailOptions).catch(err => console.error("SMTP Mail Error:", err));
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, msg: "Failed to record agreement." });
+    }
+});
+
 app.get('/api/hls-key/:lessonId/enc.key', async (req, res) => {
     try {
         const lessonId = req.params.lessonId;
@@ -261,11 +323,8 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
         const ext = path.extname(thumbFile.originalname) || '.jpg';
         const thumbName = crypto.randomUUID() + ext;
         const destPath = path.join(thumbDir, thumbName);
-        
-        // --- SECURE FIX FOR CROSS-DEVICE LINK ERROR ---
         fs.copyFileSync(thumbFile.path, destPath);
         fs.unlinkSync(thumbFile.path); 
-        
         thumbUrl = '/hls/thumbnails/' + thumbName;
     }
 
@@ -307,11 +366,8 @@ app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, upload.single('thu
             const ext = path.extname(req.file.originalname) || '.jpg';
             const thumbName = crypto.randomUUID() + ext;
             const destPath = path.join(thumbDir, thumbName);
-            
-            // --- SECURE FIX FOR CROSS-DEVICE LINK ERROR ---
             fs.copyFileSync(req.file.path, destPath);
             fs.unlinkSync(req.file.path); 
-            
             const thumbUrl = '/hls/thumbnails/' + thumbName;
             
             await pool.query("UPDATE lesson_videos SET title = $1, description = $2, display_order = $3, thumbnail_url = $4 WHERE id = $5", [title, description, display_order || 0, thumbUrl, req.params.id]);
