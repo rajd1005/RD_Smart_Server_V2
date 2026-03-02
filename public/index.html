@@ -77,8 +77,8 @@
         .lesson-item-content { padding: 12px; border-radius: 0; transition: background 0.2s; border-top: 1px solid #f0f2f5; }
         .lesson-item-content:hover { background-color: #f9fbfd; }
         
-        .thumb-wrapper-full { position: relative; width: 100%; border-radius: 6px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); max-height: 450px; display: flex; flex-direction: column; justify-content: center; align-items: center; margin-bottom: 10px; cursor: pointer; }
-        .thumb-wrapper-full img { width: 100%; max-height: 450px; object-fit: contain; opacity: 0.85; transition: opacity 0.2s; pointer-events: none; display: block; }
+        .thumb-wrapper-full { position: relative; width: 100%; border-radius: 6px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); aspect-ratio: 16/9; margin-bottom: 10px; cursor: pointer; }
+        .thumb-wrapper-full img { width: 100%; height: 100%; object-fit: cover; opacity: 0.85; transition: opacity 0.2s; pointer-events: none; }
         .lesson-item-content:hover .thumb-wrapper-full img { opacity: 1; }
         .thumb-play-overlay-full { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
         .thumb-play-overlay-full .material-icons-round { color: #fff; font-size: 52px; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.8)); transition: transform 0.2s; }
@@ -86,6 +86,30 @@
         
         .lock-notice { background-color: #fff3cd; color: #856404; padding: 6px 12px; font-size: 11px; font-weight: 600; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
         .lock-notice a { color: #0056b3; text-decoration: underline; }
+
+        /* GALLERY CSS */
+        .gallery-carousel { background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); -webkit-touch-callout: none; user-select: none; }
+        .carousel-inner img { width: 100%; aspect-ratio: 914 / 685; object-fit: cover; pointer-events: none; -webkit-user-drag: none; }
+        .gallery-overlay { position: absolute; bottom: 0; left: 0; width: 100%; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.2) 50%, transparent 100%); padding: 40px 15px 12px; color: #fff; display: flex; flex-direction: column; align-items: flex-end; pointer-events: none; }
+        .gallery-date { font-size: 11px; font-weight: 700; opacity: 0.95; text-shadow: 1px 1px 3px rgba(0,0,0,0.9); margin-bottom: 5px; letter-spacing: 0.3px; }
+        .gallery-brand { font-size: 10px; font-weight: 900; color: #000; background: #fff; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.4); }
+
+        /* CALL WIDGET CSS */
+        .call-summary-cards { display: flex; gap: 8px; margin-bottom: 15px; }
+        .call-summary-card { flex: 1; background: #f8f9fa; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 5px; text-align: center; }
+        .call-summary-card h3 { margin: 0; font-size: 10px; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; }
+        .call-summary-card div { font-size: 16px; font-weight: 900; color: #000; margin-top: 4px; }
+        .daily-toggle { font-size: 13px; font-weight: 700; padding: 12px 15px; border: 1px solid var(--border-color); background: #fff; border-radius: 8px; margin-bottom: 6px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+        .daily-details { display: none; padding: 10px 0 15px; }
+        .day-header-cards { display: flex; gap: 8px; margin-bottom: 12px; }
+        .day-header-cards .card { flex: 1; background: #e3f2fd; color: var(--blue); border: none; padding: 8px; border-radius: 6px; text-align: center; font-size: 10px; font-weight: 700; box-shadow: none; text-transform: uppercase; }
+        .day-header-cards .card span { font-size: 14px; font-weight: 900; display: block; margin-top: 2px; color: #000; }
+        table.call-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        table.call-table th { text-align: left; padding: 8px 5px; background: #f8f9fa; color: var(--text-secondary); font-weight: 700; text-transform: uppercase; font-size: 9px; border-bottom: 1px solid var(--border-color); }
+        table.call-table td { padding: 8px 5px; border-bottom: 1px solid var(--border-color); font-weight: 600; color: #333; }
+        .zth-badge { background: #13343f; color: white; padding: 2px 5px; border-radius: 4px; font-size: 9px; margin-left: 6px; vertical-align: middle; }
+        .rotating { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
 
         .form-control, .form-select { font-size: 13px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-color); }
         .form-control:focus, .form-select:focus { border-color: var(--blue); box-shadow: 0 0 0 0.2rem rgba(0, 122, 255, 0.15); }
@@ -144,8 +168,47 @@
                 <button id="btnAdminCourseManager" class="btn btn-sm btn-dark fw-bold ms-auto" style="display:none; font-size: 11px;" data-bs-toggle="modal" data-bs-target="#adminCourseModal">⚙️ Admin Manager</button>
             </div>
             
-            <div class="accordion" id="courseModuleContainer">
-                <div class="p-4 text-center text-muted">Loading courses...</div>
+            <div class="curriculum-container pb-0 px-0" id="demoCoursesContainer" style="display:none;">
+                <div class="accordion" id="publicCourseContainer_demo"></div>
+            </div>
+
+            <div id="galleryWrapper" class="pt-3 pb-1" style="display:none;" oncontextmenu="return false;">
+                <h6 class="fw-bold mb-2 ms-1" style="color: #000; text-transform: uppercase; font-size: 13px; letter-spacing: 0.5px;">
+                    <span class="material-icons-round text-primary me-1" style="font-size: 16px; vertical-align: text-bottom;">trending_up</span>
+                    Rd Algo Software Performance
+                </h6>
+                <div id="galleryCarousel" class="carousel slide gallery-carousel" data-bs-ride="carousel" data-bs-interval="3000">
+                    <div class="carousel-inner" id="galleryContainer"></div>
+                    <button class="carousel-control-prev" type="button" data-bs-target="#galleryCarousel" data-bs-slide="prev">
+                        <span class="carousel-control-prev-icon" aria-hidden="true"></span><span class="visually-hidden">Previous</span>
+                    </button>
+                    <button class="carousel-control-next" type="button" data-bs-target="#galleryCarousel" data-bs-slide="next">
+                        <span class="carousel-control-next-icon" aria-hidden="true"></span><span class="visually-hidden">Next</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="callReportWrapper" class="pt-3 pb-2" style="display:none;">
+                <h6 class="fw-bold mb-2 ms-1" style="color: #000; text-transform: uppercase; font-size: 13px; letter-spacing: 0.5px;">
+                    <span class="material-icons-round text-primary me-1" style="font-size: 16px; vertical-align: text-bottom;">query_stats</span>
+                    Call Performance
+                </h6>
+                <div style="background: #fff; border-radius: 12px; border: 1px solid var(--border-color); padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.03);">
+                    <div class="d-flex align-items-center justify-content-center mb-3">
+                        <input id="call-date-range" class="form-control text-center fw-bold" placeholder="Select Date Range" readonly style="max-width: 220px; font-size: 12px; background-color: #f8f9fa;">
+                    </div>
+                    <div id="call-loader" style="display:none; text-align:center; margin: 20px 0;">
+                        <span style="font-size:12px; font-weight: bold; color:var(--blue);">
+                            <span class="material-icons-round rotating" style="font-size:16px; vertical-align: text-bottom;">sync</span> Fetching Report...
+                        </span>
+                    </div>
+                    <div id="call-summary"></div>
+                    <div id="call-report-output"></div>
+                </div>
+            </div>
+
+            <div class="curriculum-container pt-1 px-0" id="otherCoursesContainer" style="display:none;">
+                <div class="accordion" id="publicCourseContainer_other"></div>
             </div>
         </div>
 
