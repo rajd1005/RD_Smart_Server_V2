@@ -24,6 +24,10 @@ window.onload = function() {
     
     switchSection('learning'); 
     
+    // NEW: Initialize the Call Widget and Gallery inside the Dashboard
+    initCallWidget();
+    loadGallery();
+    
     if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
         const modalEl = document.getElementById('disclaimerModal');
         if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
@@ -62,6 +66,200 @@ document.addEventListener('show.bs.collapse', function (e) {
         }
     }
 });
+
+// --- NEW: PORTED GALLERY LOGIC TO DASHBOARD ---
+async function loadGallery() {
+    try {
+        const res = await fetch('/api/public/gallery');
+        const data = await res.json();
+        if (data.success && data.show_gallery && data.images && data.images.length > 0) {
+            const container = document.getElementById('galleryContainer');
+            if(!container) return;
+            let html = '';
+            data.images.forEach((img, index) => {
+                const activeClass = index === 0 ? 'active' : '';
+                let formattedDate = img.trade_date || '';
+                if (formattedDate) {
+                    try {
+                        const d = new Date(img.trade_date);
+                        if(!isNaN(d)) formattedDate = d.toLocaleDateString('en-IN', {day: '2-digit', month: 'short', year: 'numeric'});
+                    } catch(e) {}
+                }
+                html += `<div class="carousel-item ${activeClass}">
+                            <div class="position-relative w-100 h-100">
+                                <img src="${img.image_url}" class="d-block w-100" alt="Performance Gallery" draggable="false">
+                                <div class="gallery-overlay">
+                                    <div class="gallery-date">${formattedDate}</div>
+                                    <div class="gallery-brand">RDALGO.IN</div>
+                                </div>
+                            </div>
+                         </div>`;
+            });
+            container.innerHTML = html;
+            const wrapper = document.getElementById('galleryWrapper');
+            if(wrapper) wrapper.style.display = 'block';
+        }
+    } catch (err) {}
+}
+
+// --- NEW: PORTED CALL WIDGET LOGIC TO DASHBOARD ---
+async function initCallWidget() {
+    try {
+        const settingsRes = await fetch('/api/settings');
+        const settings = await settingsRes.json();
+        
+        if (settings.show_call_widget !== 'false') {
+            const wrapper = document.getElementById('callReportWrapper');
+            if(wrapper) wrapper.style.display = 'block';
+            
+            flatpickr("#call-date-range", {
+                mode: "range",
+                dateFormat: "d-m-Y",
+                defaultDate: (function () {
+                    const today = new Date();
+                    const past30 = new Date();
+                    past30.setDate(today.getDate() - 29);
+                    return [past30, today];
+                })(),
+                onReady: function (selectedDates) {
+                    if (selectedDates.length > 0) {
+                        const start = selectedDates[0].toLocaleDateString('en-CA');
+                        const end = (selectedDates[1] || selectedDates[0]).toLocaleDateString('en-CA');
+                        loadCallData(start, end);
+                    }
+                },
+                onClose: function (selectedDates) {
+                    if (selectedDates.length > 0) {
+                        const start = selectedDates[0].toLocaleDateString('en-CA');
+                        const end = (selectedDates[1] || selectedDates[0]).toLocaleDateString('en-CA');
+                        loadCallData(start, end);
+                    }
+                }
+            });
+        }
+    } catch(e) {}
+}
+
+function formatINR(value) { return '₹ ' + Number(value).toLocaleString('en-IN'); }
+
+function groupByDate(data) {
+    const grouped = {};
+    if (!Array.isArray(data)) return grouped;
+    data.forEach(item => {
+        const date = item.form_date;
+        if (!grouped[date]) grouped[date] = [];
+        grouped[date].push(item);
+    });
+    return grouped;
+}
+
+function loadCallData(start, end) {
+    const loader = document.getElementById('call-loader');
+    const summary = document.getElementById('call-summary');
+    const output = document.getElementById('call-report-output');
+    if(!loader || !summary || !output) return;
+
+    loader.style.display = 'block';
+    summary.innerHTML = '';
+    output.innerHTML = '';
+
+    fetch(`/api/public/call-report?start=${start}&end=${end}`)
+        .then(res => res.json())
+        .then(json => {
+            loader.style.display = 'none';
+            if (!json.success || !json.show_widget || !json.data) return;
+
+            const data = json.data;
+            const grouped = groupByDate(data);
+            let totalCalls = 0, totalProfit = 0, profitableTrades = 0;
+
+            Object.values(grouped).forEach(dayItems => {
+                dayItems.forEach(item => {
+                    const raw = parseFloat(item.profit_loss);
+                    if (!isNaN(raw)) {
+                        const scaled = raw * 6;
+                        if (scaled > 0) profitableTrades++;
+                        if (scaled !== 0) totalCalls++;
+                        if (scaled > 0) totalProfit += scaled;
+                    }
+                });
+            });
+
+            const accuracy = totalCalls > 0 ? Math.round((profitableTrades / totalCalls) * 100) : 0;
+            summary.innerHTML = `
+                <div class="call-summary-cards">
+                    <div class="call-summary-card"><h3>Accuracy</h3><div>${accuracy}%</div></div>
+                    <div class="call-summary-card"><h3>Signals</h3><div>${totalCalls}</div></div>
+                    <div class="call-summary-card"><h3>Profit</h3><div style="color:var(--green);">${formatINR(totalProfit)}</div></div>
+                </div>
+            `;
+
+            let html = '';
+            Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a)).forEach(date => {
+                const items = grouped[date];
+                let calls = 0, profit = 0, good = 0;
+                const hasZTH = items.some(i => i.final_status && i.final_status.toLowerCase().trim() === 'zero to hero');
+                const badge = hasZTH ? '<span class="zth-badge">🔥ZeroToHero</span>' : '';
+                
+                items.forEach(i => {
+                    const raw = parseFloat(i.profit_loss);
+                    const val = isNaN(raw) ? 0 : raw * 6;
+                    if (val > 0) profit += val;
+                    if (val !== 0) calls++;
+                    if (val > 0) good++;
+                });
+                const acc = calls ? Math.round((good / calls) * 100) : 0;
+                const prettyDate = new Date(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                
+                let profitColor = profit > 0 ? 'var(--green)' : 'var(--red)';
+                if (profit === 0) profitColor = 'var(--text-secondary)';
+
+                html += `
+                    <div class="daily-toggle">
+                        <div>${prettyDate} ${badge}</div>
+                        <div style="color:${profitColor}">${formatINR(profit)}</div>
+                    </div>
+                    <div class="daily-details">
+                        <div class="day-header-cards">
+                            <div class="card">Accuracy<span>${acc}%</span></div>
+                            <div class="card">Signals<span>${calls}</span></div>
+                            <div class="card">Profit<span style="color:${profitColor}">${formatINR(profit)}</span></div>
+                        </div>
+                        <table class="call-table">
+                            <tr><th>Stock/Index Option</th><th>Profit(₹)/Status</th></tr>
+                            ${items.map(i => {
+                                const p = parseFloat(i.profit_loss) * 6;
+                                let status = 'Not-Active';
+                                let statusColor = '#878a8d';
+                                if (p > 0) { status = formatINR(p); statusColor = 'var(--green)'; }
+                                else if (p < 0) { status = 'SL'; statusColor = 'var(--red)'; }
+                                
+                                const isZTH = i.final_status && i.final_status.toLowerCase().trim() === 'zero to hero';
+                                const zthBadge = isZTH ? '<span class="zth-badge">🔥ZTH</span>' : '';
+                                const title = `${i.select_stock_option} ${i.strike_price} ${i.trade_type}${zthBadge}`;
+                                
+                                return `<tr><td>${title}</td><td style="color:${statusColor}">${status}</td></tr>`;
+                            }).join('')}
+                        </table>
+                    </div>
+                `;
+            });
+            output.innerHTML = html;
+            
+            document.querySelectorAll('.daily-toggle').forEach(toggle => {
+                toggle.addEventListener('click', () => {
+                    const next = toggle.nextElementSibling;
+                    const isOpen = next.style.display === 'block';
+                    document.querySelectorAll('.daily-details').forEach(d => d.style.display = 'none');
+                    if (!isOpen) next.style.display = 'block';
+                });
+            });
+        })
+        .catch(err => {
+            if(loader) loader.style.display = 'none';
+        });
+}
+
 
 function switchSection(section) {
     if (section === 'trade') {
@@ -114,11 +312,8 @@ function toggleAccordions(action) {
     }
 }
 
+// --- UPDATED: SPLIT COURSES ENGINE FOR INDEX.HTML DASHBOARD ---
 async function fetchCourses() {
-    const container = document.getElementById('courseModuleContainer');
-    if (!container) return;
-    container.innerHTML = '<div class="p-4 text-center text-muted">Loading courses...</div>';
-    
     try {
         const response = await fetch(API_URL_COURSES, { credentials: 'same-origin' });
         if (response.status === 401 || response.status === 403) { window.location.href = '/home.html'; return; }
@@ -127,7 +322,8 @@ async function fetchCourses() {
         let accessLevels = {};
         try { accessLevels = JSON.parse(localStorage.getItem('accessLevels')) || {}; } catch(e) {}
 
-        let htmlContent = '';
+        let demoHtml = ''; let otherHtml = '';
+        let demoCount = 0; let otherCount = 0;
         
         if (userData.role === 'admin') {
             const selectEl = document.getElementById('lessonModuleId');
@@ -139,7 +335,8 @@ async function fetchCourses() {
 
         globalModules.forEach((mod) => {
             const isLocked = userData.role !== 'admin' && mod.required_level !== 'demo' && accessLevels[mod.required_level] !== 'Yes';
-            
+            const isDemo = mod.required_level === 'demo';
+
             if (userData.role !== 'admin') {
                 if (mod.dashboard_visibility === 'hidden') return;
                 if (mod.dashboard_visibility === 'accessible' && isLocked) return;
@@ -230,7 +427,7 @@ async function fetchCourses() {
                 lessonHtml += '<div class="text-muted p-3 text-center" style="font-size:12px;">No videos yet.</div>';
             }
 
-            htmlContent += `
+            const modHtml = `
                 <div class="accordion-item course-module">
                     <h2 class="accordion-header" id="heading${mod.id}">
                         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${mod.id}" aria-expanded="false" aria-controls="collapse${mod.id}">
@@ -247,9 +444,22 @@ async function fetchCourses() {
                         </div>
                     </div>
                 </div>`;
+                
+            if (isDemo) { demoHtml += modHtml; demoCount++; } 
+            else { otherHtml += modHtml; otherCount++; }
         });
         
-        container.innerHTML = htmlContent || '<div class="p-4 text-center text-muted">No courses found.</div>';
+        const demoContainer = document.getElementById('publicCourseContainer_demo');
+        const otherContainer = document.getElementById('publicCourseContainer_other');
+        
+        if (demoContainer) {
+            demoContainer.innerHTML = demoHtml;
+            document.getElementById('demoCoursesContainer').style.display = demoCount > 0 ? 'block' : 'none';
+        }
+        if (otherContainer) {
+            otherContainer.innerHTML = otherHtml || '<div class="p-4 text-center text-muted">No premium courses found.</div>';
+            document.getElementById('otherCoursesContainer').style.display = 'block';
+        }
         
         try {
             const settingsRes = await fetch('/api/settings');
@@ -268,7 +478,6 @@ async function fetchCourses() {
             const adminGalleryCheck = document.getElementById('adminShowGallery');
             if (adminGalleryCheck) adminGalleryCheck.checked = showGallery;
 
-            // --- UPDATED: PULL CALL WIDGET SETTING FOR ADMIN VIEW ---
             const showCallWidget = settings.show_call_widget !== 'false';
             const adminCallWidgetCheck = document.getElementById('adminShowCallWidget');
             if (adminCallWidgetCheck) adminCallWidgetCheck.checked = showCallWidget;
@@ -283,11 +492,8 @@ async function fetchCourses() {
             setTimeout(() => { toggleAccordions('first'); }, 100);
         }
 
-    } catch (err) { container.innerHTML = `<div class="p-3 text-danger text-center">❌ Error loading courses.</div>`; }
+    } catch (err) {  }
 }
-
-
-document.getElementById('videoPlayerContainer').addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
 async function openSecureVideo(lessonId) {
     if (!videoPlayer) {
@@ -372,7 +578,6 @@ function moveWatermark() {
 }
 
 
-// --- FORM SUBMIT HANDLERS (FIXED ERROR EXPOSURE) ---
 const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
     formAdminSettings.addEventListener('submit', async (e) => {
@@ -395,6 +600,13 @@ if (formAdminSettings) {
                 const m = bootstrap.Modal.getInstance(document.getElementById('adminCourseModal'));
                 if(m) m.hide();
                 fetchCourses(); 
+                
+                // Refresh dynamic dashboard widgets directly
+                document.getElementById('galleryWrapper').style.display = 'none';
+                document.getElementById('callReportWrapper').style.display = 'none';
+                loadGallery();
+                initCallWidget();
+
             } else { 
                 const errData = await res.json().catch(()=>({}));
                 alert("Error saving settings: " + (errData.msg || "Unknown"));
