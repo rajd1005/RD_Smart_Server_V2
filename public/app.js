@@ -168,14 +168,15 @@ async function fetchCourses() {
                 
                 mod.lessons.forEach(l => {
                     const safeLT = (l.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-                    const safeLD = (l.description || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    // FIXED: MUST ESCAPE NEWLINES OR JS WILL CRASH WHEN EDITING MULTI-LINE TEXT
+                    const safeLD = (l.description || '').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+                    
                     const adminBtnsLess = userData.role === 'admin' ? `
                         <div class="d-flex flex-column align-items-center ms-2 border-start ps-2">
                             <button class="admin-edit-btn" onclick="openEditLesson(event, ${l.id}, '${safeLT}', '${safeLD}', ${l.display_order || 0})"><span class="material-icons-round" style="font-size: 16px;">edit</span></button>
                             <button class="admin-del-btn mt-1" onclick="deleteLesson(event, ${l.id})"><span class="material-icons-round" style="font-size: 16px;">delete</span></button>
                         </div>` : '';
 
-                    // --- NEW: HTML / RICH TEXT DOCUMENT LESSON LOGIC ---
                     const hasVideo = l.hls_manifest_url && l.hls_manifest_url.length > 5;
                     const overlayIcon = isLocked ? 'lock' : 'play_circle_filled';
                     const documentIcon = isLocked ? 'lock' : 'article';
@@ -215,7 +216,7 @@ async function fetchCourses() {
                                         ${mediaHtml}
                                         <div class="d-flex justify-content-between align-items-start mt-2">
                                             <div class="flex-grow-1" style="overflow-wrap: break-word;">
-                                                ${l.description ? `<div class="text-dark" style="font-size: 13px; line-height: 1.6; padding: 0 5px;">${l.description}</div>` : ''}
+                                                ${l.description ? `<div class="text-dark" style="font-size: 13px; line-height: 1.6; padding: 0 5px; white-space: pre-wrap;">${l.description}</div>` : ''}
                                             </div>
                                             ${!isLocked ? adminBtnsLess : ''}
                                         </div>
