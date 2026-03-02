@@ -16,14 +16,17 @@ const userData = {
     role: localStorage.getItem('userRole')
 };
 
-// INITIALIZE DASHBOARD (LEARN TAB AS DEFAULT)
+// ONLY EXECUTES ON THE SECURE INDEX.HTML DASHBOARD
 window.onload = function() {
     initDatePicker();
     fetchTrades(); 
     fetchCourses(); 
     applyRoleRestrictions(); 
+    
+    // FIXED: By default, users will directly see the Learn Tab, Not Trade.
     switchSection('learning'); 
     
+    // Trigger Legal Disclaimer Check
     if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
         const modalEl = document.getElementById('disclaimerModal');
         if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
@@ -255,6 +258,7 @@ async function fetchCourses() {
 
             const navTradeBtn = document.getElementById('navTradeBtn');
             if (navTradeBtn) {
+                // Completely hide Trade Tab from Students if Admin enabled the setting
                 if (hideTradeTab && userData.role !== 'admin') {
                     navTradeBtn.style.display = 'none';
                 } else {
