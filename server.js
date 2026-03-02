@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
+const mysql = require('mysql2/promise');
 
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
@@ -46,6 +47,17 @@ const transporter = nodemailer.createTransport({
     port: process.env.SMTP_PORT || 587,
     secure: process.env.SMTP_SECURE === 'true', 
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+});
+
+// --- NEW: GALLERY MYSQL CONNECTION ---
+const galleryPool = mysql.createPool({
+    host: process.env.GALLERY_DB_HOST,
+    user: process.env.GALLERY_DB_USER,
+    password: process.env.GALLERY_DB_PASSWORD,
+    database: process.env.GALLERY_DB_NAME,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
 });
 
 function getClientIp(req) {
@@ -141,6 +153,20 @@ function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
+// --- NEW: FETCH GALLERY API ---
+app.get('/api/public/gallery', async (req, res) => {
+    try {
+        // ⚠️ IMPORTANT: Change 'your_table_name' to your Table Name.
+        // ⚠️ IMPORTANT: Change 'your_image_column' to your Image URL Column Name.
+        // ⚠️ IMPORTANT: Change 'id' if your primary key column is named differently.
+        const [rows] = await galleryPool.query("SELECT image_url AS image_url FROM wp_central_image_gallery ORDER BY id DESC LIMIT 15");
+        res.json({ success: true, images: rows.map(r => r.image_url) });
+    } catch (err) {
+        console.error("Gallery DB Error:", err);
+        res.status(500).json({ success: false, msg: "Failed to fetch gallery images." });
+    }
+});
+
 app.get('/api/settings', async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM system_settings");
@@ -150,7 +176,6 @@ app.get('/api/settings', async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error" }); }
 });
 
-// UPDATED: Saves the hide_trade_tab setting
 app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
     const { accordion_state, hide_trade_tab } = req.body;
     try {
