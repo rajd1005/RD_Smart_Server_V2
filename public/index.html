@@ -56,13 +56,14 @@
         .b-active { color: var(--blue); } .b-del { color: var(--red); }
         
         .offcanvas-bottom { height: auto !important; border-radius: 15px 15px 0 0; left: 0; right: 0; margin: 0 auto; max-width: 800px; }
-        .custom-check { width: 18px; height: 18px; margin-right: 10px; border-radius: 4px; border: 2px solid #ccc; }
+        .custom-check { width: 18px; height: 18px; margin-right: 10px; border-radius: 4px; border: 2px solid #ccc; cursor: pointer; margin-top: 0;}
         .custom-check:checked { background-color: var(--blue); border-color: var(--blue); }
         
         #noData { padding: 50px; text-align: center; color: var(--text-secondary); }
 
-        #learningSection { display: none; padding: 10px; }
-        #tradeSection { display: block; }
+        /* DEFAULT: LEARN TAB IS VISIBLE, TRADE IS HIDDEN */
+        #learningSection { display: block; padding: 10px; }
+        #tradeSection { display: none; }
         
         .accordion-item { border: 1px solid var(--border-color); border-radius: 8px !important; margin-bottom: 6px; background: #fff; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         .accordion-button { padding: 10px 12px; font-weight: 700; color: #000; background: #f8f9fa; box-shadow: none !important; font-size: 14px; min-height: 44px; }
@@ -150,10 +151,10 @@
         </div>
 
         <nav class="bottom-nav" id="navDefault">
-            <button class="b-btn b-active" id="navTradeBtn" onclick="switchSection('trade')"><span class="material-icons-round">analytics</span>Trade</button>
-            <button class="b-btn" id="navLearnBtn" onclick="switchSection('learning')"><span class="material-icons-round">school</span>Learn</button>
-            <button class="b-btn" id="btnRefresh" onclick="fetchTrades()"><span class="material-icons-round">refresh</span>Refresh</button>
-            <button class="b-btn" id="btnFilter" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterSheet"><span class="material-icons-round">filter_list</span>Filter</button>
+            <button class="b-btn" id="navTradeBtn" onclick="switchSection('trade')"><span class="material-icons-round">analytics</span>Trade</button>
+            <button class="b-btn b-active" id="navLearnBtn" onclick="switchSection('learning')"><span class="material-icons-round">school</span>Learn</button>
+            <button class="b-btn" id="btnRefresh" onclick="fetchTrades()" style="display:none;"><span class="material-icons-round">refresh</span>Refresh</button>
+            <button class="b-btn" id="btnFilter" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterSheet" style="display:none;"><span class="material-icons-round">filter_list</span>Filter</button>
             <button class="b-btn" id="btnSelect" onclick="toggleSelectionMode()" style="display:none;"><span class="material-icons-round" id="selectIcon">check_circle</span>Select</button>
             <button class="b-btn b-del" id="btnDelete" onclick="deleteSelected()" style="display:none;"><span class="material-icons-round">delete</span>Delete</button>
         </nav>
@@ -244,11 +245,15 @@
                     <form id="formAdminSettings">
                         <div class="mb-2">
                             <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Default Accordion State</label>
-                            <select id="adminAccordionState" class="form-select" required>
+                            <select id="adminAccordionState" class="form-select mb-2" required>
                                 <option value="first">Open 1st Module & 1st Video</option>
                                 <option value="all">Open All Modules & Videos</option>
                                 <option value="none">Close All</option>
                             </select>
+                        </div>
+                        <div class="mb-3 d-flex align-items-center">
+                            <input type="checkbox" class="custom-check m-0" id="adminHideTradeTab">
+                            <label class="form-check-label ms-2 fw-bold" for="adminHideTradeTab" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Hide Trade Tab for All Users</label>
                         </div>
                         <button type="submit" class="btn btn-sm btn-warning w-100 fw-bold" style="padding:8px; border-radius:4px;">Save Settings</button>
                     </form>
