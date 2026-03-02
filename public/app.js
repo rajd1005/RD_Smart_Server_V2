@@ -24,7 +24,6 @@ window.onload = function() {
     
     switchSection('learning'); 
     
-    // NEW: Initialize the Call Widget and Gallery inside the Dashboard
     initCallWidget();
     loadGallery();
     
@@ -67,7 +66,6 @@ document.addEventListener('show.bs.collapse', function (e) {
     }
 });
 
-// --- NEW: PORTED GALLERY LOGIC TO DASHBOARD ---
 async function loadGallery() {
     try {
         const res = await fetch('/api/public/gallery');
@@ -102,7 +100,6 @@ async function loadGallery() {
     } catch (err) {}
 }
 
-// --- NEW: PORTED CALL WIDGET LOGIC TO DASHBOARD ---
 async function initCallWidget() {
     try {
         const settingsRes = await fetch('/api/settings');
@@ -199,7 +196,7 @@ function loadCallData(start, end) {
                 const items = grouped[date];
                 let calls = 0, profit = 0, good = 0;
                 const hasZTH = items.some(i => i.final_status && i.final_status.toLowerCase().trim() === 'zero to hero');
-                const badge = hasZTH ? '<span class="zth-badge">🔥ZeroToHero</span>' : '';
+                const badge = hasZTH ? '<span class="zth-badge">🔥ZTH</span>' : '';
                 
                 items.forEach(i => {
                     const raw = parseFloat(i.profit_loss);
@@ -214,10 +211,18 @@ function loadCallData(start, end) {
                 let profitColor = profit > 0 ? 'var(--green)' : 'var(--red)';
                 if (profit === 0) profitColor = 'var(--text-secondary)';
 
+                // UPDATED: Accordion Title Format (2 Mar | Profit: ₹ 3,74,382 | Accuracy: 90%)
                 html += `
                     <div class="daily-toggle">
-                        <div>${prettyDate} ${badge}</div>
-                        <div style="color:${profitColor}">${formatINR(profit)}</div>
+                        <div style="display:flex; align-items:center; flex-wrap:wrap; font-size:12px;">
+                            <span>${prettyDate}</span>
+                            <span style="margin:0 6px; color:#ddd;">|</span>
+                            <span style="color:${profitColor};">Profit: ${formatINR(profit)}</span>
+                            <span style="margin:0 6px; color:#ddd;">|</span>
+                            <span>Accuracy: ${acc}%</span>
+                            ${badge}
+                        </div>
+                        <span class="material-icons-round" style="color:#aaa; font-size:18px;">expand_more</span>
                     </div>
                     <div class="daily-details">
                         <div class="day-header-cards">
@@ -312,7 +317,6 @@ function toggleAccordions(action) {
     }
 }
 
-// --- UPDATED: SPLIT COURSES ENGINE FOR INDEX.HTML DASHBOARD ---
 async function fetchCourses() {
     try {
         const response = await fetch(API_URL_COURSES, { credentials: 'same-origin' });
@@ -601,7 +605,6 @@ if (formAdminSettings) {
                 if(m) m.hide();
                 fetchCourses(); 
                 
-                // Refresh dynamic dashboard widgets directly
                 document.getElementById('galleryWrapper').style.display = 'none';
                 document.getElementById('callReportWrapper').style.display = 'none';
                 loadGallery();
