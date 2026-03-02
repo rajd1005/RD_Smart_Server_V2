@@ -69,17 +69,23 @@ const debugLog = (msg) => console.log(`[AUTH DEBUG] ${msg}`);
 
 const authenticateToken = async (req, res, next) => {
     const token = req.cookies.authToken;
-    if (!token) return res.status(401).json({ success: false, msg: "Not authenticated" });
+    if (!token) {
+        debugLog(`API Blocked (No Cookie): ${req.path}`);
+        return res.status(401).json({ success: false, msg: "Not authenticated" });
+    }
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         const { rows } = await pool.query("SELECT session_id FROM login_logs WHERE email = $1 ORDER BY id DESC LIMIT 1", [decoded.email]);
+        
         if (rows.length > 0 && rows[0].session_id !== decoded.sessionId) { 
+            debugLog(`API Blocked (Session Mismatch): ${req.path} for ${decoded.email}`);
             res.clearCookie('authToken', { path: '/' }); 
             return res.status(403).json({ success: false, msg: "Logged in from another device. Session expired." }); 
         }
         req.user = decoded;
         next();
     } catch (err) {
+        debugLog(`API Blocked (JWT Error): ${req.path} - ${err.message}`);
         res.clearCookie('authToken', { path: '/' });
         return res.status(403).json({ success: false, msg: "Session expired" });
     }
@@ -94,6 +100,7 @@ app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
         const token = req.cookies.authToken;
+        
         if (!token) return res.redirect('/home.html');
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
@@ -118,7 +125,9 @@ app.use(async (req, res, next) => {
             } catch(err) {}
         }
         next();
-    } else { next(); }
+    } else { 
+        next(); 
+    }
 });
 
 app.use(express.static(path.join(__dirname, 'public'))); 
@@ -137,21 +146,11 @@ app.get('/api/public/gallery', async (req, res) => {
     try {
         const settingRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'show_gallery'");
         const showGallery = settingRes.rows.length > 0 ? settingRes.rows[0].setting_value : 'true';
-        
         if (showGallery !== 'true') return res.json({ success: true, show_gallery: false, images: [] });
 
-        const [rows] = await galleryPool.query(`
-            SELECT id, image_url, trade_date, name 
-            FROM wp_central_image_gallery 
-            WHERE trade_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-            ORDER BY trade_date DESC, id DESC 
-            LIMIT 50
-        `);
+        const [rows] = await galleryPool.query(`SELECT id, image_url, trade_date, name FROM wp_central_image_gallery WHERE trade_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) ORDER BY trade_date DESC, id DESC LIMIT 50`);
         res.json({ success: true, show_gallery: true, images: rows });
-    } catch (err) {
-        console.error("Gallery DB Error:", err);
-        res.status(500).json({ success: false, msg: "Failed to fetch gallery images." });
-    }
+    } catch (err) { res.status(500).json({ success: false, msg: "Failed to fetch gallery images." }); }
 });
 
 app.get('/api/settings', async (req, res) => {
@@ -175,7 +174,7 @@ app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
 
 app.get('/api/public/courses', async (req, res) => {
     try {
-        const modulesResult = await pool.query("SELECT * FROM learning_modules ORDER BY display_order ASC");
+        const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility FROM learning_modules ORDER BY display_order ASC");
         const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url FROM lesson_videos ORDER BY display_order ASC");
         const coursesStructure = modulesResult.rows.map(mod => { return { ...mod, lessons: lessonsResult.rows.filter(l => l.module_id === mod.id) }; });
         res.json(coursesStructure);
@@ -196,6 +195,7 @@ app.post('/api/login', async (req, res) => {
     const { password, rememberMe } = req.body;
     const email = req.body.email.trim();
     const clientIp = getClientIp(req);
+    
     try {
         let userEmail = ""; let userRole = "student"; let userPhone = "";
         let accessLevels = { level_1_status: 'No', level_2_status: 'No', level_3_status: 'No', level_4_status: 'No' };
@@ -210,21 +210,17 @@ app.post('/api/login', async (req, res) => {
                 const { salt, hash } = localCreds.rows[0];
                 const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
                 if (verifyHash !== hash) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
-
                 const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
                 if (rows.length === 0) return res.status(401).json({ success: false, msg: "Account not found in registry." });
                 studentRecord = rows[0];
             } else {
                 const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?", [email, password]);
                 if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
-                
                 const setupToken = jwt.sign({ email: rows[0].student_email, phone: rows[0].student_phone }, JWT_SECRET, { expiresIn: '15m' });
                 return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
             }
-
             const expiryDate = new Date(studentRecord.student_expiry_date);
             if (expiryDate < new Date()) { return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." }); }
-
             userEmail = studentRecord.student_email; userPhone = studentRecord.student_phone; 
             accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
         }
@@ -236,7 +232,6 @@ app.post('/api/login', async (req, res) => {
         const token = jwt.sign({ email: userEmail, phone: userPhone, sessionId: sessionId, role: userRole, accessLevels: accessLevels }, JWT_SECRET, { expiresIn: rememberMe ? '30d' : '1d' });
         const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
         res.cookie('authToken', token, { httpOnly: true, secure: isSecure, sameSite: 'lax', path: '/', maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 });
-
         res.json({ success: true, msg: "Login successful", email: userEmail, phone: userPhone, role: userRole, accessLevels: accessLevels });
     } catch (error) { res.status(500).json({ success: false, msg: "Database connection error" }); }
 });
@@ -270,7 +265,6 @@ app.post('/api/forgot_password', async (req, res) => {
                     <h2 style="color: #0056b3;">Password Reset</h2>
                     <p>You requested to reset your password. Use the OTP below to set a new password. This code is valid for 15 minutes.</p>
                     <div style="font-size: 24px; font-weight: bold; background: #f8f9fa; padding: 15px; text-align: center; letter-spacing: 5px; color: #000; border-radius: 8px;">${otp}</div>
-                    <p style="font-size: 11px; color: #888; margin-top: 20px;">If you didn't request this, please ignore this email.</p>
                    </div>`
         };
         transporter.sendMail(mailOptions).catch(e => console.error(e));
@@ -318,11 +312,9 @@ app.post('/api/accept_terms', authenticateToken, async (req, res) => {
                             <li style="margin-bottom: 5px;"><strong>IP Address:</strong> ${clientIp}</li>
                         </ul>
                     </div>
-                    <p style="font-size: 11px; color: #888; margin-top: 30px;">This is an automated legal compliance email.</p>
                 </div>
             `
         };
-
         transporter.sendMail(mailOptions).catch(err => console.error("SMTP Mail Error:", err));
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: "Failed to record agreement." }); }
@@ -366,22 +358,33 @@ app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
 });
 
+// FIXED: Added extensive error logging to Admin Module additions
 app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
     const { title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility } = req.body;
     try {
-        await pool.query("INSERT INTO learning_modules (title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
-            [title, description, required_level, display_order || 0, lock_notice || '', show_on_home, dashboard_visibility || 'all']);
+        await pool.query(
+            "INSERT INTO learning_modules (title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
+            [title, description, required_level, display_order || 0, lock_notice || '', show_on_home, dashboard_visibility || 'all']
+        );
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+    } catch (err) { 
+        console.error("❌ Add Module Error:", err); 
+        res.status(500).json({ success: false, msg: err.message }); 
+    }
 });
 
 app.put('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
     const { title, description, required_level, lock_notice, display_order, show_on_home, dashboard_visibility } = req.body;
     try {
-        await pool.query("UPDATE learning_modules SET title = $1, description = $2, required_level = $3, lock_notice = $4, display_order = $5, show_on_home = $6, dashboard_visibility = $7 WHERE id = $8", 
-            [title, description, required_level, lock_notice || '', display_order || 0, show_on_home, dashboard_visibility || 'all', req.params.id]);
+        await pool.query(
+            "UPDATE learning_modules SET title = $1, description = $2, required_level = $3, lock_notice = $4, display_order = $5, show_on_home = $6, dashboard_visibility = $7 WHERE id = $8", 
+            [title, description, required_level, lock_notice || '', display_order || 0, show_on_home, dashboard_visibility || 'all', req.params.id]
+        );
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+    } catch (err) { 
+        console.error("❌ Edit Module Error:", err);
+        res.status(500).json({ success: false, msg: err.message }); 
+    }
 });
 
 app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
@@ -415,7 +418,6 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
         fs.unlinkSync(thumbFile.path); 
         thumbUrl = '/hls/thumbnails/' + thumbName;
     } else {
-        // --- NEW: AUTO GENERATE THUMBNAIL FROM VIDEO (First Frame) ---
         const thumbName = crypto.randomUUID() + '.jpg';
         try {
             await new Promise((resolve, reject) => {
@@ -424,7 +426,7 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
                     .on('end', resolve).on('error', reject);
             });
             thumbUrl = '/hls/thumbnails/' + thumbName;
-        } catch (err) { console.error("Auto-thumbnail failed, skipping.", err); thumbUrl = ''; }
+        } catch (err) { console.error("Auto-thumbnail failed, skipping."); }
     }
 
     const lessonId = crypto.randomUUID();
@@ -446,7 +448,10 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
         .output(path.join(lessonHlsDir, 'output.m3u8'))
         .on('end', async () => {
             if (fs.existsSync(videoFile.path)) fs.unlinkSync(videoFile.path);
-            try { await pool.query("INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6)", [module_id, title, description, m3u8Path, display_order || 0, thumbUrl]); } catch(e) {}
+            try { 
+                await pool.query("INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6)", 
+                [module_id, title, description, m3u8Path, display_order || 0, thumbUrl]); 
+            } catch(e) { console.error("❌ Background Video DB Insert Failed:", e); }
         })
         .on('error', (err) => { if (fs.existsSync(videoFile.path)) fs.unlinkSync(videoFile.path); })
         .run();
