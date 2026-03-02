@@ -55,28 +55,33 @@ const initDb = async () => {
         expires_at TIMESTAMP NOT NULL
     );`;
 
-    // UPDATED: Added hide_trade_tab default to database setup
     const populateDefaultSettings = `
     INSERT INTO system_settings (setting_key, setting_value) VALUES 
     ('accordion_state', 'first'),
-    ('hide_trade_tab', 'false')
+    ('hide_trade_tab', 'false'),
+    ('show_gallery', 'true')
     ON CONFLICT (setting_key) DO NOTHING;`;
 
-    const upgradeModulesTable = `ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS lock_notice TEXT;`;
+    // Apply schema upgrades safely without dropping data
+    const upgradeModulesTable1 = `ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS lock_notice TEXT;`;
+    const upgradeModulesTable2 = `ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN DEFAULT TRUE;`;
+    const upgradeModulesTable3 = `ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS dashboard_visibility VARCHAR(20) DEFAULT 'all';`;
     const upgradeLessonsTable = `ALTER TABLE lesson_videos ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;`;
 
     try {
         await pool.query(queryTrades);
         await pool.query(queryLogs); 
         await pool.query(queryLearningModules); 
-        await pool.query(upgradeModulesTable); 
+        await pool.query(upgradeModulesTable1); 
+        await pool.query(upgradeModulesTable2); 
+        await pool.query(upgradeModulesTable3); 
         await pool.query(queryLessonVideos); 
         await pool.query(upgradeLessonsTable); 
         await pool.query(querySettings);
         await pool.query(queryUserCreds);
         await pool.query(queryPasswordResets);
         await pool.query(populateDefaultSettings);
-        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings)");
+        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Layout)");
     } catch (err) {
         console.error("❌ Database Error:", err);
     }
