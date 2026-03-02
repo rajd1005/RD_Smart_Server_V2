@@ -37,10 +37,9 @@
         .lesson-accordion-btn { padding: 8px 12px; font-size: 13px; font-weight: 600; background: transparent !important; color: inherit; box-shadow: none !important; min-height: 38px; }
         .lesson-accordion-btn:not(.collapsed) { background: #f8f9fa !important; color: var(--blue) !important; }
         
-        .lesson-item-content { padding: 12px; border-radius: 0; transition: background 0.2s; cursor: pointer; border-top: 1px solid #f0f2f5; }
+        .lesson-item-content { padding: 12px; border-radius: 0; transition: background 0.2s; border-top: 1px solid #f0f2f5; }
         .lesson-item-content:hover { background-color: #f9fbfd; }
 
-        /* FULL SIZE THUMBNAIL CSS */
         .thumb-wrapper-full { position: relative; width: 100%; border-radius: 6px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); aspect-ratio: 16/9; margin-bottom: 10px; }
         .thumb-wrapper-full img { width: 100%; height: 100%; object-fit: cover; opacity: 0.85; transition: opacity 0.2s; pointer-events: none; }
         .lesson-item-content:hover .thumb-wrapper-full img { opacity: 1; }
@@ -53,12 +52,7 @@
 
         .gallery-carousel { background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); -webkit-touch-callout: none; user-select: none; }
         .carousel-inner img { width: 100%; aspect-ratio: 914 / 685; object-fit: cover; pointer-events: none; -webkit-user-drag: none; }
-        .gallery-overlay { 
-            position: absolute; bottom: 0; left: 0; width: 100%; 
-            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.2) 50%, transparent 100%); 
-            padding: 40px 15px 12px; color: #fff; display: flex; flex-direction: column; align-items: flex-end; 
-            pointer-events: none; 
-        }
+        .gallery-overlay { position: absolute; bottom: 0; left: 0; width: 100%; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.2) 50%, transparent 100%); padding: 40px 15px 12px; color: #fff; display: flex; flex-direction: column; align-items: flex-end; pointer-events: none; }
         .gallery-date { font-size: 11px; font-weight: 700; opacity: 0.95; text-shadow: 1px 1px 3px rgba(0,0,0,0.9); margin-bottom: 5px; letter-spacing: 0.3px; }
         .gallery-brand { font-size: 10px; font-weight: 900; color: #000; background: #fff; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.4); }
 
@@ -96,8 +90,7 @@
             </h6>
 
             <div id="galleryCarousel" class="carousel slide gallery-carousel" data-bs-ride="carousel" data-bs-interval="3000">
-                <div class="carousel-inner" id="galleryContainer">
-                    </div>
+                <div class="carousel-inner" id="galleryContainer"></div>
                 <button class="carousel-control-prev" type="button" data-bs-target="#galleryCarousel" data-bs-slide="prev">
                     <span class="carousel-control-prev-icon" aria-hidden="true"></span>
                     <span class="visually-hidden">Previous</span>
@@ -423,7 +416,7 @@
                 let demoCount = 0; let otherCount = 0;
 
                 modules.forEach((mod) => {
-                    if (mod.show_on_home === false) return; // HIDDEN on Home by Admin
+                    if (mod.show_on_home === false) return;
 
                     const isDemo = mod.required_level === 'demo';
                     let displayNoticeHtml = '';
@@ -436,28 +429,49 @@
                     if (mod.lessons && mod.lessons.length > 0) {
                         lessonHtml += `<div class="accordion w-100" id="accLsn${mod.id}">`;
                         mod.lessons.forEach(l => {
-                            const overlayIcon = isDemo ? 'play_circle_filled' : 'lock'; 
-                            const iconColor = isDemo ? '#fff' : '#ccc';
-                            const onClickAction = isDemo ? `openDemoVideo(${l.id})` : `openLoginModal()`;
+                            const hasVideo = l.hls_manifest_url && l.hls_manifest_url.length > 5;
+                            const isLocked = !isDemo;
+
+                            const overlayIcon = isLocked ? 'lock' : 'play_circle_filled'; 
+                            const iconColor = isLocked ? '#999' : 'var(--blue)';
+                            const textColor = isLocked ? '#666' : '#333';
+                            const opacityLvl = isLocked ? '0.6' : '1';
                             
-                            // NEW BIG THUMBNAIL LAYOUT
-                            const thumbnailImg = l.thumbnail_url 
-                                ? `<div class="thumb-wrapper-full"><img src="${l.thumbnail_url}"><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color:${iconColor};">${overlayIcon}</span></div></div>` 
-                                : `<div class="thumb-wrapper-full"><div class="w-100 h-100 bg-dark d-flex align-items-center justify-content-center"><span class="material-icons-round" style="font-size:48px; color:#444;">${overlayIcon}</span></div><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color:${iconColor};">${overlayIcon}</span></div></div>`;
-                            
+                            let mediaHtml = '';
+                            let onClickAction = '';
+                            let pointerEv = isLocked ? 'not-allowed' : 'auto';
+
+                            if (hasVideo) {
+                                onClickAction = isLocked ? `onclick="openLoginModal()"` : `onclick="openDemoVideo(${l.id})"`;
+                                pointerEv = isLocked ? 'not-allowed' : 'pointer';
+                                
+                                const thumbIconColor = isLocked ? '#ccc' : '#fff';
+                                const thumbnailImg = l.thumbnail_url 
+                                    ? `<div class="thumb-wrapper-full"><img src="${l.thumbnail_url}" loading="lazy"><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${thumbIconColor};">${overlayIcon}</span></div></div>` 
+                                    : `<div class="thumb-wrapper-full"><div class="w-100 h-100 bg-dark d-flex align-items-center justify-content-center"><span class="material-icons-round" style="font-size:48px; color:#444;">${overlayIcon}</span></div><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${thumbIconColor};">${overlayIcon}</span></div></div>`;
+                                    
+                                mediaHtml = `<div class="w-100" style="cursor: ${pointerEv};" ${onClickAction}>${thumbnailImg}</div>`;
+                            }
+
+                            const finalHeaderIcon = hasVideo ? overlayIcon : (isLocked ? 'lock' : 'article');
+
                             lessonHtml += `
                                 <div class="accordion-item lesson-accordion-item">
                                     <h2 class="accordion-header" id="hLsn${l.id}">
                                         <button class="accordion-button collapsed lesson-accordion-btn" type="button" data-bs-toggle="collapse" data-bs-target="#cLsn${l.id}" aria-expanded="false" aria-controls="cLsn${l.id}">
-                                            <span class="material-icons-round" style="font-size:18px; margin-right:8px; color: ${isDemo ? 'var(--blue)' : '#999'};">${overlayIcon}</span>
-                                            <span style="color: ${isDemo ? '#333' : '#666'};">${l.title}</span>
+                                            <span class="material-icons-round" style="font-size:16px; margin-right:8px; color:${hasVideo ? iconColor : 'var(--blue)'};">${finalHeaderIcon}</span>
+                                            <span style="color: ${textColor};">${l.title}</span>
                                         </button>
                                     </h2>
                                     <div id="cLsn${l.id}" class="accordion-collapse collapse lesson-collapse" aria-labelledby="hLsn${l.id}" data-bs-parent="#accLsn${mod.id}">
                                         <div class="accordion-body p-0" style="background: #fafafa;">
-                                            <div class="lesson-item-content w-100" onclick="${onClickAction}">
-                                                ${thumbnailImg}
-                                                <div>${l.description ? `<div class="text-muted" style="font-size: 12px; line-height: 1.4; padding: 0 5px;">${l.description}</div>` : ''}</div>
+                                            <div class="lesson-item-content w-100" style="opacity: ${opacityLvl};">
+                                                ${mediaHtml}
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <div class="flex-grow-1" style="overflow-wrap: break-word;">
+                                                        ${l.description ? `<div class="text-dark mt-2" style="font-size: 13px; line-height: 1.6; padding: 0 5px;">${l.description}</div>` : ''}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
