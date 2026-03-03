@@ -99,7 +99,8 @@ const initDb = async () => {
     ('cat_forex_crypto', ''),
     ('cat_stock', ''),
     ('cat_index', ''),
-    ('cat_mcx', '')
+    ('cat_mcx', ''),
+    ('push_trade_alerts', 'true')
     ON CONFLICT (setting_key) DO NOTHING;`;
 
     try {
@@ -120,7 +121,7 @@ const initDb = async () => {
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS dashboard_visibility VARCHAR(20) DEFAULT 'all';`); } catch(e){}
         try { await pool.query(`ALTER TABLE lesson_videos ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;`); } catch(e){}
 
-        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push + Scheduled Notifications)");
+        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push + Notifications)");
     } catch (err) {
         console.error("❌ Database Error:", err);
     }
