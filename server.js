@@ -17,9 +17,31 @@ const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath); 
 
+// --- NEW ADVANCED FEATURE IMPORTS ---
+const { createClient } = require('redis');
+const { Queue, Worker } = require('bullmq');
+const webpush = require('web-push');
+// ------------------------------------
+
 const { pool, initDb } = require('./database');
 const authPool = require('./authDb'); 
 require('dotenv').config();
+
+// --- REDIS SETUP ---
+const redisClient = createClient({ url: process.env.REDIS_URL || 'redis://127.0.0.1:6379' });
+redisClient.on('error', (err) => console.log('Redis Client Error', err));
+redisClient.connect().then(() => console.log('✅ Connected to Redis')).catch(console.error);
+
+// --- BULLMQ QUEUE SETUP ---
+const redisConnection = { host: process.env.REDIS_HOST || '127.0.0.1', port: parseInt(process.env.REDIS_PORT || '6379') };
+const videoQueue = new Queue('video-encoding', { connection: redisConnection });
+
+// --- PWA WEB PUSH SETUP ---
+webpush.setVapidDetails(
+    'mailto:' + (process.env.ADMIN_EMAIL || 'admin@rdalgo.in'),
+    process.env.VAPID_PUBLIC_KEY || 'BIfZ9H7J_D1J_Yj2M2zG3d_U9kGjA-A2R0d5xYVbE0n9W4s5yB7jXz6_m_tX9uP_bT2D5YVbE0n9W4s5yB7jXz6', // Replace with real VAPID public in .env
+    process.env.VAPID_PRIVATE_KEY || 'z_D1J_Yj2M2zG3d_U9kGjA-A2R0d5xYVbE0n9W4s5y' // Replace with real VAPID private in .env
+);
 
 const app = express();
 
@@ -137,6 +159,25 @@ function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
+// Helper function to send push notifications
+async function sendPushNotification(payload) {
+    try {
+        const subs = await pool.query("SELECT sub_data FROM push_subscriptions");
+        subs.rows.forEach(sub => {
+            webpush.sendNotification(sub.sub_data, JSON.stringify(payload)).catch(e => {
+                // If subscription expired, we could delete it here
+            });
+        });
+    } catch (err) { console.error("Error fetching subscriptions", err); }
+}
+
+app.post('/api/push/subscribe', authenticateToken, async (req, res) => {
+    const subscription = req.body;
+    try {
+        await pool.query("INSERT INTO push_subscriptions (email, sub_data) VALUES ($1, $2)", [req.user.email, subscription]);
+        res.status(201).json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 app.get('/api/public/call-report', async (req, res) => {
     const { start, end } = req.query;
@@ -155,7 +196,6 @@ app.get('/api/public/call-report', async (req, res) => {
     }
 });
 
-
 app.get('/api/public/gallery', async (req, res) => {
     try {
         const settingRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'show_gallery'");
@@ -169,9 +209,14 @@ app.get('/api/public/gallery', async (req, res) => {
 
 app.get('/api/settings', async (req, res) => {
     try {
+        const cachedSettings = await redisClient.get('system_settings');
+        if (cachedSettings) return res.json(JSON.parse(cachedSettings));
+
         const result = await pool.query("SELECT * FROM system_settings");
         const settings = {};
         result.rows.forEach(r => settings[r.setting_key] = r.setting_value);
+
+        await redisClient.setEx('system_settings', 3600, JSON.stringify(settings)); // Cache for 1 hour
         res.json(settings);
     } catch (err) { res.status(500).json({ error: "Server Error" }); }
 });
@@ -204,12 +249,16 @@ app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
             await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('homepage_layout', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [homepage_layout]);
         }
         
+        await redisClient.del('system_settings'); // Invalidate cache
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 app.get('/api/public/courses', async (req, res) => {
     try {
+        const cachedCourses = await redisClient.get('public_courses');
+        if (cachedCourses) return res.json(JSON.parse(cachedCourses));
+
         const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility FROM learning_modules ORDER BY display_order ASC");
         const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url, hls_manifest_url FROM lesson_videos ORDER BY display_order ASC");
         
@@ -228,6 +277,8 @@ app.get('/api/public/courses', async (req, res) => {
             });
             return { ...mod, lessons: safeLessons }; 
         });
+
+        await redisClient.setEx('public_courses', 600, JSON.stringify(coursesStructure)); // Cache for 10 mins
         res.json(coursesStructure);
     } catch (err) { res.status(500).json({ error: "Server Error fetching public courses." }); }
 });
@@ -256,14 +307,12 @@ app.post('/api/login', async (req, res) => {
             userEmail = ADMIN_EMAIL; userRole = "admin"; userPhone = "Admin";
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
             
-        // --- ADD THIS NEW 'ELSE IF' BLOCK FOR THE DEMO STUDENT ---
+        // --- DEMO STUDENT ---
         } else if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
             userEmail = DEMO_EMAIL; 
-            userRole = "student"; // Treated strictly as a student (no admin dashboard)
+            userRole = "student"; 
             userPhone = "Demo Account";
-            // Grants full access to all locked levels
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
-        // ---------------------------------------------------------
             
         } else {
             const localCreds = await pool.query("SELECT * FROM user_credentials WHERE email = $1", [email]);
@@ -396,13 +445,10 @@ app.post('/api/accept_terms', authenticateToken, async (req, res) => {
             `
         };
         
-        // Await the email send to catch errors properly
         await transporter.sendMail(mailOptions);
-        
         res.json({ success: true });
     } catch (err) { 
         console.error("Mail Error:", err);
-        // Continue and log them in successfully even if SMTP fails so it doesn't break the app
         res.json({ success: true, msg: "Agreement recorded locally, but email failed to send." }); 
     }
 });
@@ -460,6 +506,31 @@ app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
 });
 
+// --- NEW VIDEO WATCH TRACKING ENDPOINTS ---
+app.post('/api/video/progress', authenticateToken, async (req, res) => {
+    const { lessonId, currentTime } = req.body;
+    try {
+        await pool.query(
+            "INSERT INTO video_progress (email, lesson_id, watched_seconds, last_watched) VALUES ($1, $2, $3, NOW()) ON CONFLICT (email, lesson_id) DO UPDATE SET watched_seconds = GREATEST(video_progress.watched_seconds, EXCLUDED.watched_seconds), last_watched = NOW()",
+            [req.user.email, lessonId, Math.floor(currentTime)]
+        );
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/video/progress', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT vp.email, vp.watched_seconds, vp.last_watched, lv.title 
+            FROM video_progress vp 
+            JOIN lesson_videos lv ON vp.lesson_id = lv.id 
+            ORDER BY vp.last_watched DESC LIMIT 100
+        `);
+        res.json(result.rows);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// ------------------------------------------
+
 app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
     const { title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility } = req.body;
     try {
@@ -467,6 +538,7 @@ app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
             "INSERT INTO learning_modules (title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
             [title, description, required_level, display_order || 0, lock_notice || '', show_on_home, dashboard_visibility || 'all']
         );
+        await redisClient.del('public_courses');
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -478,21 +550,29 @@ app.put('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) =
             "UPDATE learning_modules SET title = $1, description = $2, required_level = $3, lock_notice = $4, display_order = $5, show_on_home = $6, dashboard_visibility = $7 WHERE id = $8", 
             [title, description, required_level, lock_notice || '', display_order || 0, show_on_home, dashboard_visibility || 'all', req.params.id]
         );
+        await redisClient.del('public_courses');
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
+    // --- UPDATED DELETE_PASSWORD VALIDATION ---
+    const { password } = req.body;
+    if (password !== DELETE_PASSWORD) { return res.status(401).json({ success: false, msg: "❌ Incorrect Password!" }); }
+    
     try { 
         const videos = await pool.query("SELECT hls_manifest_url FROM lesson_videos WHERE module_id = $1", [req.params.id]);
         videos.rows.forEach(row => {
-            const parts = row.hls_manifest_url.split('/');
-            if (parts.length >= 3) {
-                const folderPath = path.join(hlsDir, parts[2]);
-                if (fs.existsSync(folderPath)) { fs.rmSync(folderPath, { recursive: true, force: true }); }
+            if (row.hls_manifest_url && row.hls_manifest_url !== 'PROCESSING') {
+                const parts = row.hls_manifest_url.split('/');
+                if (parts.length >= 3) {
+                    const folderPath = path.join(hlsDir, parts[2]);
+                    if (fs.existsSync(folderPath)) { fs.rmSync(folderPath, { recursive: true, force: true }); }
+                }
             }
         });
         await pool.query("DELETE FROM learning_modules WHERE id = $1", [req.params.id]); 
+        await redisClient.del('public_courses');
         res.json({ success: true }); 
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -505,6 +585,7 @@ app.post('/api/admin/modules/reorder', authenticateToken, isAdmin, async (req, r
                 await pool.query("UPDATE learning_modules SET display_order = $1 WHERE id = $2", [i, orderedIds[i]]);
             }
         }
+        await redisClient.del('public_courses');
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -518,6 +599,7 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
                 "INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6)", 
                 [module_id, title, description || '', '', display_order || 0, '']
             );
+            await redisClient.del('public_courses');
             return res.json({ success: true, msg: "Text Document Lesson Added Successfully." });
         } catch(e) {
             return res.status(500).json({ success: false, msg: e.message });
@@ -547,9 +629,34 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
         } catch (err) { console.error("Auto-thumbnail failed, skipping."); }
     }
 
+    try {
+        const dbResult = await pool.query(
+            "INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id", 
+            [module_id, title, description || '', 'PROCESSING', display_order || 0, thumbUrl]
+        );
+        const newLessonId = dbResult.rows[0].id;
+        await redisClient.del('public_courses');
+
+        // Queue for Background Worker
+        await videoQueue.add('encode', {
+            lessonDbId: newLessonId,
+            videoPath: videoFile.path,
+            hlsDirStr: hlsDir
+        });
+
+        res.json({ success: true, msg: "Video Uploaded. System is now converting it in the background. It will be available shortly." });
+    } catch (e) {
+        if (fs.existsSync(videoFile.path)) fs.unlinkSync(videoFile.path);
+        res.status(500).json({ success: false, msg: e.message });
+    }
+});
+
+// --- BULLMQ BACKGROUND WORKER DEFINITION ---
+const worker = new Worker('video-encoding', async job => {
+    const { lessonDbId, videoPath, hlsDirStr } = job.data;
     const lessonId = crypto.randomUUID();
-    const lessonHlsDir = path.join(hlsDir, lessonId);
-    fs.mkdirSync(lessonHlsDir, { recursive: true });
+    const lessonHlsDir = path.join(hlsDirStr, lessonId);
+    if (!fs.existsSync(lessonHlsDir)) fs.mkdirSync(lessonHlsDir, { recursive: true });
 
     const key = crypto.randomBytes(16);
     const keyPath = path.join(lessonHlsDir, 'enc.key');
@@ -561,30 +668,34 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
 
     const m3u8Path = `/hls/${lessonId}/output.m3u8`;
 
-    ffmpeg(videoFile.path)
-        .outputOptions([
-            '-profile:v baseline', 
-            '-level 3.0', 
-            '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
-            '-start_number 0', 
-            '-hls_time 10', 
-            '-hls_list_size 0', 
-            '-f hls', 
-            `-hls_key_info_file ${keyInfoPath}`
-        ])
-        .output(path.join(lessonHlsDir, 'output.m3u8'))
-        .on('end', async () => {
-            if (fs.existsSync(videoFile.path)) fs.unlinkSync(videoFile.path);
-            try { 
-                await pool.query("INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6)", 
-                [module_id, title, description || '', m3u8Path, display_order || 0, thumbUrl]); 
-            } catch(e) {}
-        })
-        .on('error', (err) => { if (fs.existsSync(videoFile.path)) fs.unlinkSync(videoFile.path); })
-        .run();
-
-    res.json({ success: true, msg: "Video Uploaded. System is now converting and encrypting it in the background." });
-});
+    return new Promise((resolve, reject) => {
+        ffmpeg(videoPath)
+            .outputOptions([
+                '-profile:v baseline', 
+                '-level 3.0', 
+                '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+                '-start_number 0', 
+                '-hls_time 10', 
+                '-hls_list_size 0', 
+                '-f hls', 
+                `-hls_key_info_file ${keyInfoPath}`
+            ])
+            .output(path.join(lessonHlsDir, 'output.m3u8'))
+            .on('end', async () => {
+                if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath);
+                await pool.query("UPDATE lesson_videos SET hls_manifest_url = $1 WHERE id = $2", [m3u8Path, lessonDbId]);
+                await redisClient.del('public_courses');
+                console.log(`✅ Background processing complete for Lesson ID: ${lessonDbId}`);
+                resolve();
+            })
+            .on('error', (err) => { 
+                if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); 
+                reject(err); 
+            })
+            .run();
+    });
+}, { connection: redisConnection });
+// --------------------------------------------
 
 app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, upload.single('thumbnail_file'), async (req, res) => {
     const { title, description, display_order } = req.body;
@@ -600,14 +711,19 @@ app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, upload.single('thu
         } else {
             await pool.query("UPDATE lesson_videos SET title = $1, description = $2, display_order = $3 WHERE id = $4", [title, description || '', display_order || 0, req.params.id]);
         }
+        await redisClient.del('public_courses');
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 app.delete('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res) => {
+    // --- UPDATED DELETE_PASSWORD VALIDATION ---
+    const { password } = req.body;
+    if (password !== DELETE_PASSWORD) { return res.status(401).json({ success: false, msg: "❌ Incorrect Password!" }); }
+
     try { 
         const result = await pool.query("SELECT hls_manifest_url FROM lesson_videos WHERE id = $1", [req.params.id]);
-        if (result.rows.length > 0) {
+        if (result.rows.length > 0 && result.rows[0].hls_manifest_url && result.rows[0].hls_manifest_url !== 'PROCESSING') {
             const parts = result.rows[0].hls_manifest_url.split('/');
             if (parts.length >= 3) {
                 const folderPath = path.join(hlsDir, parts[2]);
@@ -615,6 +731,7 @@ app.delete('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res
             }
         }
         await pool.query("DELETE FROM lesson_videos WHERE id = $1", [req.params.id]); 
+        await redisClient.del('public_courses');
         res.json({ success: true }); 
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -627,6 +744,7 @@ app.post('/api/admin/lessons/reorder', authenticateToken, isAdmin, async (req, r
                 await pool.query("UPDATE lesson_videos SET display_order = $1 WHERE id = $2", [i, orderedIds[i]]);
             }
         }
+        await redisClient.del('public_courses');
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -641,7 +759,11 @@ app.post('/api/signal_detected', async (req, res) => {
         const sentMsg = await bot.sendMessage(CHAT_ID, `🚨 *NEW SIGNAL DETECTED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n📊 *Type:* ${toMarkdown(type)}\n🕒 *Time:* ${toMarkdown(getISTTime())}`, { parse_mode: 'Markdown' });
         await pool.query(`INSERT INTO trades (trade_id, symbol, type, telegram_msg_id, created_at, status) VALUES ($1, $2, $3, $4, $5, 'SIGNAL') ON CONFLICT (trade_id) DO NOTHING;`, [trade_id, symbol, type, sentMsg.message_id, getDBTime()]);
         await pool.query("DELETE FROM trades WHERE CAST(created_at AS TIMESTAMP) < NOW() - INTERVAL '30 days'");
-        io.emit('trade_update'); res.json({ success: true });
+        
+        io.emit('trade_update'); 
+        sendPushNotification({ title: '🚨 NEW SIGNAL', body: `${symbol} - ${type}` }); // PWA Push
+        
+        res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -657,7 +779,11 @@ app.post('/api/setup_confirmed', async (req, res) => {
         await pool.query(`INSERT INTO trades (trade_id, symbol, type, entry_price, sl_price, tp1_price, tp2_price, tp3_price, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'SETUP', $9) ON CONFLICT (trade_id) DO UPDATE SET entry_price = EXCLUDED.entry_price, sl_price = EXCLUDED.sl_price, tp1_price = EXCLUDED.tp1_price, tp2_price = EXCLUDED.tp2_price, tp3_price = EXCLUDED.tp3_price, status = 'SETUP';`, [trade_id, symbol, type, entry, sl, tp1, tp2, tp3, getDBTime()]);
         const opts = { parse_mode: 'Markdown' }; if (check.rows[0]?.telegram_msg_id) opts.reply_to_message_id = check.rows[0].telegram_msg_id;
         await bot.sendMessage(CHAT_ID, `✅ *SETUP CONFIRMED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n🚀 *Type:* ${toMarkdown(type)}\n🚪 *Entry:* ${toMarkdown(entry)}\n🛑 *SL:* ${toMarkdown(sl)}\n\n🎯 *TP1:* ${toMarkdown(tp1)}\n🎯 *TP2:* ${toMarkdown(tp2)}\n🎯 *TP3:* ${toMarkdown(tp3)}`, opts);
-        io.emit('trade_update'); res.json({ success: true });
+        
+        io.emit('trade_update'); 
+        sendPushNotification({ title: '✅ SETUP CONFIRMED', body: `${symbol} - Entry: ${entry}` }); // PWA Push
+        
+        res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -683,7 +809,11 @@ app.post('/api/log_event', async (req, res) => {
         await pool.query("UPDATE trades SET status = $1, points_gained = $2 WHERE trade_id = $3", [new_status, calculatePoints(trade.type, trade.entry_price, price), trade_id]);
         const opts = { parse_mode: 'Markdown' }; if (trade.telegram_msg_id) opts.reply_to_message_id = trade.telegram_msg_id;
         await bot.sendMessage(CHAT_ID, `⚡ *UPDATE: ${toMarkdown(new_status)}*\n\n💎 *Symbol:* #${toMarkdown(trade.symbol)}\n📉 *Price:* ${toMarkdown(price)}`, opts);
-        io.emit('trade_update'); res.json({ success: true });
+        
+        io.emit('trade_update'); 
+        sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); // PWA Push
+        
+        res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
