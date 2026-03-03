@@ -42,6 +42,9 @@ const DELETE_PASSWORD = (process.env.DELETE_PASSWORD || "admin123").trim();
 const JWT_SECRET = (process.env.JWT_SECRET || "super_secret_key_123").trim();
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@rdalgo.in").trim();
 const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || "admin123").trim();
+// ADD THESE TWO LINES FOR THE DEMO ACCOUNT:
+const DEMO_EMAIL = (process.env.DEMO_EMAIL || "demo@rdalgo.in").trim();
+const DEMO_PASSWORD = (process.env.DEMO_PASSWORD || "demo123").trim();
 
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -252,6 +255,16 @@ app.post('/api/login', async (req, res) => {
         if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
             userEmail = ADMIN_EMAIL; userRole = "admin"; userPhone = "Admin";
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
+            
+        // --- ADD THIS NEW 'ELSE IF' BLOCK FOR THE DEMO STUDENT ---
+        } else if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
+            userEmail = DEMO_EMAIL; 
+            userRole = "student"; // Treated strictly as a student (no admin dashboard)
+            userPhone = "Demo Account";
+            // Grants full access to all locked levels
+            accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
+        // ---------------------------------------------------------
+            
         } else {
             const localCreds = await pool.query("SELECT * FROM user_credentials WHERE email = $1", [email]);
             if (localCreds.rows.length > 0) {
@@ -298,7 +311,7 @@ app.post('/api/set_password', async (req, res) => {
 app.post('/api/forgot_password', async (req, res) => {
     const { email } = req.body;
     try {
-        if (email === ADMIN_EMAIL) return res.status(400).json({ success: false, msg: "Admin password cannot be reset here." });
+        if (email === ADMIN_EMAIL || email === DEMO_EMAIL) return res.status(400).json({ success: false, msg: "This account password cannot be reset here." });
         const [rows] = await authPool.query("SELECT student_email FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
         if (rows.length === 0) return res.status(404).json({ success: false, msg: "Email not found in registry." });
 
