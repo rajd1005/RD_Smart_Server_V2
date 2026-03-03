@@ -310,6 +310,19 @@ async function fetchCourses() {
             const adminCallWidgetCheck = document.getElementById('adminShowCallWidget');
             if (adminCallWidgetCheck) adminCallWidgetCheck.checked = showCallWidget;
 
+            // --- NEW STICKY BUTTON FETCHING ---
+            const showStickyFooter = settings.show_sticky_footer !== 'false';
+            const adminStickyCheck = document.getElementById('adminShowStickyFooter');
+            if (adminStickyCheck) adminStickyCheck.checked = showStickyFooter;
+
+            const safeSetVal = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val || ''; };
+            safeSetVal('adminBtn1Text', settings.sticky_btn1_text);
+            safeSetVal('adminBtn1Icon', settings.sticky_btn1_icon);
+            safeSetVal('adminBtn1Link', settings.sticky_btn1_link);
+            safeSetVal('adminBtn2Text', settings.sticky_btn2_text);
+            safeSetVal('adminBtn2Icon', settings.sticky_btn2_icon);
+            safeSetVal('adminBtn2Link', settings.sticky_btn2_link);
+
             // Render existing layout arrangement for the draggable UI in Admin Panel
             if (settings.homepage_layout && userData.role === 'admin') {
                 const layoutOrder = JSON.parse(settings.homepage_layout);
@@ -447,6 +460,15 @@ if (formAdminSettings) {
         const hideTrade = document.getElementById('adminHideTradeTab')?.checked ? 'true' : 'false';
         const showGallery = document.getElementById('adminShowGallery')?.checked ? 'true' : 'false';
         const showCallWidget = document.getElementById('adminShowCallWidget')?.checked ? 'true' : 'false';
+
+        // --- NEW STICKY BUTTON GRABBING ---
+        const showStickyFooter = document.getElementById('adminShowStickyFooter')?.checked ? 'true' : 'false';
+        const sticky_btn1_text = document.getElementById('adminBtn1Text')?.value || '';
+        const sticky_btn1_icon = document.getElementById('adminBtn1Icon')?.value || '';
+        const sticky_btn1_link = document.getElementById('adminBtn1Link')?.value || '';
+        const sticky_btn2_text = document.getElementById('adminBtn2Text')?.value || '';
+        const sticky_btn2_icon = document.getElementById('adminBtn2Icon')?.value || '';
+        const sticky_btn2_link = document.getElementById('adminBtn2Link')?.value || '';
         
         // Retrieve the new layout arrangement from the Draggable UI
         let homepage_layout = undefined;
@@ -461,7 +483,14 @@ if (formAdminSettings) {
                 accordion_state: state, 
                 hide_trade_tab: hideTrade, 
                 show_gallery: showGallery, 
-                show_call_widget: showCallWidget 
+                show_call_widget: showCallWidget,
+                show_sticky_footer: showStickyFooter,
+                sticky_btn1_text: sticky_btn1_text,
+                sticky_btn1_icon: sticky_btn1_icon,
+                sticky_btn1_link: sticky_btn1_link,
+                sticky_btn2_text: sticky_btn2_text,
+                sticky_btn2_icon: sticky_btn2_icon,
+                sticky_btn2_link: sticky_btn2_link
             };
             if (homepage_layout) bodyData.homepage_layout = homepage_layout;
 
