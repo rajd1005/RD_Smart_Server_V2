@@ -257,6 +257,20 @@ app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+// --- NEW: API ENDPOINT TO MANAGE SYMBOL CATEGORIES ---
+app.put('/api/admin/settings/symbols', authenticateToken, isAdmin, async (req, res) => {
+    const { cat_forex_crypto, cat_stock, cat_index, cat_mcx } = req.body;
+    try {
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('cat_forex_crypto', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [cat_forex_crypto || '']);
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('cat_stock', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [cat_stock || '']);
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('cat_index', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [cat_index || '']);
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('cat_mcx', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [cat_mcx || '']);
+        await redisClient.del('system_settings').catch(()=>{});
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+// -----------------------------------------------------
+
 app.get('/api/public/courses', async (req, res) => {
     try {
         const cachedCourses = await redisClient.get('public_courses').catch(()=>null);
