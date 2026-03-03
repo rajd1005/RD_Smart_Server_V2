@@ -10,6 +10,7 @@ let datePicker;
 let videoPlayer = null; 
 let watermarkInterval = null; 
 let progressInterval = null; // --- NEW: Video Progress Interval ---
+let symbolCategories = { 'Forex/Crypto': [], 'Stock': [], 'Index': [], 'Mcx': [] }; // --- NEW: Category State ---
 
 const userData = {
     email: localStorage.getItem('userEmail'),
@@ -401,6 +402,25 @@ async function fetchCourses() {
             if (adminDisclaimerCheck) adminDisclaimerCheck.checked = showDisclaimer;
             safeSetVal('adminRegisterLink', settings.register_link);
 
+            // --- NEW SYMBOL CATEGORIES FETCHING ---
+            const catForex = settings.cat_forex_crypto || '';
+            const catStock = settings.cat_stock || '';
+            const catIndex = settings.cat_index || '';
+            const catMcx = settings.cat_mcx || '';
+            
+            symbolCategories['Forex/Crypto'] = catForex.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
+            symbolCategories['Stock'] = catStock.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
+            symbolCategories['Index'] = catIndex.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
+            symbolCategories['Mcx'] = catMcx.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
+
+            safeSetVal('adminCatForex', catForex);
+            safeSetVal('adminCatStock', catStock);
+            safeSetVal('adminCatIndex', catIndex);
+            safeSetVal('adminCatMcx', catMcx);
+
+            if (allTrades && allTrades.length > 0) applyFilters(); 
+            // --------------------------------------
+
             // Render existing layout arrangement for the draggable UI in Admin Panel
             if (settings.homepage_layout && userData.role === 'admin') {
                 const layoutOrder = JSON.parse(settings.homepage_layout);
@@ -613,6 +633,41 @@ if (formAdminSettings) {
     });
 }
 
+// --- NEW CATEGORY MANAGER HANDLER ---
+const formAdminSymbols = document.getElementById('formAdminSymbols');
+if (formAdminSymbols) {
+    formAdminSymbols.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
+        
+        try {
+            const bodyData = { 
+                cat_forex_crypto: document.getElementById('adminCatForex')?.value || '',
+                cat_stock: document.getElementById('adminCatStock')?.value || '',
+                cat_index: document.getElementById('adminCatIndex')?.value || '',
+                cat_mcx: document.getElementById('adminCatMcx')?.value || ''
+            };
+
+            const res = await fetch('/api/admin/settings/symbols', { 
+                method: 'PUT', 
+                headers: {'Content-Type': 'application/json'}, 
+                credentials: 'same-origin', 
+                body: JSON.stringify(bodyData) 
+            });
+            
+            if(res.ok) { 
+                alert("Symbol Categories saved successfully!");
+                fetchCourses(); // Refetches settings and updates symbolCategories object 
+            } else { 
+                const errData = await res.json().catch(()=>({}));
+                alert("Error saving symbols: " + (errData.msg || "Unknown"));
+            }
+        } catch(err) { alert("Network error saving symbols."); }
+        finally { btn.innerText = "Save Symbols"; btn.disabled = false; }
+    });
+}
+// ------------------------------------
+
 const formAddModule = document.getElementById('formAddModule');
 if (formAddModule) {
     formAddModule.addEventListener('submit', async (e) => {
@@ -810,8 +865,12 @@ async function deleteModule(e, id) {
     } catch(e) { console.error(e); }
 }
 
+// --- NEW CATEGORY RESTRICTION & VISIBILITY HANDLER ---
 function applyRoleRestrictions() {
     const role = localStorage.getItem('userRole');
+    const statPoints = document.getElementById('statPoints');
+    const statWinRate = document.getElementById('statWinRate');
+
     if (role === 'admin') {
         document.getElementById('btnSelect').style.display = 'flex';
         document.getElementById('btnDelete').style.display = 'flex';
@@ -819,6 +878,12 @@ function applyRoleRestrictions() {
         if (btnAdminCourseManager) btnAdminCourseManager.style.display = 'inline-block';
         const adminAccordionControls = document.getElementById('adminAccordionControls');
         if (adminAccordionControls) adminAccordionControls.style.display = 'block';
+
+        if (statPoints) statPoints.style.display = 'flex';
+        if (statWinRate) statWinRate.style.display = 'flex';
+    } else {
+        if (statPoints) statPoints.style.display = 'none';
+        if (statWinRate) statWinRate.style.display = 'none';
     }
 }
 
@@ -850,10 +915,12 @@ function populateSymbolFilter(trades) {
     if(uniqueSymbols.includes(currentVal)) symbolSelect.value = currentVal;
 }
 
+// --- UPDATED FILTERS INCORPORATING SYMBOL CATEGORIES ---
 function applyFilters(preserveIds = []) {
     const filterSymbol = document.getElementById('filterSymbol')?.value || '';
     const filterStatus = document.getElementById('filterStatus')?.value || 'ALL';
     const filterType = document.getElementById('filterType')?.value || 'ALL';
+    const filterCategory = document.getElementById('filterCategory')?.value || 'ALL'; // NEW CATEGORY
     let startDate = ""; let endDate = "";
     
     if (datePicker && datePicker.selectedDates.length > 0) {
@@ -904,7 +971,14 @@ function applyFilters(preserveIds = []) {
         else if (filterStatus === 'SL') statusMatch = (displayStatus.includes('SL') || displayStatus.includes('LOSS'));
         else if (filterStatus === 'OPEN') statusMatch = isVisuallyActive;
 
-        if (typeMatch && symbolMatch && statusMatch) { 
+        // --- NEW CATEGORY MATCH LOGIC ---
+        let categoryMatch = true;
+        if (filterCategory !== 'ALL') {
+            const allowedSymbols = symbolCategories[filterCategory] || [];
+            categoryMatch = allowedSymbols.includes(trade.symbol.toUpperCase());
+        }
+
+        if (typeMatch && symbolMatch && statusMatch && categoryMatch) { 
             acc.push({ ...trade, displayStatus, isVisuallyActive, tradeDateObj }); 
         }
         return acc;
@@ -1035,3 +1109,6 @@ if (filterStatusEl) filterStatusEl.addEventListener('change', () => applyFilters
 
 const filterTypeEl = document.getElementById('filterType');
 if (filterTypeEl) filterTypeEl.addEventListener('change', () => applyFilters());
+
+const filterCategoryEl = document.getElementById('filterCategory');
+if (filterCategoryEl) filterCategoryEl.addEventListener('change', () => applyFilters());
