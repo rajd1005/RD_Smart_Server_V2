@@ -706,9 +706,29 @@
                 videoPlayer = videojs('my-video', { hls: { overrideNative: true }, html5: { vhs: { overrideNative: true } }, controlBar: { fullscreenToggle: false, pictureInPictureToggle: false }});
                 videoPlayer.el().addEventListener('contextmenu', function(e) { e.preventDefault(); });
                 videoPlayer.on('loadedmetadata', async function() {
-                    const vw = videoPlayer.videoWidth(); const vh = videoPlayer.videoHeight();
-                    if (screen.orientation && screen.orientation.lock) { try { if (vw > vh) { await screen.orientation.lock("landscape"); } else { await screen.orientation.lock("portrait"); } } catch (e) { } }
-                });
+    const vw = videoPlayer.videoWidth();
+    const vh = videoPlayer.videoHeight();
+    
+    // Check if the API is supported
+    if (screen.orientation && screen.orientation.lock) {
+        try { 
+            if (vw > vh) { 
+                await screen.orientation.lock("landscape"); 
+            } else { 
+                await screen.orientation.lock("portrait"); 
+            } 
+        } catch (e) {
+            console.log("Orientation lock failed", e);
+        }
+    } else {
+        // Fallback for iOS devices
+        if (vw > vh && window.innerHeight > window.innerWidth) {
+            // Video is landscape, but phone is portrait
+            // You can show a custom toast/alert here
+            alert("For the best experience, please rotate your device horizontally.");
+        }
+    }
+});
             }
             videoPlayer.reset(); stopWatermark();
             try {
