@@ -1127,3 +1127,119 @@ if (filterTypeEl) filterTypeEl.addEventListener('change', () => applyFilters());
 
 const filterCategoryEl = document.getElementById('filterCategory');
 if (filterCategoryEl) filterCategoryEl.addEventListener('change', () => applyFilters());
+
+
+// ========================================================
+// CUSTOM PUSH NOTIFICATION MANAGER LOGIC
+// ========================================================
+let allNotifications = [];
+
+async function fetchAdminNotifications() {
+    const tbody = document.getElementById('pushTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-2">Loading...</td></tr>';
+    try {
+        const res = await fetch('/api/admin/notifications', { credentials: 'same-origin' });
+        const json = await res.json();
+        if(json.success) {
+            allNotifications = json.data;
+            if(allNotifications.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-2">No notifications found.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = allNotifications.map(n => {
+                const dateStr = n.scheduled_for ? new Date(n.scheduled_for).toLocaleString('en-GB', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'}) : 'Immediate';
+                const statusBadge = n.status === 'sent' ? `<span class="badge bg-success" style="font-size:8px;">Sent</span>` : `<span class="badge bg-warning text-dark" style="font-size:8px;">Scheduled</span>`;
+                
+                let actions = '';
+                if(n.status === 'pending') {
+                    actions = `
+                        <button type="button" class="btn btn-sm btn-link p-0 text-primary me-2" onclick="editPush(${n.id})"><span class="material-icons-round" style="font-size: 14px;">edit</span></button>
+                        <button type="button" class="btn btn-sm btn-link p-0 text-danger" onclick="deletePush(${n.id})"><span class="material-icons-round" style="font-size: 14px;">delete</span></button>
+                    `;
+                }
+
+                return `<tr>
+                    <td class="fw-bold text-truncate" style="max-width:120px;" title="${n.title}">${n.title}</td>
+                    <td>${statusBadge}<br><small class="text-muted">${dateStr}</small></td>
+                    <td class="text-center">${actions}</td>
+                </tr>`;
+            }).join('');
+        }
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-2">Error loading</td></tr>';
+    }
+}
+
+const formAdminPush = document.getElementById('formAdminPush');
+if (formAdminPush) {
+    formAdminPush.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('btnPushSubmit');
+        btn.innerText = "Processing..."; btn.disabled = true;
+
+        const id = document.getElementById('adminPushId').value;
+        const payload = {
+            title: document.getElementById('adminPushTitle').value,
+            body: document.getElementById('adminPushBody').value,
+            url: document.getElementById('adminPushUrl').value,
+            schedule_time: document.getElementById('adminPushSchedule').value || null
+        };
+
+        try {
+            const url = id ? `/api/admin/notifications/${id}` : '/api/admin/notifications';
+            const method = id ? 'PUT' : 'POST';
+            
+            const res = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                credentials: 'same-origin'
+            });
+
+            if (res.ok) {
+                alert(id ? "Notification Updated!" : (payload.schedule_time ? "Notification Scheduled!" : "Notification Sent!"));
+                cancelPushEdit();
+                fetchAdminNotifications();
+            } else {
+                alert("Error managing notification.");
+            }
+        } catch (e) { alert("Network Error"); }
+        finally { btn.innerText = "Send / Schedule"; btn.disabled = false; }
+    });
+}
+
+window.editPush = function(id) {
+    const notification = allNotifications.find(n => n.id === id);
+    if (!notification) return;
+    
+    document.getElementById('adminPushId').value = notification.id;
+    document.getElementById('adminPushTitle').value = notification.title;
+    document.getElementById('adminPushBody').value = notification.body;
+    document.getElementById('adminPushUrl').value = notification.url || '';
+    
+    if (notification.scheduled_for) {
+        // Format to match datetime-local requirement (YYYY-MM-DDThh:mm)
+        const d = new Date(notification.scheduled_for);
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        document.getElementById('adminPushSchedule').value = d.toISOString().slice(0, 16);
+    }
+
+    document.getElementById('btnPushSubmit').innerText = "Update Schedule";
+    document.getElementById('btnPushCancelEdit').style.display = 'inline-block';
+};
+
+window.cancelPushEdit = function() {
+    document.getElementById('formAdminPush').reset();
+    document.getElementById('adminPushId').value = '';
+    document.getElementById('btnPushSubmit').innerText = "Send / Schedule";
+    document.getElementById('btnPushCancelEdit').style.display = 'none';
+};
+
+window.deletePush = async function(id) {
+    if(!confirm("Are you sure you want to delete this scheduled notification?")) return;
+    try {
+        const res = await fetch(`/api/admin/notifications/${id}`, { method: 'DELETE', credentials: 'same-origin' });
+        if(res.ok) fetchAdminNotifications();
+    } catch(e) { alert("Error deleting."); }
+};
