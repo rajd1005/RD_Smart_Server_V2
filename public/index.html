@@ -294,10 +294,21 @@
                                     <input type="checkbox" class="custom-check m-0" id="adminShowCallWidget">
                                     <label class="form-check-label ms-2 fw-bold" for="adminShowCallWidget" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Call Report on Home Page</label>
                                 </div>
-                                <div class="mb-4 d-flex align-items-center">
+                                <div class="mb-3 d-flex align-items-center">
                                     <input type="checkbox" class="custom-check m-0" id="adminHideTradeTab">
                                     <label class="form-check-label ms-2 fw-bold" for="adminHideTradeTab" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Hide Trade Tab for All Users</label>
                                 </div>
+                                
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Homepage Layout Order (Drag to Reorder)</label>
+                                    <ul id="homepageLayoutDraggable" class="list-group list-group-flush" style="font-size: 11px; cursor: grab; border: 1px solid var(--border-color); border-radius: 4px; padding: 0;">
+                                        <li class="list-group-item p-2 d-flex align-items-center" data-id="demoCoursesContainer" style="border-bottom: 1px solid var(--border-color);"><span class="material-icons-round text-muted me-2" style="font-size:16px;">drag_indicator</span>Demo Courses</li>
+                                        <li class="list-group-item p-2 d-flex align-items-center" data-id="galleryWrapper" style="border-bottom: 1px solid var(--border-color);"><span class="material-icons-round text-muted me-2" style="font-size:16px;">drag_indicator</span>Performance Gallery</li>
+                                        <li class="list-group-item p-2 d-flex align-items-center" data-id="callReportWrapper" style="border-bottom: 1px solid var(--border-color);"><span class="material-icons-round text-muted me-2" style="font-size:16px;">drag_indicator</span>Call Report</li>
+                                        <li class="list-group-item p-2 d-flex align-items-center" data-id="otherCoursesContainer"><span class="material-icons-round text-muted me-2" style="font-size:16px;">drag_indicator</span>Locked Courses</li>
+                                    </ul>
+                                </div>
+
                                 <button type="submit" class="btn btn-sm btn-warning w-100 fw-bold" style="padding:8px; border-radius:4px;">Save Settings</button>
                             </form>
                         </div>
@@ -431,6 +442,7 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="app.js"></script>
     <script>setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-GB'); }, 1000);</script>
 </body>
