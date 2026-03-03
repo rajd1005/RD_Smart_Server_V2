@@ -198,6 +198,10 @@
                             </div>
                             <div id="loginErrorMsg" class="text-danger mb-2 text-center fw-bold" style="display:none; font-size: 11px;"></div>
                             <button type="submit" class="btn btn-primary w-100 fw-bold" id="loginBtn" style="font-size: 13px; padding: 8px; border-radius: 4px; border: none;">Login</button>
+                            
+                            <div class="text-center mt-3">
+                                <a id="registerLinkBtn" href="#" target="_blank" class="text-decoration-none fw-bold" style="font-size: 12px; color: var(--dark-blue);">Don't have an account? Register Here</a>
+                            </div>
                         </form>
                     </div>
 
@@ -821,9 +825,22 @@
             wmEl.style.left = Math.floor(Math.random() * (maxX - minX + 1)) + minX + 'px'; wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
         }
 
+        // --- NEW: FETCH REGISTRATION LINK ON LOAD ---
+        async function fetchSystemSettings() {
+            try {
+                const settingsRes = await fetch('/api/settings');
+                const settings = await settingsRes.json();
+                const regBtn = document.getElementById('registerLinkBtn');
+                if (regBtn && settings.register_link) {
+                    regBtn.href = settings.register_link;
+                }
+            } catch(e) {}
+        }
+
         initCallWidget();
         loadGallery();
         fetchPublicCourses();
+        fetchSystemSettings(); // Fetch registration link and update DOM
     </script>
 </body>
 </html>
