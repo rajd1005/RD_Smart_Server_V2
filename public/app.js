@@ -894,6 +894,21 @@ function initDatePicker() {
 
 socket.on('trade_update', () => { fetchTrades(); });
 
+// --- ADD THIS NEW BLOCK ---
+socket.on('force_logout', (data) => {
+    const currentEmail = localStorage.getItem('userEmail');
+    const currentSessionId = localStorage.getItem('sessionId');
+    
+    // If the event is for this email, but the session ID doesn't match the active one
+    if (currentEmail === data.email && currentSessionId !== data.newSessionId) {
+        // Show the note to the user
+        alert("Logged in from another device. Your current session has expired.");
+        
+        // Execute your existing logout function instantly
+        logout(); 
+    }
+});
+
 async function fetchTrades() {
     const checkedIds = getCheckedIds();
     try {
