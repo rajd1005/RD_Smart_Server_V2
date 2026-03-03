@@ -334,14 +334,18 @@ app.post('/api/login', async (req, res) => {
         let accessLevels = { level_1_status: 'No', level_2_status: 'No', level_3_status: 'No', level_4_status: 'No' };
         let studentRecord = null;
 
+        // Check if the credentials match any demo user in the array
+        const matchedDemo = DEMO_USERS.find(user => user.email === email && user.password === password);
+
         if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
             userEmail = ADMIN_EMAIL; userRole = "admin"; userPhone = "Admin";
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
             
-        } else if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
-            userEmail = DEMO_EMAIL; 
+        } else if (matchedDemo) {
+            // If it's one of the demo users, log them in
+            userEmail = matchedDemo.email; 
             userRole = "student"; 
-            userPhone = "Demo Account";
+            userPhone = "Demo Account"; // Or you can make this dynamic if you want
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
             
         } else {
