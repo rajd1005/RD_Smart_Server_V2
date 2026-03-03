@@ -9,6 +9,7 @@ const socket = io();
 let datePicker;
 let videoPlayer = null; 
 let watermarkInterval = null; 
+let progressInterval = null; // --- NEW: Video Progress Interval ---
 
 const userData = {
     email: localStorage.getItem('userEmail'),
@@ -25,7 +26,31 @@ window.onload = function() {
     switchSection('learning'); 
     
     checkDisclaimer();
+    registerServiceWorker(); // --- NEW: Initialize PWA Push Notifications ---
 };
+
+// --- NEW: Register Service Worker for Push Notifications ---
+async function registerServiceWorker() {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+        try {
+            const registration = await navigator.serviceWorker.register('/sw.js');
+            const subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: 'BIfZ9H7J_D1J_Yj2M2zG3d_U9kGjA-A2R0d5xYVbE0n9W4s5yB7jXz6_m_tX9uP_bT2D5YVbE0n9W4s5yB7jXz6' // Replace with your real VAPID_PUBLIC_KEY
+            });
+            
+            await fetch('/api/push/subscribe', {
+                method: 'POST',
+                body: JSON.stringify(subscription),
+                headers: { 'content-type': 'application/json' },
+                credentials: 'same-origin'
+            });
+        } catch (error) {
+            console.log('Service Worker or Push Notification registration failed:', error);
+        }
+    }
+}
+// -------------------------------------------------------------
 
 async function checkDisclaimer() {
     if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
@@ -436,10 +461,26 @@ async function openSecureVideo(lessonId) {
 
         startWatermark();
         videoPlayer.play();
+
+        // --- NEW: Start Video Progress Tracking ---
+        if (progressInterval) clearInterval(progressInterval);
+        progressInterval = setInterval(() => {
+            if (!videoPlayer.paused()) {
+                fetch('/api/video/progress', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ lessonId: lessonId, currentTime: videoPlayer.currentTime() })
+                }).catch(e => {});
+            }
+        }, 10000);
+        // ------------------------------------------
+
     } catch(err) { alert("🚨 Error loading video stream."); }
 }
 
 function closeVideoPlayer() {
+    if (progressInterval) clearInterval(progressInterval); // --- NEW: Stop Video Tracking ---
     if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
     if (screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch (e) {} }
     if (document.fullscreenElement || document.webkitFullscreenElement) {
@@ -722,10 +763,40 @@ if (formEditLesson) {
     });
 }
 
+// --- NEW: Require Password for Deleting Lessons ---
 async function deleteLesson(e, id) {
     e.stopPropagation(); 
-    if(!confirm("⚠️ Delete this video?")) return;
-    try { const res = await fetch(`/api/admin/lessons/${id}`, { method: 'DELETE', credentials: 'same-origin' }); if(res.ok) fetchCourses(); } catch(e) {}
+    const password = prompt("🔒 Enter Admin Password to delete this lesson:");
+    if (!password) return;
+    try { 
+        const res = await fetch(`/api/admin/lessons/${id}`, { 
+            method: 'DELETE', 
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ password })
+        }); 
+        const data = await res.json();
+        if(res.ok && data.success) fetchCourses(); 
+        else alert(data.msg || "Error deleting lesson");
+    } catch(e) {}
+}
+
+// --- NEW: Require Password for Deleting Modules ---
+async function deleteModule(e, id) {
+    e.stopPropagation();
+    const password = prompt("🔒 Enter Admin Password to delete this module:");
+    if (!password) return;
+    try { 
+        const res = await fetch(`/api/admin/modules/${id}`, { 
+            method: 'DELETE', 
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ password })
+        }); 
+        const data = await res.json();
+        if(res.ok && data.success) fetchCourses(); 
+        else alert(data.msg || "Error deleting module");
+    } catch(e) { console.error(e); }
 }
 
 function applyRoleRestrictions() {
