@@ -375,6 +375,11 @@ async function fetchCourses() {
             const adminHideCheck = document.getElementById('adminHideTradeTab');
             if (adminHideCheck) adminHideCheck.checked = hideTradeTab;
 
+            // --- TRADE PUSH ALERTS TOGGLE FETCHING ---
+            const pushTradeAlerts = settings.push_trade_alerts !== 'false';
+            const adminPushTradeCheck = document.getElementById('adminPushTradeAlerts');
+            if (adminPushTradeCheck) adminPushTradeCheck.checked = pushTradeAlerts;
+
             const showGallery = settings.show_gallery !== 'false';
             const adminGalleryCheck = document.getElementById('adminShowGallery');
             if (adminGalleryCheck) adminGalleryCheck.checked = showGallery;
@@ -562,6 +567,7 @@ if (formAdminSettings) {
         
         const state = document.getElementById('adminAccordionState')?.value || 'first';
         const hideTrade = document.getElementById('adminHideTradeTab')?.checked ? 'true' : 'false';
+        const push_trade_alerts = document.getElementById('adminPushTradeAlerts')?.checked ? 'true' : 'false';
         const showGallery = document.getElementById('adminShowGallery')?.checked ? 'true' : 'false';
         const showCallWidget = document.getElementById('adminShowCallWidget')?.checked ? 'true' : 'false';
 
@@ -587,6 +593,7 @@ if (formAdminSettings) {
             const bodyData = { 
                 accordion_state: state, 
                 hide_trade_tab: hideTrade, 
+                push_trade_alerts: push_trade_alerts,
                 show_gallery: showGallery, 
                 show_call_widget: showCallWidget,
                 show_sticky_footer: showStickyFooter,
@@ -1131,7 +1138,6 @@ async function fetchChatNotifications() {
 
             history.innerHTML = sorted.map(n => {
                 const dateObj = n.scheduled_for ? new Date(n.scheduled_for) : new Date(n.created_at);
-                // ALWAYS render time as explicit IST TimeZone, regardless of client browser setup
                 const dateStr = dateObj.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }) + ' ' + dateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
                 
                 const isScheduled = n.status === 'pending';
