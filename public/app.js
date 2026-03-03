@@ -24,14 +24,50 @@ window.onload = function() {
     
     switchSection('learning'); 
     
-    if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
-        const modalEl = document.getElementById('disclaimerModal');
-        if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
-    }
+    checkDisclaimer();
 };
+
+async function checkDisclaimer() {
+    if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
+        try {
+            const settingsRes = await fetch('/api/settings');
+            const settings = await settingsRes.json();
+            
+            if (settings.show_disclaimer !== 'false') {
+                const modalEl = document.getElementById('disclaimerModal');
+                if (modalEl) {
+                    const agreeBtn = document.getElementById('btnAgreeDisclaimer');
+                    const scrollBody = document.getElementById('disclaimerScrollBody');
+                    
+                    if (window.innerWidth <= 768 && agreeBtn && scrollBody) {
+                        agreeBtn.disabled = true;
+                        agreeBtn.innerText = "Scroll to Agree ▼";
+                        
+                        scrollBody.addEventListener('scroll', function() {
+                            if (scrollBody.scrollTop + scrollBody.clientHeight >= scrollBody.scrollHeight - 15) {
+                                agreeBtn.disabled = false;
+                                agreeBtn.innerText = "I AGREE";
+                            }
+                        });
+                        
+                        // Edge case if it doesn't need a scroll bar on their specific screen
+                        setTimeout(() => {
+                            if (scrollBody.scrollHeight <= scrollBody.clientHeight) {
+                                agreeBtn.disabled = false;
+                                agreeBtn.innerText = "I AGREE";
+                            }
+                        }, 500);
+                    }
+                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                }
+            }
+        } catch (err) { console.error("Error loading disclaimer config"); }
+    }
+}
 
 window.acceptDisclaimer = async function() {
     const btn = document.querySelector('#disclaimerModal .btn-success');
+    if (!btn) return;
     const originalText = btn.innerText;
     btn.innerText = "⏳ Recording Agreement...";
     btn.disabled = true;
@@ -322,6 +358,12 @@ async function fetchCourses() {
             safeSetVal('adminBtn2Text', settings.sticky_btn2_text);
             safeSetVal('adminBtn2Icon', settings.sticky_btn2_icon);
             safeSetVal('adminBtn2Link', settings.sticky_btn2_link);
+            
+            // --- NEW SETTINGS ---
+            const showDisclaimer = settings.show_disclaimer !== 'false';
+            const adminDisclaimerCheck = document.getElementById('adminShowDisclaimer');
+            if (adminDisclaimerCheck) adminDisclaimerCheck.checked = showDisclaimer;
+            safeSetVal('adminRegisterLink', settings.register_link);
 
             // Render existing layout arrangement for the draggable UI in Admin Panel
             if (settings.homepage_layout && userData.role === 'admin') {
@@ -470,6 +512,10 @@ if (formAdminSettings) {
         const sticky_btn2_icon = document.getElementById('adminBtn2Icon')?.value || '';
         const sticky_btn2_link = document.getElementById('adminBtn2Link')?.value || '';
         
+        // --- NEW DISCLAIMER AND REGISTER GRABBING ---
+        const showDisclaimer = document.getElementById('adminShowDisclaimer')?.checked ? 'true' : 'false';
+        const register_link = document.getElementById('adminRegisterLink')?.value || '';
+        
         // Retrieve the new layout arrangement from the Draggable UI
         let homepage_layout = undefined;
         const layoutList = document.querySelectorAll('#homepageLayoutDraggable li');
@@ -490,7 +536,9 @@ if (formAdminSettings) {
                 sticky_btn1_link: sticky_btn1_link,
                 sticky_btn2_text: sticky_btn2_text,
                 sticky_btn2_icon: sticky_btn2_icon,
-                sticky_btn2_link: sticky_btn2_link
+                sticky_btn2_link: sticky_btn2_link,
+                show_disclaimer: showDisclaimer,
+                register_link: register_link
             };
             if (homepage_layout) bodyData.homepage_layout = homepage_layout;
 
