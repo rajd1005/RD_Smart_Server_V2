@@ -42,25 +42,13 @@ const redisConnection = {
 };
 const videoQueue = new Queue('video-encoding', { connection: redisConnection });
 
-// --- PWA WEB PUSH SETUP ---
-const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
-const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-
-if (vapidPublicKey && vapidPrivateKey) {
-    try {
-        webpush.setVapidDetails(
-            'mailto:' + (process.env.ADMIN_EMAIL || 'admin@rdalgo.in'),
-            vapidPublicKey.trim(),
-            vapidPrivateKey.trim()
-        );
-        console.log("✅ Web Push VAPID keys configured.");
-    } catch (e) {
-        console.error("❌ Invalid VAPID keys in .env. Push notifications disabled:", e.message);
+app.get('/api/push/public_key', (req, res) => {
+    if (app.locals.vapidPublicKey) {
+        res.json({ success: true, publicKey: app.locals.vapidPublicKey });
+    } else {
+        res.status(500).json({ success: false, msg: "VAPID key not initialized." });
     }
-} else {
-    console.warn("⚠️ VAPID keys not found in .env. Push notifications are disabled.");
-}
-// ------------------------------------
+});
 
 const app = express();
 
@@ -850,4 +838,45 @@ cron.schedule('30 6 * * *', async () => {
 });
 
 const PORT = process.env.PORT || 3000;
-initDb().then(() => { server.listen(PORT, () => console.log(`🚀 RD Broker Server running on ${PORT}`)); });
+initDb().then(async () => { 
+    // --- NEW: Auto-Generate & Save VAPID Keys to Database ---
+    let vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+    let vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+
+    try {
+        if (!vapidPublicKey || !vapidPrivateKey) {
+            const pubRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'vapid_public'");
+            const privRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'vapid_private'");
+            
+            if (pubRes.rows.length > 0 && privRes.rows.length > 0) {
+                vapidPublicKey = pubRes.rows[0].setting_value;
+                vapidPrivateKey = privRes.rows[0].setting_value;
+            } else {
+                console.log("⚠️ No VAPID keys found in env or DB. Generating new ones automatically...");
+                const vapidKeys = webpush.generateVAPIDKeys();
+                vapidPublicKey = vapidKeys.publicKey;
+                vapidPrivateKey = vapidKeys.privateKey;
+                
+                await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('vapid_public', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [vapidPublicKey]);
+                await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('vapid_private', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [vapidPrivateKey]);
+                console.log("✅ New VAPID keys generated and saved to PostgreSQL.");
+            }
+        }
+
+        webpush.setVapidDetails(
+            'mailto:' + (process.env.ADMIN_EMAIL || 'admin@rdalgo.in'),
+            vapidPublicKey.trim(),
+            vapidPrivateKey.trim()
+        );
+        
+        // Save globally so the frontend API can fetch it
+        app.locals.vapidPublicKey = vapidPublicKey.trim();
+        console.log("✅ Web Push VAPID configured successfully.");
+
+    } catch (e) {
+        console.error("❌ Failed to setup VAPID keys:", e.message);
+    }
+    // ---------------------------------------------------------
+
+    server.listen(PORT, () => console.log(`🚀 RD Broker Server running on ${PORT}`)); 
+});
