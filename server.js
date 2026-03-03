@@ -176,7 +176,8 @@ app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
     const { 
         accordion_state, hide_trade_tab, show_gallery, show_call_widget, homepage_layout,
         show_sticky_footer, sticky_btn1_text, sticky_btn1_link, sticky_btn1_icon,
-        sticky_btn2_text, sticky_btn2_link, sticky_btn2_icon 
+        sticky_btn2_text, sticky_btn2_link, sticky_btn2_icon,
+        show_disclaimer, register_link
     } = req.body;
     try {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state || 'first']);
@@ -191,6 +192,9 @@ app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('sticky_btn2_text', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [sticky_btn2_text || '']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('sticky_btn2_link', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [sticky_btn2_link || '']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('sticky_btn2_icon', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [sticky_btn2_icon || 'send']);
+        
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_disclaimer', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_disclaimer || 'true']);
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('register_link', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [register_link || '']);
 
         if (homepage_layout) {
             await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('homepage_layout', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [homepage_layout]);
