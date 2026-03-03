@@ -208,8 +208,9 @@
             </div>
         </div>
     </div>
+    
     <div class="modal fade" id="adminCourseModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title mb-0">Admin Course Manager</h5>
@@ -217,15 +218,18 @@
                 </div>
                 <div class="modal-body p-0">
                     
-                    <ul class="nav nav-tabs nav-justified px-3 pt-2" id="adminTabs" role="tablist">
+                    <ul class="nav nav-tabs nav-justified px-1 pt-2" id="adminTabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active fw-bold text-uppercase" id="tab-module" data-bs-toggle="tab" data-bs-target="#pane-module" type="button" role="tab" style="font-size: 10px;">1. Add Module</button>
+                            <button class="nav-link active fw-bold text-uppercase" id="tab-module" data-bs-toggle="tab" data-bs-target="#pane-module" type="button" role="tab" style="font-size: 10px;">1. Module</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link fw-bold text-uppercase" id="tab-lesson" data-bs-toggle="tab" data-bs-target="#pane-lesson" type="button" role="tab" style="font-size: 10px;">2. Add Lesson</button>
+                            <button class="nav-link fw-bold text-uppercase" id="tab-lesson" data-bs-toggle="tab" data-bs-target="#pane-lesson" type="button" role="tab" style="font-size: 10px;">2. Lesson</button>
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link fw-bold text-uppercase" id="tab-settings" data-bs-toggle="tab" data-bs-target="#pane-settings" type="button" role="tab" style="font-size: 10px;">3. Settings</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-uppercase" id="tab-progress" data-bs-toggle="tab" data-bs-target="#pane-progress" type="button" role="tab" style="font-size: 10px;" onclick="fetchVideoProgress()">4. Progress</button>
                         </li>
                     </ul>
 
@@ -378,6 +382,27 @@
                                 <button type="submit" class="btn btn-sm btn-warning w-100 fw-bold" style="padding:8px; border-radius:4px;">Save Settings</button>
                             </form>
                         </div>
+
+                        <div class="tab-pane fade" id="pane-progress" role="tabpanel">
+                            <h6 class="fw-bold mb-3" style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary);">Student Watch Log</h6>
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-bordered table-striped" style="font-size: 10px;">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th>Student</th>
+                                            <th>Lesson</th>
+                                            <th class="text-center">Watched</th>
+                                            <th>Last Active</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="progressTableBody">
+                                        <tr><td colspan="4" class="text-center text-muted py-3">Click refresh to load...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary w-100 mt-2 fw-bold" onclick="fetchVideoProgress()" style="padding:8px; border-radius:4px;">↻ Refresh Report</button>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -510,6 +535,40 @@
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="app.js"></script>
-    <script>setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-GB'); }, 1000);</script>
+    
+    <script>
+        setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-GB'); }, 1000);
+        
+        // --- NEW LOGIC FOR FETCHING VIDEO PROGRESS REPORT ---
+        async function fetchVideoProgress() {
+            const tbody = document.getElementById('progressTableBody');
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-3">Loading...</td></tr>';
+            try {
+                const res = await fetch('/api/admin/video/progress');
+                if(!res.ok) throw new Error('Failed to fetch');
+                const data = await res.json();
+                if(data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No watch records found.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.map(r => {
+                    let mins = Math.floor(r.watched_seconds / 60);
+                    let secs = r.watched_seconds % 60;
+                    let timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+                    let dateStr = new Date(r.last_watched).toLocaleString('en-GB', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'});
+                    return `
+                    <tr>
+                        <td class="text-break fw-bold">${r.email}</td>
+                        <td class="text-break">${r.title}</td>
+                        <td class="text-center fw-bold text-success">${timeStr}</td>
+                        <td class="text-muted">${dateStr}</td>
+                    </tr>
+                    `;
+                }).join('');
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-3">Error loading report.</td></tr>';
+            }
+        }
+    </script>
 </body>
 </html>
