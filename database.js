@@ -84,7 +84,11 @@ const initDb = async () => {
     ('sticky_btn2_link', 'https://t.me/'),
     ('sticky_btn2_icon', 'send'),
     ('show_disclaimer', 'true'),
-    ('register_link', '#')
+    ('register_link', '#'),
+    ('cat_forex_crypto', ''),
+    ('cat_stock', ''),
+    ('cat_index', ''),
+    ('cat_mcx', '')
     ON CONFLICT (setting_key) DO NOTHING;`;
 
     try {
