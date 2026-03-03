@@ -29,16 +29,27 @@ window.onload = function() {
     registerServiceWorker(); // --- NEW: Initialize PWA Push Notifications ---
 };
 
-// --- NEW: Register Service Worker for Push Notifications ---
+// --- NEW: Register Service Worker & Fetch Dynamic Push Key ---
 async function registerServiceWorker() {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
         try {
+            // 1. Fetch the automatically generated public key from the server
+            const keyRes = await fetch('/api/push/public_key');
+            const keyData = await keyRes.json();
+            
+            if (!keyData.success) {
+                console.log("Push keys not ready yet.");
+                return;
+            }
+
+            // 2. Register Service Worker and Subscribe using the dynamic key
             const registration = await navigator.serviceWorker.register('/sw.js');
             const subscription = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
-                applicationServerKey: 'BIfZ9H7J_D1J_Yj2M2zG3d_U9kGjA-A2R0d5xYVbE0n9W4s5yB7jXz6_m_tX9uP_bT2D5YVbE0n9W4s5yB7jXz6' // Replace with your real VAPID_PUBLIC_KEY
+                applicationServerKey: keyData.publicKey
             });
             
+            // 3. Save subscription to Database
             await fetch('/api/push/subscribe', {
                 method: 'POST',
                 body: JSON.stringify(subscription),
