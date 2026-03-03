@@ -78,6 +78,7 @@ const initDb = async () => {
         url VARCHAR(255),
         scheduled_for TIMESTAMP,
         status VARCHAR(20) DEFAULT 'pending',
+        target_audience VARCHAR(50) DEFAULT 'both',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`;
 
@@ -120,6 +121,7 @@ const initDb = async () => {
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN DEFAULT TRUE;`); } catch(e){}
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS dashboard_visibility VARCHAR(20) DEFAULT 'all';`); } catch(e){}
         try { await pool.query(`ALTER TABLE lesson_videos ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;`); } catch(e){}
+        try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS target_audience VARCHAR(50) DEFAULT 'both';`); } catch(e){}
 
         console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push + Notifications)");
     } catch (err) {
