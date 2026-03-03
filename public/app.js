@@ -164,7 +164,7 @@ async function fetchCourses() {
 
             let lessonHtml = '';
             if (mod.lessons && mod.lessons.length > 0) {
-                lessonHtml += `<div class="accordion w-100" id="accLsn${mod.id}">`;
+                lessonHtml += `<div class="accordion w-100 lesson-container-sortable" id="accLsn${mod.id}">`;
                 
                 mod.lessons.forEach(l => {
                     const safeLT = (l.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
@@ -202,7 +202,7 @@ async function fetchCourses() {
                     const finalHeaderIcon = hasVideo ? overlayIcon : documentIcon;
 
                     lessonHtml += `
-                        <div class="accordion-item lesson-accordion-item">
+                        <div class="accordion-item lesson-accordion-item" data-lesson-id="${l.id}">
                             <h2 class="accordion-header" id="hLsn${l.id}">
                                 <button class="accordion-button collapsed lesson-accordion-btn" type="button" data-bs-toggle="collapse" data-bs-target="#cLsn${l.id}" aria-expanded="false" aria-controls="cLsn${l.id}">
                                     <span class="material-icons-round" style="font-size:16px; margin-right:8px; color:${hasVideo ? iconColor : 'var(--blue)'};">${finalHeaderIcon}</span>
@@ -231,7 +231,7 @@ async function fetchCourses() {
             }
 
             htmlContent += `
-                <div class="accordion-item course-module">
+                <div class="accordion-item course-module" data-mod-id="${mod.id}">
                     <h2 class="accordion-header" id="heading${mod.id}">
                         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${mod.id}" aria-expanded="false" aria-controls="collapse${mod.id}">
                             <div class="d-flex align-items-center flex-grow-1">
@@ -250,6 +250,32 @@ async function fetchCourses() {
         });
         
         container.innerHTML = htmlContent || '<div class="p-4 text-center text-muted">No courses found.</div>';
+        
+        // Initialize Sortable logic for admin users
+        if (userData.role === 'admin' && typeof Sortable !== 'undefined') {
+            const courseContainer = document.getElementById('courseModuleContainer');
+            if (courseContainer) {
+                new Sortable(courseContainer, {
+                    animation: 150,
+                    handle: '.accordion-header',
+                    onEnd: async function (evt) {
+                        const orderedIds = Array.from(courseContainer.querySelectorAll('.course-module')).map(el => el.getAttribute('data-mod-id'));
+                        try { await fetch('/api/admin/modules/reorder', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({ orderedIds }) }); } catch(e){}
+                    }
+                });
+            }
+
+            document.querySelectorAll('.lesson-container-sortable').forEach(container => {
+                new Sortable(container, {
+                    animation: 150,
+                    handle: '.lesson-accordion-item', 
+                    onEnd: async function (evt) {
+                        const orderedIds = Array.from(container.querySelectorAll('.lesson-accordion-item')).map(el => el.getAttribute('data-lesson-id'));
+                        try { await fetch('/api/admin/lessons/reorder', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({ orderedIds }) }); } catch(e){}
+                    }
+                });
+            });
+        }
         
         try {
             const settingsRes = await fetch('/api/settings');
@@ -273,6 +299,18 @@ async function fetchCourses() {
             const adminCallWidgetCheck = document.getElementById('adminShowCallWidget');
             if (adminCallWidgetCheck) adminCallWidgetCheck.checked = showCallWidget;
 
+            // Render existing layout arrangement for the draggable UI in Admin Panel
+            if (settings.homepage_layout && userData.role === 'admin') {
+                const layoutOrder = JSON.parse(settings.homepage_layout);
+                const layoutUl = document.getElementById('homepageLayoutDraggable');
+                if (layoutUl) {
+                    layoutOrder.forEach(id => {
+                        const li = layoutUl.querySelector(`[data-id="${id}"]`);
+                        if(li) layoutUl.appendChild(li);
+                    });
+                }
+            }
+
             const navTradeBtn = document.getElementById('navTradeBtn');
             if (navTradeBtn) {
                 if (hideTradeTab && userData.role !== 'admin') navTradeBtn.style.display = 'none';
@@ -294,29 +332,27 @@ async function openSecureVideo(lessonId) {
         videoPlayer = videojs('my-video', { hls: { overrideNative: true }, html5: { vhs: { overrideNative: true } }, controlBar: { fullscreenToggle: false, pictureInPictureToggle: false } });
         videoPlayer.el().addEventListener('contextmenu', function(e) { e.preventDefault(); });
         videoPlayer.on('loadedmetadata', async function() {
-    const vw = videoPlayer.videoWidth();
-    const vh = videoPlayer.videoHeight();
-    
-    // Check if the API is supported
-    if (screen.orientation && screen.orientation.lock) {
-        try { 
-            if (vw > vh) { 
-                await screen.orientation.lock("landscape"); 
-            } else { 
-                await screen.orientation.lock("portrait"); 
-            } 
-        } catch (e) {
-            console.log("Orientation lock failed", e);
-        }
-    } else {
-        // Fallback for iOS devices
-        if (vw > vh && window.innerHeight > window.innerWidth) {
-            // Video is landscape, but phone is portrait
-            // You can show a custom toast/alert here
-            alert("For the best experience, please rotate your device horizontally.");
-        }
-    }
-});
+            const vw = videoPlayer.videoWidth();
+            const vh = videoPlayer.videoHeight();
+            
+            // Check if the API is supported (iOS Safari Fix)
+            if (screen.orientation && screen.orientation.lock) {
+                try { 
+                    if (vw > vh) { 
+                        await screen.orientation.lock("landscape"); 
+                    } else { 
+                        await screen.orientation.lock("portrait"); 
+                    } 
+                } catch (e) {
+                    console.log("Orientation lock failed", e);
+                }
+            } else {
+                // Fallback for iOS devices
+                if (vw > vh && window.innerHeight > window.innerWidth) {
+                    alert("For the best experience, please rotate your device horizontally.");
+                }
+            }
+        });
     }
     videoPlayer.reset(); stopWatermark();
     
@@ -389,7 +425,7 @@ function moveWatermark() {
 }
 
 
-// --- FORM SUBMIT HANDLERS (FIXED ERROR EXPOSURE) ---
+// --- FORM SUBMIT HANDLERS ---
 const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
     formAdminSettings.addEventListener('submit', async (e) => {
@@ -401,12 +437,28 @@ if (formAdminSettings) {
         const showGallery = document.getElementById('adminShowGallery')?.checked ? 'true' : 'false';
         const showCallWidget = document.getElementById('adminShowCallWidget')?.checked ? 'true' : 'false';
         
+        // Retrieve the new layout arrangement from the Draggable UI
+        let homepage_layout = undefined;
+        const layoutList = document.querySelectorAll('#homepageLayoutDraggable li');
+        if (layoutList.length > 0) {
+            const layoutArray = Array.from(layoutList).map(li => li.getAttribute('data-id'));
+            homepage_layout = JSON.stringify(layoutArray);
+        }
+        
         try {
+            const bodyData = { 
+                accordion_state: state, 
+                hide_trade_tab: hideTrade, 
+                show_gallery: showGallery, 
+                show_call_widget: showCallWidget 
+            };
+            if (homepage_layout) bodyData.homepage_layout = homepage_layout;
+
             const res = await fetch('/api/admin/settings', { 
                 method: 'PUT', 
                 headers: {'Content-Type': 'application/json'}, 
                 credentials: 'same-origin', 
-                body: JSON.stringify({ accordion_state: state, hide_trade_tab: hideTrade, show_gallery: showGallery, show_call_widget: showCallWidget }) 
+                body: JSON.stringify(bodyData) 
             });
             if(res.ok) { 
                 const m = bootstrap.Modal.getInstance(document.getElementById('adminCourseModal'));
@@ -651,12 +703,10 @@ function applyFilters(preserveIds = []) {
         }
     }
 
-    // 👇 ADD THIS LINE FIX: Define todayStr in IST timezone so the filter has a baseline 
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
     const filtered = allTrades.reduce((acc, trade) => {
         const tradeDateObj = new Date(trade.created_at);
-        // This converts the UTC DB timestamp safely to your user's IST date string
         const tradeDateStr = tradeDateObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
         
         let dateMatch = true;
@@ -668,7 +718,6 @@ function applyFilters(preserveIds = []) {
         let displayStatus = trade.status;
         let isVisuallyActive = (trade.status === 'ACTIVE' || trade.status === 'SETUP');
         
-        // This logic will now work correctly instead of throwing an error
         if (isVisuallyActive && tradeDateStr < todayStr) {
             isVisuallyActive = false; 
             const pts = parseFloat(trade.points_gained || 0);
