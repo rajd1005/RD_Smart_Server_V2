@@ -78,6 +78,18 @@ const DEMO_USERS = [
         email: "demo3@rdalgo.in", 
         password: "demo123" 
     }
+    { 
+        email: "demo4@rdalgo.in", 
+        password: "demo123" 
+    }
+    { 
+        email: "demo5@rdalgo.in", 
+        password: "demo123" 
+    }
+    { 
+        email: "demo6@rdalgo.in", 
+        password: "demo123" 
+    }
     // You can add as many as you want here by copying the format above
 ];
 
