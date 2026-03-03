@@ -59,7 +59,14 @@ const initDb = async () => {
     ('accordion_state', 'first'),
     ('hide_trade_tab', 'false'),
     ('show_gallery', 'true'),
-    ('show_call_widget', 'true')
+    ('show_call_widget', 'true'),
+    ('show_sticky_footer', 'true'),
+    ('sticky_btn1_text', 'WhatsAppUs'),
+    ('sticky_btn1_link', 'https://wa.me/'),
+    ('sticky_btn1_icon', 'chat'),
+    ('sticky_btn2_text', 'JoinTelegram'),
+    ('sticky_btn2_link', 'https://t.me/'),
+    ('sticky_btn2_icon', 'send')
     ON CONFLICT (setting_key) DO NOTHING;`;
 
     try {
