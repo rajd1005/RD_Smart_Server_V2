@@ -172,6 +172,36 @@
         <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" disablePictureInPicture controlsList="nodownload nofullscreen noremoteplayback" playsinline webkit-playsinline></video>
     </div>
 
+    <div class="modal fade" id="disclaimerModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 500px;">
+            <div class="modal-content">
+                <div class="modal-header bg-light pb-2">
+                    <h5 class="modal-title text-danger fw-bold w-100 text-center">
+                        <span class="material-icons-round align-middle me-1">warning</span> MANDATORY LEGAL DISCLAIMER
+                    </h5>
+                </div>
+                <div class="modal-body p-4" style="font-size: 13px; line-height: 1.6; color: #444;">
+                    <p class="fw-bold text-dark text-center mb-3">READ CAREFULLY BEFORE PROCEEDING</p>
+                    <p>By accessing or using the RD Algo platform, services, software, or provided information, you explicitly acknowledge, understand, and agree to the following terms:</p>
+                    
+                    <ul class="ps-3 mb-3">
+                        <li class="mb-2"><strong>Educational Purposes Only:</strong> All content, indicators, signals, and strategies provided by RD Algo are strictly for educational and informational purposes. They do not constitute financial, investment, or trading advice.</li>
+                        <li class="mb-2"><strong>No SEBI Registration:</strong> RD Algo, its founders, and its team members are <strong>NOT registered with SEBI</strong> (Securities and Exchange Board of India) as financial advisors or research analysts.</li>
+                        <li class="mb-2"><strong>High Risk Warning:</strong> Trading in financial markets (including stocks, options, forex, and crypto) involves a high degree of risk. You may lose some or all of your initial capital.</li>
+                        <li class="mb-2"><strong>Your Sole Responsibility:</strong> You are 100% responsible for your own trading decisions. RD Algo will not be held liable for any financial losses, damages, or consequences resulting from the use of our platform.</li>
+                        <li class="mb-0"><strong>Past Performance:</strong> Past performance, whether actual or indicated by historical backtests, is no guarantee of future results.</li>
+                    </ul>
+                    <div class="p-3 bg-light border rounded text-center mt-4">
+                        <p class="mb-0 fw-bold" style="font-size: 12px; color: #000;">By clicking "I AGREE", you electronically sign this agreement and confirm you have read and understood these risks.</p>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-center bg-light pt-2 pb-3 border-top-0">
+                    <button type="button" class="btn btn-outline-secondary px-4 fw-bold" onclick="declineDisclaimer()">DECLINE & LOGOUT</button>
+                    <button type="button" class="btn btn-success px-5 fw-bold" onclick="acceptDisclaimer()">I AGREE</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="modal fade" id="adminCourseModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
             <div class="modal-content">
