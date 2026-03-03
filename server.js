@@ -27,13 +27,19 @@ const { pool, initDb } = require('./database');
 const authPool = require('./authDb'); 
 require('dotenv').config();
 
-// --- REDIS SETUP ---
-const redisClient = createClient({ url: process.env.REDIS_URL || 'redis://127.0.0.1:6379' });
-redisClient.on('error', (err) => console.log('Redis Client Error', err));
+// --- REDIS SETUP (Updated for Railway) ---
+const redisClient = createClient({ 
+    url: process.env.REDIS_URL || 'redis://127.0.0.1:6379' 
+});
+redisClient.on('error', (err) => console.log('Redis Client Error', err.message));
 redisClient.connect().then(() => console.log('✅ Connected to Redis')).catch(console.error);
 
-// --- BULLMQ QUEUE SETUP ---
-const redisConnection = { host: process.env.REDIS_HOST || '127.0.0.1', port: parseInt(process.env.REDIS_PORT || '6379') };
+// --- BULLMQ QUEUE SETUP (Updated for Railway) ---
+const redisConnection = { 
+    host: process.env.REDISHOST || process.env.REDIS_HOST || '127.0.0.1', 
+    port: parseInt(process.env.REDISPORT || process.env.REDIS_PORT || '6379'),
+    password: process.env.REDISPASSWORD || process.env.REDIS_PASSWORD || undefined
+};
 const videoQueue = new Queue('video-encoding', { connection: redisConnection });
 
 // --- PWA WEB PUSH SETUP ---
@@ -77,7 +83,6 @@ const DELETE_PASSWORD = (process.env.DELETE_PASSWORD || "admin123").trim();
 const JWT_SECRET = (process.env.JWT_SECRET || "super_secret_key_123").trim();
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@rdalgo.in").trim();
 const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || "admin123").trim();
-// ADD THESE TWO LINES FOR THE DEMO ACCOUNT:
 const DEMO_EMAIL = (process.env.DEMO_EMAIL || "demo@rdalgo.in").trim();
 const DEMO_PASSWORD = (process.env.DEMO_PASSWORD || "demo123").trim();
 
@@ -103,8 +108,6 @@ function getClientIp(req) {
     if (typeof ip === 'string' && ip.includes(',')) ip = ip.split(',')[0]; 
     return ip.trim().replace('::ffff:', '');
 }
-
-const debugLog = (msg) => console.log(`[AUTH DEBUG] ${msg}`);
 
 const authenticateToken = async (req, res, next) => {
     const token = req.cookies.authToken;
@@ -172,14 +175,11 @@ function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
-// Helper function to send push notifications
 async function sendPushNotification(payload) {
     try {
         const subs = await pool.query("SELECT sub_data FROM push_subscriptions");
         subs.rows.forEach(sub => {
-            webpush.sendNotification(sub.sub_data, JSON.stringify(payload)).catch(e => {
-                // If subscription expired, we could delete it here
-            });
+            webpush.sendNotification(sub.sub_data, JSON.stringify(payload)).catch(e => {});
         });
     } catch (err) { console.error("Error fetching subscriptions", err); }
 }
@@ -222,14 +222,14 @@ app.get('/api/public/gallery', async (req, res) => {
 
 app.get('/api/settings', async (req, res) => {
     try {
-        const cachedSettings = await redisClient.get('system_settings');
+        const cachedSettings = await redisClient.get('system_settings').catch(()=>null);
         if (cachedSettings) return res.json(JSON.parse(cachedSettings));
 
         const result = await pool.query("SELECT * FROM system_settings");
         const settings = {};
         result.rows.forEach(r => settings[r.setting_key] = r.setting_value);
 
-        await redisClient.setEx('system_settings', 3600, JSON.stringify(settings)); // Cache for 1 hour
+        await redisClient.setEx('system_settings', 3600, JSON.stringify(settings)).catch(()=>{}); 
         res.json(settings);
     } catch (err) { res.status(500).json({ error: "Server Error" }); }
 });
@@ -262,14 +262,14 @@ app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
             await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('homepage_layout', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [homepage_layout]);
         }
         
-        await redisClient.del('system_settings'); // Invalidate cache
+        await redisClient.del('system_settings').catch(()=>{});
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 app.get('/api/public/courses', async (req, res) => {
     try {
-        const cachedCourses = await redisClient.get('public_courses');
+        const cachedCourses = await redisClient.get('public_courses').catch(()=>null);
         if (cachedCourses) return res.json(JSON.parse(cachedCourses));
 
         const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility FROM learning_modules ORDER BY display_order ASC");
@@ -291,7 +291,7 @@ app.get('/api/public/courses', async (req, res) => {
             return { ...mod, lessons: safeLessons }; 
         });
 
-        await redisClient.setEx('public_courses', 600, JSON.stringify(coursesStructure)); // Cache for 10 mins
+        await redisClient.setEx('public_courses', 600, JSON.stringify(coursesStructure)).catch(()=>{}); 
         res.json(coursesStructure);
     } catch (err) { res.status(500).json({ error: "Server Error fetching public courses." }); }
 });
@@ -320,7 +320,6 @@ app.post('/api/login', async (req, res) => {
             userEmail = ADMIN_EMAIL; userRole = "admin"; userPhone = "Admin";
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
             
-        // --- DEMO STUDENT ---
         } else if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
             userEmail = DEMO_EMAIL; 
             userRole = "student"; 
@@ -551,7 +550,7 @@ app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
             "INSERT INTO learning_modules (title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
             [title, description, required_level, display_order || 0, lock_notice || '', show_on_home, dashboard_visibility || 'all']
         );
-        await redisClient.del('public_courses');
+        await redisClient.del('public_courses').catch(()=>{});
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -563,13 +562,12 @@ app.put('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) =
             "UPDATE learning_modules SET title = $1, description = $2, required_level = $3, lock_notice = $4, display_order = $5, show_on_home = $6, dashboard_visibility = $7 WHERE id = $8", 
             [title, description, required_level, lock_notice || '', display_order || 0, show_on_home, dashboard_visibility || 'all', req.params.id]
         );
-        await redisClient.del('public_courses');
+        await redisClient.del('public_courses').catch(()=>{});
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
-    // --- UPDATED DELETE_PASSWORD VALIDATION ---
     const { password } = req.body;
     if (password !== DELETE_PASSWORD) { return res.status(401).json({ success: false, msg: "❌ Incorrect Password!" }); }
     
@@ -585,7 +583,7 @@ app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res
             }
         });
         await pool.query("DELETE FROM learning_modules WHERE id = $1", [req.params.id]); 
-        await redisClient.del('public_courses');
+        await redisClient.del('public_courses').catch(()=>{});
         res.json({ success: true }); 
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -598,7 +596,7 @@ app.post('/api/admin/modules/reorder', authenticateToken, isAdmin, async (req, r
                 await pool.query("UPDATE learning_modules SET display_order = $1 WHERE id = $2", [i, orderedIds[i]]);
             }
         }
-        await redisClient.del('public_courses');
+        await redisClient.del('public_courses').catch(()=>{});
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -612,7 +610,7 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
                 "INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6)", 
                 [module_id, title, description || '', '', display_order || 0, '']
             );
-            await redisClient.del('public_courses');
+            await redisClient.del('public_courses').catch(()=>{});
             return res.json({ success: true, msg: "Text Document Lesson Added Successfully." });
         } catch(e) {
             return res.status(500).json({ success: false, msg: e.message });
@@ -648,7 +646,7 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
             [module_id, title, description || '', 'PROCESSING', display_order || 0, thumbUrl]
         );
         const newLessonId = dbResult.rows[0].id;
-        await redisClient.del('public_courses');
+        await redisClient.del('public_courses').catch(()=>{});
 
         // Queue for Background Worker
         await videoQueue.add('encode', {
@@ -697,7 +695,7 @@ const worker = new Worker('video-encoding', async job => {
             .on('end', async () => {
                 if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath);
                 await pool.query("UPDATE lesson_videos SET hls_manifest_url = $1 WHERE id = $2", [m3u8Path, lessonDbId]);
-                await redisClient.del('public_courses');
+                await redisClient.del('public_courses').catch(()=>{});
                 console.log(`✅ Background processing complete for Lesson ID: ${lessonDbId}`);
                 resolve();
             })
@@ -724,13 +722,12 @@ app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, upload.single('thu
         } else {
             await pool.query("UPDATE lesson_videos SET title = $1, description = $2, display_order = $3 WHERE id = $4", [title, description || '', display_order || 0, req.params.id]);
         }
-        await redisClient.del('public_courses');
+        await redisClient.del('public_courses').catch(()=>{});
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 app.delete('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res) => {
-    // --- UPDATED DELETE_PASSWORD VALIDATION ---
     const { password } = req.body;
     if (password !== DELETE_PASSWORD) { return res.status(401).json({ success: false, msg: "❌ Incorrect Password!" }); }
 
@@ -744,7 +741,7 @@ app.delete('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res
             }
         }
         await pool.query("DELETE FROM lesson_videos WHERE id = $1", [req.params.id]); 
-        await redisClient.del('public_courses');
+        await redisClient.del('public_courses').catch(()=>{});
         res.json({ success: true }); 
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -757,7 +754,7 @@ app.post('/api/admin/lessons/reorder', authenticateToken, isAdmin, async (req, r
                 await pool.query("UPDATE lesson_videos SET display_order = $1 WHERE id = $2", [i, orderedIds[i]]);
             }
         }
-        await redisClient.del('public_courses');
+        await redisClient.del('public_courses').catch(()=>{});
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -774,7 +771,7 @@ app.post('/api/signal_detected', async (req, res) => {
         await pool.query("DELETE FROM trades WHERE CAST(created_at AS TIMESTAMP) < NOW() - INTERVAL '30 days'");
         
         io.emit('trade_update'); 
-        sendPushNotification({ title: '🚨 NEW SIGNAL', body: `${symbol} - ${type}` }); // PWA Push
+        sendPushNotification({ title: '🚨 NEW SIGNAL', body: `${symbol} - ${type}` }); 
         
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -794,7 +791,7 @@ app.post('/api/setup_confirmed', async (req, res) => {
         await bot.sendMessage(CHAT_ID, `✅ *SETUP CONFIRMED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n🚀 *Type:* ${toMarkdown(type)}\n🚪 *Entry:* ${toMarkdown(entry)}\n🛑 *SL:* ${toMarkdown(sl)}\n\n🎯 *TP1:* ${toMarkdown(tp1)}\n🎯 *TP2:* ${toMarkdown(tp2)}\n🎯 *TP3:* ${toMarkdown(tp3)}`, opts);
         
         io.emit('trade_update'); 
-        sendPushNotification({ title: '✅ SETUP CONFIRMED', body: `${symbol} - Entry: ${entry}` }); // PWA Push
+        sendPushNotification({ title: '✅ SETUP CONFIRMED', body: `${symbol} - Entry: ${entry}` }); 
         
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -824,7 +821,7 @@ app.post('/api/log_event', async (req, res) => {
         await bot.sendMessage(CHAT_ID, `⚡ *UPDATE: ${toMarkdown(new_status)}*\n\n💎 *Symbol:* #${toMarkdown(trade.symbol)}\n📉 *Price:* ${toMarkdown(price)}`, opts);
         
         io.emit('trade_update'); 
-        sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); // PWA Push
+        sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); 
         
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
