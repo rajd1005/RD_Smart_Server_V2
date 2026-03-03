@@ -70,6 +70,17 @@ const initDb = async () => {
         sub_data JSON NOT NULL
     );`;
 
+    const queryScheduledNotifications = `
+    CREATE TABLE IF NOT EXISTS scheduled_notifications (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        body TEXT NOT NULL,
+        url VARCHAR(255),
+        scheduled_for TIMESTAMP,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`;
+
     const populateDefaultSettings = `
     INSERT INTO system_settings (setting_key, setting_value) VALUES 
     ('accordion_state', 'first'),
@@ -101,6 +112,7 @@ const initDb = async () => {
         await pool.query(queryPasswordResets);
         await pool.query(queryProgress);
         await pool.query(queryPushSubscriptions);
+        await pool.query(queryScheduledNotifications);
         await pool.query(populateDefaultSettings);
 
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS lock_notice TEXT;`); } catch(e){}
@@ -108,7 +120,7 @@ const initDb = async () => {
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS dashboard_visibility VARCHAR(20) DEFAULT 'all';`); } catch(e){}
         try { await pool.query(`ALTER TABLE lesson_videos ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;`); } catch(e){}
 
-        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push)");
+        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push + Scheduled Notifications)");
     } catch (err) {
         console.error("❌ Database Error:", err);
     }
