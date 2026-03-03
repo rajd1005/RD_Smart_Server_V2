@@ -291,13 +291,13 @@
                         mode: "range",
                         dateFormat: "d-m-Y",
                         defaultDate: (function () {
-                            const now = new Date();
-                            const istOffset = 5.5 * 60 * 60 * 1000;
-                            const todayIST = new Date(now.getTime() + istOffset);
-                            const past30 = new Date(todayIST);
-                            past30.setDate(todayIST.getDate() - 6);
-                            return [past30, todayIST];
-                        })(),
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const todayIST = new Date(now.getTime() + istOffset);
+    const past10 = new Date(todayIST);
+    past10.setDate(todayIST.getDate() - 10); // Changed from 29 to 6 for the last 7 days
+    return [past10, todayIST];
+})(),
                         onReady: function (selectedDates) {
                             if (selectedDates.length > 0) {
                                 const istOffset = 5.5 * 60 * 60 * 1000;
