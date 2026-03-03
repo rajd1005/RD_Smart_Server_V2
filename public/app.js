@@ -9,8 +9,8 @@ const socket = io();
 let datePicker;
 let videoPlayer = null; 
 let watermarkInterval = null; 
-let progressInterval = null; // --- NEW: Video Progress Interval ---
-let symbolCategories = { 'Forex/Crypto': [], 'Stock': [], 'Index': [], 'Mcx': [] }; // --- NEW: Category State ---
+let progressInterval = null; 
+let symbolCategories = { 'Forex/Crypto': [], 'Stock': [], 'Index': [], 'Mcx': [] }; 
 
 const userData = {
     email: localStorage.getItem('userEmail'),
@@ -27,14 +27,12 @@ window.onload = function() {
     switchSection('learning'); 
     
     checkDisclaimer();
-    registerServiceWorker(); // --- NEW: Initialize PWA Push Notifications ---
+    registerServiceWorker(); 
 };
 
-// --- NEW: Register Service Worker & Fetch Dynamic Push Key ---
 async function registerServiceWorker() {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
         try {
-            // 1. Fetch the automatically generated public key from the server
             const keyRes = await fetch('/api/push/public_key');
             const keyData = await keyRes.json();
             
@@ -43,14 +41,12 @@ async function registerServiceWorker() {
                 return;
             }
 
-            // 2. Register Service Worker and Subscribe using the dynamic key
             const registration = await navigator.serviceWorker.register('/sw.js');
             const subscription = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: keyData.publicKey
             });
             
-            // 3. Save subscription to Database
             await fetch('/api/push/subscribe', {
                 method: 'POST',
                 body: JSON.stringify(subscription),
@@ -62,7 +58,6 @@ async function registerServiceWorker() {
         }
     }
 }
-// -------------------------------------------------------------
 
 async function checkDisclaimer() {
     if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
@@ -87,7 +82,6 @@ async function checkDisclaimer() {
                             }
                         });
                         
-                        // Edge case if it doesn't need a scroll bar on their specific screen
                         setTimeout(() => {
                             if (scrollBody.scrollHeight <= scrollBody.clientHeight) {
                                 agreeBtn.disabled = false;
@@ -136,27 +130,40 @@ document.addEventListener('show.bs.collapse', function (e) {
     }
 });
 
+// --- UPDATED NAVIGATION SWITCH LOGIC ---
 function switchSection(section) {
+    document.getElementById('tradeSection').style.display = 'none';
+    document.getElementById('learningSection').style.display = 'none';
+    const pushSec = document.getElementById('pushSection');
+    if(pushSec) pushSec.style.display = 'none';
+    
+    document.getElementById('navTradeBtn').classList.remove('b-active');
+    document.getElementById('navLearnBtn').classList.remove('b-active');
+    const navPushBtn = document.getElementById('navPushBtn');
+    if(navPushBtn) navPushBtn.classList.remove('b-active');
+
+    document.getElementById('btnRefresh').style.display = 'none';
+    document.getElementById('btnFilter').style.display = 'none';
+    document.getElementById('btnSelect').style.display = 'none';
+    document.getElementById('btnDelete').style.display = 'none';
+
     if (section === 'trade') {
         document.getElementById('tradeSection').style.display = 'block';
-        document.getElementById('learningSection').style.display = 'none';
         document.getElementById('navTradeBtn').classList.add('b-active');
-        document.getElementById('navLearnBtn').classList.remove('b-active');
         document.getElementById('btnRefresh').style.display = 'flex';
         document.getElementById('btnFilter').style.display = 'flex';
         applyRoleRestrictions(); 
+    } else if (section === 'push') {
+        if(pushSec) pushSec.style.display = 'flex';
+        if(navPushBtn) navPushBtn.classList.add('b-active');
+        fetchChatNotifications(); // Load chat broadcast history
     } else {
-        document.getElementById('tradeSection').style.display = 'none';
         document.getElementById('learningSection').style.display = 'block';
         document.getElementById('navLearnBtn').classList.add('b-active');
-        document.getElementById('navTradeBtn').classList.remove('b-active');
-        document.getElementById('btnRefresh').style.display = 'none';
-        document.getElementById('btnFilter').style.display = 'none';
-        document.getElementById('btnSelect').style.display = 'none';
-        document.getElementById('btnDelete').style.display = 'none';
         fetchCourses();
     }
 }
+// ----------------------------------------
 
 function toggleAccordions(action) {
     const allCollapses = document.querySelectorAll('.accordion-collapse');
@@ -324,10 +331,7 @@ async function fetchCourses() {
         
         container.innerHTML = htmlContent || '<div class="p-4 text-center text-muted">No courses found.</div>';
         
-        // Initialize Sortable logic for admin users
         if (userData.role === 'admin' && typeof Sortable !== 'undefined') {
-            
-            // 1. Module Dragging
             const courseContainer = document.getElementById('courseModuleContainer');
             if (courseContainer) {
                 new Sortable(courseContainer, {
@@ -340,7 +344,6 @@ async function fetchCourses() {
                 });
             }
 
-            // 2. Lesson Dragging
             document.querySelectorAll('.lesson-container-sortable').forEach(container => {
                 new Sortable(container, {
                     animation: 150,
@@ -352,7 +355,6 @@ async function fetchCourses() {
                 });
             });
 
-            // 3. Homepage Layout Dragging (Added Missing Initialization)
             const layoutDraggable = document.getElementById('homepageLayoutDraggable');
             if (layoutDraggable) {
                 new Sortable(layoutDraggable, {
@@ -383,7 +385,6 @@ async function fetchCourses() {
             const adminCallWidgetCheck = document.getElementById('adminShowCallWidget');
             if (adminCallWidgetCheck) adminCallWidgetCheck.checked = showCallWidget;
 
-            // --- NEW STICKY BUTTON FETCHING ---
             const showStickyFooter = settings.show_sticky_footer !== 'false';
             const adminStickyCheck = document.getElementById('adminShowStickyFooter');
             if (adminStickyCheck) adminStickyCheck.checked = showStickyFooter;
@@ -396,13 +397,11 @@ async function fetchCourses() {
             safeSetVal('adminBtn2Icon', settings.sticky_btn2_icon);
             safeSetVal('adminBtn2Link', settings.sticky_btn2_link);
             
-            // --- NEW SETTINGS ---
             const showDisclaimer = settings.show_disclaimer !== 'false';
             const adminDisclaimerCheck = document.getElementById('adminShowDisclaimer');
             if (adminDisclaimerCheck) adminDisclaimerCheck.checked = showDisclaimer;
             safeSetVal('adminRegisterLink', settings.register_link);
 
-            // --- NEW SYMBOL CATEGORIES FETCHING ---
             const catForex = settings.cat_forex_crypto || '';
             const catStock = settings.cat_stock || '';
             const catIndex = settings.cat_index || '';
@@ -419,9 +418,7 @@ async function fetchCourses() {
             safeSetVal('adminCatMcx', catMcx);
 
             if (allTrades && allTrades.length > 0) applyFilters(); 
-            // --------------------------------------
 
-            // Render existing layout arrangement for the draggable UI in Admin Panel
             if (settings.homepage_layout && userData.role === 'admin') {
                 const layoutOrder = JSON.parse(settings.homepage_layout);
                 const layoutUl = document.getElementById('homepageLayoutDraggable');
@@ -457,7 +454,6 @@ async function openSecureVideo(lessonId) {
             const vw = videoPlayer.videoWidth();
             const vh = videoPlayer.videoHeight();
             
-            // Check if the API is supported (iOS Safari Fix)
             if (screen.orientation && screen.orientation.lock) {
                 try { 
                     if (vw > vh) { 
@@ -469,7 +465,6 @@ async function openSecureVideo(lessonId) {
                     console.log("Orientation lock failed", e);
                 }
             } else {
-                // Fallback for iOS devices
                 if (vw > vh && window.innerHeight > window.innerWidth) {
                     alert("For the best experience, please rotate your device horizontally.");
                 }
@@ -493,7 +488,6 @@ async function openSecureVideo(lessonId) {
         startWatermark();
         videoPlayer.play();
 
-        // --- NEW: Start Video Progress Tracking ---
         if (progressInterval) clearInterval(progressInterval);
         progressInterval = setInterval(() => {
             if (!videoPlayer.paused()) {
@@ -505,13 +499,12 @@ async function openSecureVideo(lessonId) {
                 }).catch(e => {});
             }
         }, 10000);
-        // ------------------------------------------
 
     } catch(err) { alert("🚨 Error loading video stream."); }
 }
 
 function closeVideoPlayer() {
-    if (progressInterval) clearInterval(progressInterval); // --- NEW: Stop Video Tracking ---
+    if (progressInterval) clearInterval(progressInterval); 
     if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
     if (screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch (e) {} }
     if (document.fullscreenElement || document.webkitFullscreenElement) {
@@ -563,7 +556,6 @@ function moveWatermark() {
 }
 
 
-// --- FORM SUBMIT HANDLERS ---
 const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
     formAdminSettings.addEventListener('submit', async (e) => {
@@ -575,7 +567,6 @@ if (formAdminSettings) {
         const showGallery = document.getElementById('adminShowGallery')?.checked ? 'true' : 'false';
         const showCallWidget = document.getElementById('adminShowCallWidget')?.checked ? 'true' : 'false';
 
-        // --- NEW STICKY BUTTON GRABBING ---
         const showStickyFooter = document.getElementById('adminShowStickyFooter')?.checked ? 'true' : 'false';
         const sticky_btn1_text = document.getElementById('adminBtn1Text')?.value || '';
         const sticky_btn1_icon = document.getElementById('adminBtn1Icon')?.value || '';
@@ -584,11 +575,9 @@ if (formAdminSettings) {
         const sticky_btn2_icon = document.getElementById('adminBtn2Icon')?.value || '';
         const sticky_btn2_link = document.getElementById('adminBtn2Link')?.value || '';
         
-        // --- NEW DISCLAIMER AND REGISTER GRABBING ---
         const showDisclaimer = document.getElementById('adminShowDisclaimer')?.checked ? 'true' : 'false';
         const register_link = document.getElementById('adminRegisterLink')?.value || '';
         
-        // Retrieve the new layout arrangement from the Draggable UI
         let homepage_layout = undefined;
         const layoutList = document.querySelectorAll('#homepageLayoutDraggable li');
         if (layoutList.length > 0) {
@@ -633,7 +622,6 @@ if (formAdminSettings) {
     });
 }
 
-// --- NEW CATEGORY MANAGER HANDLER ---
 const formAdminSymbols = document.getElementById('formAdminSymbols');
 if (formAdminSymbols) {
     formAdminSymbols.addEventListener('submit', async (e) => {
@@ -657,7 +645,7 @@ if (formAdminSymbols) {
             
             if(res.ok) { 
                 alert("Symbol Categories saved successfully!");
-                fetchCourses(); // Refetches settings and updates symbolCategories object 
+                fetchCourses(); 
             } else { 
                 const errData = await res.json().catch(()=>({}));
                 alert("Error saving symbols: " + (errData.msg || "Unknown"));
@@ -666,7 +654,6 @@ if (formAdminSymbols) {
         finally { btn.innerText = "Save Symbols"; btn.disabled = false; }
     });
 }
-// ------------------------------------
 
 const formAddModule = document.getElementById('formAddModule');
 if (formAddModule) {
@@ -829,7 +816,6 @@ if (formEditLesson) {
     });
 }
 
-// --- NEW: Require Password for Deleting Lessons ---
 async function deleteLesson(e, id) {
     e.stopPropagation(); 
     const password = prompt("🔒 Enter Admin Password to delete this lesson:");
@@ -847,7 +833,6 @@ async function deleteLesson(e, id) {
     } catch(e) {}
 }
 
-// --- NEW: Require Password for Deleting Modules ---
 async function deleteModule(e, id) {
     e.stopPropagation();
     const password = prompt("🔒 Enter Admin Password to delete this module:");
@@ -865,7 +850,6 @@ async function deleteModule(e, id) {
     } catch(e) { console.error(e); }
 }
 
-// --- NEW CATEGORY RESTRICTION & VISIBILITY HANDLER ---
 function applyRoleRestrictions() {
     const role = localStorage.getItem('userRole');
     const statPoints = document.getElementById('statPoints');
@@ -881,6 +865,11 @@ function applyRoleRestrictions() {
 
         if (statPoints) statPoints.style.display = 'flex';
         if (statWinRate) statWinRate.style.display = 'flex';
+
+        // --- SHOW NEW PUSH NAV BUTTON ONLY FOR ADMIN ---
+        const navPushBtn = document.getElementById('navPushBtn');
+        if (navPushBtn) navPushBtn.style.display = 'flex';
+
     } else {
         if (statPoints) statPoints.style.display = 'none';
         if (statWinRate) statWinRate.style.display = 'none';
@@ -894,17 +883,12 @@ function initDatePicker() {
 
 socket.on('trade_update', () => { fetchTrades(); });
 
-// --- ADD THIS NEW BLOCK ---
 socket.on('force_logout', (data) => {
     const currentEmail = localStorage.getItem('userEmail');
     const currentSessionId = localStorage.getItem('sessionId');
     
-    // If the event is for this email, but the session ID doesn't match the active one
     if (currentEmail === data.email && currentSessionId !== data.newSessionId) {
-        // Show the note to the user
         alert("Logged in from another device. Your current session has expired.");
-        
-        // Execute your existing logout function instantly
         logout(); 
     }
 });
@@ -930,12 +914,11 @@ function populateSymbolFilter(trades) {
     if(uniqueSymbols.includes(currentVal)) symbolSelect.value = currentVal;
 }
 
-// --- UPDATED FILTERS INCORPORATING SYMBOL CATEGORIES ---
 function applyFilters(preserveIds = []) {
     const filterSymbol = document.getElementById('filterSymbol')?.value || '';
     const filterStatus = document.getElementById('filterStatus')?.value || 'ALL';
     const filterType = document.getElementById('filterType')?.value || 'ALL';
-    const filterCategory = document.getElementById('filterCategory')?.value || 'ALL'; // NEW CATEGORY
+    const filterCategory = document.getElementById('filterCategory')?.value || 'ALL'; 
     let startDate = ""; let endDate = "";
     
     if (datePicker && datePicker.selectedDates.length > 0) {
@@ -986,7 +969,6 @@ function applyFilters(preserveIds = []) {
         else if (filterStatus === 'SL') statusMatch = (displayStatus.includes('SL') || displayStatus.includes('LOSS'));
         else if (filterStatus === 'OPEN') statusMatch = isVisuallyActive;
 
-        // --- NEW CATEGORY MATCH LOGIC ---
         let categoryMatch = true;
         if (filterCategory !== 'ALL') {
             const allowedSymbols = symbolCategories[filterCategory] || [];
@@ -1130,116 +1112,97 @@ if (filterCategoryEl) filterCategoryEl.addEventListener('change', () => applyFil
 
 
 // ========================================================
-// CUSTOM PUSH NOTIFICATION MANAGER LOGIC
+// PUSH NOTIFICATION CHAT UI LOGIC
 // ========================================================
-let allNotifications = [];
+let chatNotifications = [];
 
-async function fetchAdminNotifications() {
-    const tbody = document.getElementById('pushTableBody');
-    if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-2">Loading...</td></tr>';
+async function fetchChatNotifications() {
+    const history = document.getElementById('chatHistory');
+    if(!history) return;
+    
     try {
         const res = await fetch('/api/admin/notifications', { credentials: 'same-origin' });
         const json = await res.json();
         if(json.success) {
-            allNotifications = json.data;
-            if(allNotifications.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-2">No notifications found.</td></tr>';
+            chatNotifications = json.data;
+            const sorted = [...chatNotifications].reverse();
+            
+            if (sorted.length === 0) {
+                history.innerHTML = '<div class="text-center text-muted mt-3" style="font-size:12px;">No broadcasts sent yet.</div>';
                 return;
             }
-            tbody.innerHTML = allNotifications.map(n => {
-                const dateStr = n.scheduled_for ? new Date(n.scheduled_for).toLocaleString('en-GB', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'}) : 'Immediate';
-                const statusBadge = n.status === 'sent' ? `<span class="badge bg-success" style="font-size:8px;">Sent</span>` : `<span class="badge bg-warning text-dark" style="font-size:8px;">Scheduled</span>`;
-                
-                let actions = '';
-                if(n.status === 'pending') {
-                    actions = `
-                        <button type="button" class="btn btn-sm btn-link p-0 text-primary me-2" onclick="editPush(${n.id})"><span class="material-icons-round" style="font-size: 14px;">edit</span></button>
-                        <button type="button" class="btn btn-sm btn-link p-0 text-danger" onclick="deletePush(${n.id})"><span class="material-icons-round" style="font-size: 14px;">delete</span></button>
-                    `;
-                }
 
-                return `<tr>
-                    <td class="fw-bold text-truncate" style="max-width:120px;" title="${n.title}">${n.title}</td>
-                    <td>${statusBadge}<br><small class="text-muted">${dateStr}</small></td>
-                    <td class="text-center">${actions}</td>
-                </tr>`;
+            history.innerHTML = sorted.map(n => {
+                const dateObj = n.scheduled_for ? new Date(n.scheduled_for) : new Date(n.created_at);
+                const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' ' + dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                
+                const isScheduled = n.status === 'pending';
+                const bubbleClass = isScheduled ? 'scheduled' : 'sent';
+                const icon = isScheduled ? 'schedule' : 'done_all';
+                const iconColor = isScheduled ? '#856404' : '#53bdeb';
+                
+                return `
+                <div class="chat-bubble ${bubbleClass}">
+                    <div class="chat-title">${n.title}</div>
+                    <div class="chat-body">${n.body}</div>
+                    ${n.url && n.url !== '/' ? `<a href="${n.url}" target="_blank" class="chat-link">${n.url}</a>` : ''}
+                    <div class="chat-meta">
+                        <span>${isScheduled ? 'Sched: ' : ''}${dateStr}</span>
+                        <span class="material-icons-round" style="font-size:14px; color:${iconColor};">${icon}</span>
+                        <span class="material-icons-round chat-del-btn ms-2" onclick="deleteChatPush(${n.id})">delete</span>
+                    </div>
+                </div>`;
             }).join('');
+            
+            // Scroll to bottom
+            history.scrollTop = history.scrollHeight;
         }
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-2">Error loading</td></tr>';
+        history.innerHTML = '<div class="text-center text-danger mt-3" style="font-size:12px;">Error loading messages.</div>';
     }
 }
 
-const formAdminPush = document.getElementById('formAdminPush');
-if (formAdminPush) {
-    formAdminPush.addEventListener('submit', async (e) => {
+const formChatPush = document.getElementById('formChatPush');
+if (formChatPush) {
+    formChatPush.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const btn = document.getElementById('btnPushSubmit');
-        btn.innerText = "Processing..."; btn.disabled = true;
+        const btn = document.getElementById('btnChatPushSubmit');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
-        const id = document.getElementById('adminPushId').value;
         const payload = {
-            title: document.getElementById('adminPushTitle').value,
-            body: document.getElementById('adminPushBody').value,
-            url: document.getElementById('adminPushUrl').value,
-            schedule_time: document.getElementById('adminPushSchedule').value || null
+            title: document.getElementById('chatPushTitle').value,
+            body: document.getElementById('chatPushBody').value,
+            url: document.getElementById('chatPushUrl').value,
+            schedule_time: document.getElementById('chatPushSchedule').value || null
         };
 
         try {
-            const url = id ? `/api/admin/notifications/${id}` : '/api/admin/notifications';
-            const method = id ? 'PUT' : 'POST';
-            
-            const res = await fetch(url, {
-                method: method,
+            const res = await fetch('/api/admin/notifications', {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
                 credentials: 'same-origin'
             });
 
             if (res.ok) {
-                alert(id ? "Notification Updated!" : (payload.schedule_time ? "Notification Scheduled!" : "Notification Sent!"));
-                cancelPushEdit();
-                fetchAdminNotifications();
+                formChatPush.reset();
+                fetchChatNotifications();
             } else {
-                alert("Error managing notification.");
+                alert("Error sending notification.");
             }
         } catch (e) { alert("Network Error"); }
-        finally { btn.innerText = "Send / Schedule"; btn.disabled = false; }
+        finally { 
+            btn.disabled = false; 
+            btn.innerHTML = '<span class="material-icons-round" style="margin-left:4px; font-size:18px;">send</span>';
+        }
     });
 }
 
-window.editPush = function(id) {
-    const notification = allNotifications.find(n => n.id === id);
-    if (!notification) return;
-    
-    document.getElementById('adminPushId').value = notification.id;
-    document.getElementById('adminPushTitle').value = notification.title;
-    document.getElementById('adminPushBody').value = notification.body;
-    document.getElementById('adminPushUrl').value = notification.url || '';
-    
-    if (notification.scheduled_for) {
-        // Format to match datetime-local requirement (YYYY-MM-DDThh:mm)
-        const d = new Date(notification.scheduled_for);
-        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-        document.getElementById('adminPushSchedule').value = d.toISOString().slice(0, 16);
-    }
-
-    document.getElementById('btnPushSubmit').innerText = "Update Schedule";
-    document.getElementById('btnPushCancelEdit').style.display = 'inline-block';
-};
-
-window.cancelPushEdit = function() {
-    document.getElementById('formAdminPush').reset();
-    document.getElementById('adminPushId').value = '';
-    document.getElementById('btnPushSubmit').innerText = "Send / Schedule";
-    document.getElementById('btnPushCancelEdit').style.display = 'none';
-};
-
-window.deletePush = async function(id) {
-    if(!confirm("Are you sure you want to delete this scheduled notification?")) return;
+window.deleteChatPush = async function(id) {
+    if(!confirm("Are you sure you want to delete this notification?")) return;
     try {
         const res = await fetch(`/api/admin/notifications/${id}`, { method: 'DELETE', credentials: 'same-origin' });
-        if(res.ok) fetchAdminNotifications();
+        if(res.ok) fetchChatNotifications();
     } catch(e) { alert("Error deleting."); }
 };
