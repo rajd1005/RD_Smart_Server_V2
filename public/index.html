@@ -180,7 +180,7 @@
                         <span class="material-icons-round align-middle me-1">warning</span> MANDATORY LEGAL DISCLAIMER
                     </h5>
                 </div>
-                <div class="modal-body p-4" style="font-size: 13px; line-height: 1.6; color: #444;">
+                <div class="modal-body p-4" id="disclaimerScrollBody" style="font-size: 13px; line-height: 1.6; color: #444; max-height: 60vh; overflow-y: auto;">
                     <p class="fw-bold text-dark text-center mb-3">READ CAREFULLY BEFORE PROCEEDING</p>
                     
                     <div class="alert alert-warning p-2 text-center" style="border-left: 4px solid #856404; background-color: #fff3cd; color: #856404; font-weight: 700;">
@@ -203,7 +203,7 @@
                 </div>
                 <div class="modal-footer justify-content-center bg-light pt-2 pb-3 border-top-0">
                     <button type="button" class="btn btn-outline-secondary px-4 fw-bold" onclick="declineDisclaimer()">DECLINE & LOGOUT</button>
-                    <button type="button" class="btn btn-success px-5 fw-bold" onclick="acceptDisclaimer()">I AGREE</button>
+                    <button type="button" class="btn btn-success px-5 fw-bold" id="btnAgreeDisclaimer" onclick="acceptDisclaimer()">I AGREE</button>
                 </div>
             </div>
         </div>
@@ -330,9 +330,17 @@
                                     <input type="checkbox" class="custom-check m-0" id="adminShowCallWidget">
                                     <label class="form-check-label ms-2 fw-bold" for="adminShowCallWidget" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Call Report on Home Page</label>
                                 </div>
-                                <div class="mb-3 d-flex align-items-center">
+                                <div class="mb-2 d-flex align-items-center">
                                     <input type="checkbox" class="custom-check m-0" id="adminHideTradeTab">
                                     <label class="form-check-label ms-2 fw-bold" for="adminHideTradeTab" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Hide Trade Tab for All Users</label>
+                                </div>
+                                <div class="mb-3 d-flex align-items-center">
+                                    <input type="checkbox" class="custom-check m-0" id="adminShowDisclaimer">
+                                    <label class="form-check-label ms-2 fw-bold" for="adminShowDisclaimer" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Legal Disclaimer Popup</label>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Registration Link</label>
+                                    <input type="text" id="adminRegisterLink" class="form-control" placeholder="URL for New Registrations">
                                 </div>
                                 
                                 <div class="mb-4">
