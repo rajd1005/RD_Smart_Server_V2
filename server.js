@@ -163,20 +163,90 @@ function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
-// --- AUTOMATED TRADE ALERTS (LOGGED-IN ONLY & SAVED TO CHAT) ---
+// ========================================================
+// PUSH TARGETING & EXPIRATION SYNC LOGIC (IST AWARE)
+// ========================================================
+async function getValidPushSubscribers(audienceType) {
+    let query = "SELECT id, email, sub_data FROM push_subscriptions";
+    if (audienceType === 'logged_in') query += " WHERE email != 'public'";
+    else if (audienceType === 'non_logged_in') query += " WHERE email = 'public'";
+    
+    const subs = await pool.query(query);
+    
+    // If targeting public only, we skip WordPress DB verification
+    if (audienceType === 'non_logged_in') {
+        const unique = [];
+        const eps = new Set();
+        for (let r of subs.rows) {
+            if (!eps.has(r.sub_data.endpoint)) { eps.add(r.sub_data.endpoint); unique.push(r.sub_data); }
+        }
+        return unique;
+    }
+
+    // Isolate emails that require verification
+    const emailsToCheck = [...new Set(subs.rows.filter(r => r.email !== 'public').map(r => r.email))];
+    const actuallyValidEmails = new Set([ADMIN_EMAIL, ...DEMO_USERS.map(u => u.email), 'public']);
+    const expiredEmails = new Set();
+
+    if (emailsToCheck.length > 0) {
+        const placeholders = emailsToCheck.map(() => '?').join(',');
+        try {
+            const [wpRows] = await authPool.query(`SELECT student_email, student_expiry_date FROM wp_gf_student_registrations WHERE student_email IN (${placeholders})`, emailsToCheck);
+            
+            // Calculate Current exact IST Date Object
+            const d = new Date();
+            const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+            const nowIST = new Date(utc + (3600000 * 5.5));
+
+            wpRows.forEach(row => {
+                const expiry = new Date(row.student_expiry_date);
+                if (expiry >= nowIST) {
+                    actuallyValidEmails.add(row.student_email);
+                }
+            });
+
+            // Tag expired or missing accounts
+            emailsToCheck.forEach(email => {
+                if (!actuallyValidEmails.has(email)) expiredEmails.add(email);
+            });
+        } catch(e) {
+            console.error("Auth DB Error during push sync", e);
+            emailsToCheck.forEach(email => actuallyValidEmails.add(email)); // Failsafe
+        }
+    }
+
+    // Downgrade expired users to Public in PostgreSQL so they lose Trade Alerts instantly
+    if (expiredEmails.size > 0) {
+        const expiredArray = Array.from(expiredEmails);
+        await pool.query("UPDATE push_subscriptions SET email = 'public' WHERE email = ANY($1)", [expiredArray]).catch(()=>{});
+        console.log(`📉 Push Subs Downgraded (Expired as per IST): ${expiredArray.length} users`);
+    }
+
+    const uniqueSubs = [];
+    const endpoints = new Set();
+
+    for (let row of subs.rows) {
+        let isValidAudience = false;
+        if (audienceType === 'both') {
+            if (row.email === 'public' || actuallyValidEmails.has(row.email)) isValidAudience = true;
+        } else if (audienceType === 'logged_in') {
+            if (row.email !== 'public' && actuallyValidEmails.has(row.email)) isValidAudience = true;
+        }
+
+        if (isValidAudience && !endpoints.has(row.sub_data.endpoint)) {
+            endpoints.add(row.sub_data.endpoint);
+            uniqueSubs.push(row.sub_data);
+        }
+    }
+
+    return uniqueSubs;
+}
+
+// System-Generated Automated Trade Pushes
 async function sendPushNotification(payload) {
     try {
-        // Trade alerts strictly target logged-in users only
-        const subs = await pool.query("SELECT sub_data FROM push_subscriptions WHERE email != 'public'");
-        const uniqueSubs = [];
-        const endpoints = new Set();
-        
-        for (let row of subs.rows) {
-            if (!endpoints.has(row.sub_data.endpoint)) {
-                endpoints.add(row.sub_data.endpoint);
-                uniqueSubs.push(row.sub_data);
-            }
-        }
+        // Automatically fetches ONLY verified, non-expired logged-in users
+        const uniqueSubs = await getValidPushSubscribers('logged_in');
         
         uniqueSubs.forEach(sub => {
             webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
@@ -184,12 +254,12 @@ async function sendPushNotification(payload) {
             });
         });
 
-        // Save into Chat History automatically
+        // Add the Trade notification automatically to the Push Chat Manager for Admin
         await pool.query(
             "INSERT INTO scheduled_notifications (title, body, url, status, target_audience) VALUES ($1, $2, $3, 'sent', 'logged_in')",
             [payload.title, payload.body, payload.url || '/']
         );
-    } catch (err) { console.error("Error fetching subscriptions", err); }
+    } catch (err) { console.error("Error sending trade push", err); }
 }
 
 async function checkTradePushEnabled() {
@@ -214,13 +284,12 @@ app.get('/api/push/public_key', (req, res) => {
     }
 });
 
-// --- SUBSCRIPTION ROUTE (ALLOWED FOR NON-LOGGED IN USERS) ---
 app.post('/api/push/subscribe', async (req, res) => {
     const subscription = req.body;
     const endpoint = subscription.endpoint;
-    let email = 'public';
+    let email = 'public'; // Default for non-logged-in devices
 
-    // If they have an auth cookie, grab their actual email
+    // Extract email securely if they are logged in
     const token = req.cookies.authToken;
     if (token) {
         try {
@@ -234,7 +303,6 @@ app.post('/api/push/subscribe', async (req, res) => {
         if (existing.rows.length === 0) {
             await pool.query("INSERT INTO push_subscriptions (email, sub_data) VALUES ($1, $2)", [email, subscription]);
         } else {
-            // Update email identity if it changed (e.g. they just logged in)
             await pool.query("UPDATE push_subscriptions SET email = $1, sub_data = $2 WHERE id = $3", [email, subscription, existing.rows[0].id]);
         }
         res.status(201).json({ success: true });
@@ -253,6 +321,7 @@ app.get('/api/public/call-report', async (req, res) => {
         const data = await response.json();
         res.json({ success: true, show_widget: true, data: data.data || [] });
     } catch (err) {
+        console.error("Call Report Proxy Error:", err);
         res.status(500).json({ success: false, msg: "Failed to fetch call report." });
     }
 });
@@ -405,7 +474,8 @@ app.post('/api/login', async (req, res) => {
                 return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
             }
             const expiryDate = new Date(studentRecord.student_expiry_date);
-            if (expiryDate < new Date()) { return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." }); }
+            const getISTDate = () => { const d = new Date(); const utc = d.getTime() + (d.getTimezoneOffset() * 60000); return new Date(utc + (3600000 * +5.5)); };
+            if (expiryDate < getISTDate()) { return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." }); }
             userEmail = studentRecord.student_email; userPhone = studentRecord.student_phone; 
             accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
         }
@@ -779,21 +849,9 @@ const pushWorker = new Worker('push-notifications', async job => {
     if (rows.length > 0) {
         const notification = rows[0];
         try {
-            let query = "SELECT sub_data FROM push_subscriptions";
-            if (notification.target_audience === 'logged_in') query += " WHERE email != 'public'";
-            else if (notification.target_audience === 'non_logged_in') query += " WHERE email = 'public'";
-            
-            const subs = await pool.query(query);
+            // Automatically fetch only active, verified, non-expired targets
+            const uniqueSubs = await getValidPushSubscribers(notification.target_audience || 'both');
             const payload = { title: notification.title, body: notification.body, url: notification.url || '/' };
-            
-            const uniqueSubs = [];
-            const endpoints = new Set();
-            for (let row of subs.rows) {
-                if (!endpoints.has(row.sub_data.endpoint)) {
-                    endpoints.add(row.sub_data.endpoint);
-                    uniqueSubs.push(row.sub_data);
-                }
-            }
 
             for (let sub of uniqueSubs) {
                 await webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
@@ -890,21 +948,9 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res
         const notificationId = result.rows[0].id;
 
         if (!parsedScheduleTime) {
-            let query = "SELECT sub_data FROM push_subscriptions";
-            if (target_audience === 'logged_in') query += " WHERE email != 'public'";
-            else if (target_audience === 'non_logged_in') query += " WHERE email = 'public'";
-            
-            const subs = await pool.query(query);
+            // Automatically fetch only active, verified, non-expired targets
+            const uniqueSubs = await getValidPushSubscribers(target_audience || 'both');
             const payload = { title, body, url: url || '/' };
-            
-            const uniqueSubs = [];
-            const endpoints = new Set();
-            for (let row of subs.rows) {
-                if (!endpoints.has(row.sub_data.endpoint)) {
-                    endpoints.add(row.sub_data.endpoint);
-                    uniqueSubs.push(row.sub_data);
-                }
-            }
             
             uniqueSubs.forEach(sub => { 
                 webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
