@@ -860,5 +860,30 @@
         fetchPublicCourses();
         fetchSystemSettings(); // Fetch registration link and update DOM
     </script>
+    <script>
+        async function registerPublicServiceWorker() {
+            if ('serviceWorker' in navigator && 'PushManager' in window) {
+                try {
+                    const keyRes = await fetch('/api/push/public_key');
+                    const keyData = await keyRes.json();
+                    if (!keyData.success) return;
+
+                    const registration = await navigator.serviceWorker.register('/sw.js');
+                    const subscription = await registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: keyData.publicKey
+                    });
+                    
+                    await fetch('/api/push/subscribe', {
+                        method: 'POST',
+                        body: JSON.stringify(subscription),
+                        headers: { 'content-type': 'application/json' }
+                    });
+                } catch (error) { console.log('Public Push Registration failed'); }
+            }
+        }
+        // Give the page 3 seconds to load before prompting the user
+        setTimeout(registerPublicServiceWorker, 3000);
+    </script>
 </body>
 </html>
