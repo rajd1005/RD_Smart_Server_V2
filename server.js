@@ -67,33 +67,13 @@ const DELETE_PASSWORD = (process.env.DELETE_PASSWORD || "admin123").trim();
 const JWT_SECRET = (process.env.JWT_SECRET || "super_secret_key_123").trim();
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@rdalgo.in").trim();
 const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || "admin123").trim();
-// Define multiple demo users here
 const DEMO_USERS = [
-    { 
-        email: (process.env.DEMO_EMAIL || "demo@rdalgo.in").trim(), 
-        password: (process.env.DEMO_PASSWORD || "demo123").trim() 
-    },
-    { 
-        email: "demo2@rdalgo.in", 
-        password: "demo123" 
-    },
-    { 
-        email: "demo3@rdalgo.in", 
-        password: "demo123" 
-    },
-    { 
-        email: "demo4@rdalgo.in", 
-        password: "demo123" 
-    },
-    { 
-        email: "demo5@rdalgo.in", 
-        password: "demo123" 
-    },
-    { 
-        email: "demo6@rdalgo.in", 
-        password: "demo123" 
-    }
-    // You can add as many as you want here by copying the format above
+    { email: (process.env.DEMO_EMAIL || "demo@rdalgo.in").trim(), password: (process.env.DEMO_PASSWORD || "demo123").trim() },
+    { email: "demo2@rdalgo.in", password: "demo123" },
+    { email: "demo3@rdalgo.in", password: "demo123" },
+    { email: "demo4@rdalgo.in", password: "demo123" },
+    { email: "demo5@rdalgo.in", password: "demo123" },
+    { email: "demo6@rdalgo.in", password: "demo123" }
 ];
 
 const transporter = nodemailer.createTransport({
@@ -185,16 +165,28 @@ function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
+// --- DEDUPLICATION LOGIC INCLUDED HERE ---
 async function sendPushNotification(payload) {
     try {
         const subs = await pool.query("SELECT sub_data FROM push_subscriptions");
-        subs.rows.forEach(sub => {
-            webpush.sendNotification(sub.sub_data, JSON.stringify(payload)).catch(e => {});
+        const uniqueSubs = [];
+        const endpoints = new Set();
+        
+        for (let row of subs.rows) {
+            if (!endpoints.has(row.sub_data.endpoint)) {
+                endpoints.add(row.sub_data.endpoint);
+                uniqueSubs.push(row.sub_data);
+            }
+        }
+        
+        uniqueSubs.forEach(sub => {
+            webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
+                if (e.statusCode === 410) { pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{}); }
+            });
         });
     } catch (err) { console.error("Error fetching subscriptions", err); }
 }
 
-// --- NEW PUBLIC KEY ENDPOINT ---
 app.get('/api/push/public_key', (req, res) => {
     if (app.locals.vapidPublicKey) {
         res.json({ success: true, publicKey: app.locals.vapidPublicKey });
@@ -203,10 +195,17 @@ app.get('/api/push/public_key', (req, res) => {
     }
 });
 
+// --- DEDUPLICATE SUBSCRIPTIONS ON SAVE ---
 app.post('/api/push/subscribe', authenticateToken, async (req, res) => {
     const subscription = req.body;
+    const endpoint = subscription.endpoint;
     try {
-        await pool.query("INSERT INTO push_subscriptions (email, sub_data) VALUES ($1, $2)", [req.user.email, subscription]);
+        const existing = await pool.query("SELECT id FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [endpoint]);
+        if (existing.rows.length === 0) {
+            await pool.query("INSERT INTO push_subscriptions (email, sub_data) VALUES ($1, $2)", [req.user.email, subscription]);
+        } else {
+            await pool.query("UPDATE push_subscriptions SET email = $1, sub_data = $2 WHERE id = $3", [req.user.email, subscription, existing.rows[0].id]);
+        }
         res.status(201).json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -286,7 +285,6 @@ app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// --- NEW: API ENDPOINT TO MANAGE SYMBOL CATEGORIES ---
 app.put('/api/admin/settings/symbols', authenticateToken, isAdmin, async (req, res) => {
     const { cat_forex_crypto, cat_stock, cat_index, cat_mcx } = req.body;
     try {
@@ -298,7 +296,6 @@ app.put('/api/admin/settings/symbols', authenticateToken, isAdmin, async (req, r
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
-// -----------------------------------------------------
 
 app.get('/api/public/courses', async (req, res) => {
     try {
@@ -349,7 +346,6 @@ app.post('/api/login', async (req, res) => {
         let accessLevels = { level_1_status: 'No', level_2_status: 'No', level_3_status: 'No', level_4_status: 'No' };
         let studentRecord = null;
 
-        // Check if the credentials match any demo user in the array
         const matchedDemo = DEMO_USERS.find(user => user.email === email && user.password === password);
 
         if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
@@ -357,10 +353,9 @@ app.post('/api/login', async (req, res) => {
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
             
         } else if (matchedDemo) {
-            // If it's one of the demo users, log them in
             userEmail = matchedDemo.email; 
             userRole = "student"; 
-            userPhone = "Demo Account"; // Or you can make this dynamic if you want
+            userPhone = "Demo Account";
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
             
         } else {
@@ -392,10 +387,7 @@ app.post('/api/login', async (req, res) => {
         const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
         res.cookie('authToken', token, { httpOnly: true, secure: isSecure, sameSite: 'lax', path: '/', maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 });
         
-        // --- ADD THIS LINE: Broadcast the new login to all connected clients ---
         io.emit('force_logout', { email: userEmail, newSessionId: sessionId });
-
-        // --- UPDATE THIS LINE: Include sessionId in the response ---
         res.json({ success: true, msg: "Login successful", email: userEmail, phone: userPhone, role: userRole, accessLevels: accessLevels, sessionId: sessionId });
     } catch (error) { res.status(500).json({ success: false, msg: "Database connection error" }); }
 });
@@ -415,7 +407,7 @@ app.post('/api/forgot_password', async (req, res) => {
     const { email } = req.body;
     try {
         const isDemoEmail = DEMO_USERS.some(user => user.email === email);
-if (email === ADMIN_EMAIL || isDemoEmail) return res.status(400).json({ success: false, msg: "This account password cannot be reset here." });
+        if (email === ADMIN_EMAIL || isDemoEmail) return res.status(400).json({ success: false, msg: "This account password cannot be reset here." });
         const [rows] = await authPool.query("SELECT student_email FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
         if (rows.length === 0) return res.status(404).json({ success: false, msg: "Email not found in registry." });
 
@@ -749,7 +741,7 @@ const worker = new Worker('video-encoding', async job => {
 }, { connection: redisConnection });
 // --------------------------------------------
 
-// --- PUSH NOTIFICATION WORKER ---
+// --- DEDUPLICATED PUSH WORKER ---
 const pushWorker = new Worker('push-notifications', async job => {
     const { notificationId } = job.data;
     const { rows } = await pool.query("SELECT * FROM scheduled_notifications WHERE id = $1 AND status = 'pending'", [notificationId]);
@@ -760,12 +752,21 @@ const pushWorker = new Worker('push-notifications', async job => {
             const subs = await pool.query("SELECT sub_data FROM push_subscriptions");
             const payload = { title: notification.title, body: notification.body, url: notification.url || '/' };
             
-            // Send to all subscribers
-            for (let sub of subs.rows) {
-                await webpush.sendNotification(sub.sub_data, JSON.stringify(payload)).catch(e => {});
+            const uniqueSubs = [];
+            const endpoints = new Set();
+            for (let row of subs.rows) {
+                if (!endpoints.has(row.sub_data.endpoint)) {
+                    endpoints.add(row.sub_data.endpoint);
+                    uniqueSubs.push(row.sub_data);
+                }
+            }
+
+            for (let sub of uniqueSubs) {
+                await webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
+                    if (e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
+                });
             }
             
-            // Update DB status
             await pool.query("UPDATE scheduled_notifications SET status = 'sent' WHERE id = $1", [notificationId]);
             console.log(`✅ Scheduled push notification sent: ${notification.title}`);
         } catch (e) {
@@ -829,8 +830,6 @@ app.post('/api/admin/lessons/reorder', authenticateToken, isAdmin, async (req, r
 // ==========================================
 // PUSH NOTIFICATION ADMIN ROUTES
 // ==========================================
-
-// Get all scheduled & sent notifications
 app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM scheduled_notifications ORDER BY created_at DESC LIMIT 50");
@@ -838,11 +837,9 @@ app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res)
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// Create a new notification (Send Now or Schedule)
 app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
     const { title, body, url, schedule_time } = req.body;
     try {
-        // Insert into DB
         const result = await pool.query(
             "INSERT INTO scheduled_notifications (title, body, url, scheduled_for, status) VALUES ($1, $2, $3, $4, $5) RETURNING id",
             [title, body, url || '/', schedule_time || null, schedule_time ? 'pending' : 'sent']
@@ -850,12 +847,24 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res
         const notificationId = result.rows[0].id;
 
         if (!schedule_time) {
-            // Send Immediately
             const subs = await pool.query("SELECT sub_data FROM push_subscriptions");
             const payload = { title, body, url: url || '/' };
-            subs.rows.forEach(sub => { webpush.sendNotification(sub.sub_data, JSON.stringify(payload)).catch(e => {}); });
+            
+            const uniqueSubs = [];
+            const endpoints = new Set();
+            for (let row of subs.rows) {
+                if (!endpoints.has(row.sub_data.endpoint)) {
+                    endpoints.add(row.sub_data.endpoint);
+                    uniqueSubs.push(row.sub_data);
+                }
+            }
+            
+            uniqueSubs.forEach(sub => { 
+                webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
+                    if(e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
+                }); 
+            });
         } else {
-            // Schedule via BullMQ
             const delay = new Date(schedule_time).getTime() - Date.now();
             await pushQueue.add('send-push', { notificationId }, { delay: Math.max(delay, 0), jobId: `push_${notificationId}` });
         }
@@ -863,7 +872,6 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// Update an existing scheduled notification
 app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, res) => {
     const { title, body, url, schedule_time } = req.body;
     try {
@@ -871,7 +879,6 @@ app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, 
             "UPDATE scheduled_notifications SET title = $1, body = $2, url = $3, scheduled_for = $4 WHERE id = $5 AND status = 'pending'",
             [title, body, url || '/', schedule_time, req.params.id]
         );
-        // Remove old job and add new updated job delay
         const jobId = `push_${req.params.id}`;
         const existingJob = await pushQueue.getJob(jobId);
         if (existingJob) await existingJob.remove();
@@ -883,7 +890,6 @@ app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, 
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// Delete a scheduled notification
 app.delete('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, res) => {
     try {
         await pool.query("DELETE FROM scheduled_notifications WHERE id = $1", [req.params.id]);
