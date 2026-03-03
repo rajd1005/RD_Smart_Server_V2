@@ -134,7 +134,6 @@ function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPric
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
 
-// --- NEW: CRM CALL REPORT PROXY API ---
 app.get('/api/public/call-report', async (req, res) => {
     const { start, end } = req.query;
     try {
@@ -173,7 +172,6 @@ app.get('/api/settings', async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error" }); }
 });
 
-// UPDATED: Added show_call_widget & homepage_layout to the Admin Settings save logic
 app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
     const { accordion_state, hide_trade_tab, show_gallery, show_call_widget, homepage_layout } = req.body;
     try {
@@ -337,20 +335,46 @@ app.post('/api/accept_terms', authenticateToken, async (req, res) => {
                     <h2 style="color: #0056b3; border-bottom: 2px solid #e9ecef; padding-bottom: 10px;">Official Agreement Record</h2>
                     <p>Dear User,</p>
                     <p>This email serves as a digital signature and official record that you have explicitly read, understood, and agreed to the RD Algo Mandatory Legal Disclaimer to access the platform.</p>
-                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #007aff;">
-                        <h4 style="margin-top: 0;">Digital Footprint:</h4>
-                        <ul style="list-style: none; padding: 0; margin: 0;">
-                            <li style="margin-bottom: 5px;"><strong>User Account:</strong> ${userEmail}</li>
-                            <li style="margin-bottom: 5px;"><strong>Date & Time (IST):</strong> ${istTime}</li>
-                            <li style="margin-bottom: 5px;"><strong>IP Address:</strong> ${clientIp}</li>
+                    
+                    <div style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba; margin: 20px 0;">
+                        <h4 style="margin-top: 0; color: #856404;">⚠️ CRITICAL WARNING: NO REAL MONEY TRADING</h4>
+                        <p style="margin-bottom: 0;">Do not trade with real money. All indicators, strategies, and signals provided by RD Algo are strictly for paper trading, educational evaluation, and forward-testing only. You are strictly advised to practice on virtual/paper trading platforms.</p>
+                    </div>
+
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #ddd;">
+                        <h4 style="margin-top: 0;">Agreed Terms & Conditions:</h4>
+                        <ul style="padding-left: 20px; font-size: 13px; color: #555;">
+                            <li style="margin-bottom: 8px;"><strong>Educational Purposes Only:</strong> All content, indicators, signals, and strategies provided by RD Algo are strictly for educational and informational purposes. They do not constitute financial, investment, or trading advice.</li>
+                            <li style="margin-bottom: 8px;"><strong>No SEBI Registration:</strong> RD Algo, its founders, and its team members are <strong>NOT registered with SEBI</strong> (Securities and Exchange Board of India) as financial advisors or research analysts.</li>
+                            <li style="margin-bottom: 8px;"><strong>High Risk Warning:</strong> Trading in financial markets involves a high degree of risk. You may lose some or all of your initial capital.</li>
+                            <li style="margin-bottom: 8px;"><strong>Your Sole Responsibility:</strong> You are 100% responsible for your own trading decisions. RD Algo will not be held liable for any financial losses, damages, or consequences resulting from the use of our platform.</li>
+                            <li style="margin-bottom: 0;"><strong>Past Performance:</strong> Past performance, whether actual or indicated by historical backtests, is no guarantee of future results.</li>
                         </ul>
                     </div>
+
+                    <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #007aff;">
+                        <h4 style="margin-top: 0; color: #0056b3;">Digital Footprint & Signature:</h4>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 5px;"><strong>User Account:</strong> ${userEmail}</li>
+                            <li style="margin-bottom: 5px;"><strong>Date & Time (IST):</strong> ${istTime}</li>
+                            <li style="margin-bottom: 0;"><strong>IP Address:</strong> ${clientIp}</li>
+                        </ul>
+                    </div>
+                    
+                    <p style="font-size: 12px; color: #888; text-align: center; margin-top: 30px;">This is an automated legal compliance email generated by the RD Algo System.</p>
                 </div>
             `
         };
-        transporter.sendMail(mailOptions).catch(err => console.error("SMTP Mail Error:", err));
+        
+        // Await the email send to catch errors properly
+        await transporter.sendMail(mailOptions);
+        
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false, msg: "Failed to record agreement." }); }
+    } catch (err) { 
+        console.error("Mail Error:", err);
+        // Continue and log them in successfully even if SMTP fails so it doesn't break the app
+        res.json({ success: true, msg: "Agreement recorded locally, but email failed to send." }); 
+    }
 });
 
 app.get('/api/hls-key/:lessonId/enc.key', async (req, res) => {
@@ -443,7 +467,6 @@ app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// NEW API: Bulk Update Module Display Order from Sortable Drag and Drop
 app.post('/api/admin/modules/reorder', authenticateToken, isAdmin, async (req, res) => {
     const { orderedIds } = req.body;
     try {
@@ -566,7 +589,6 @@ app.delete('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// NEW API: Bulk Update Lesson Display Order from Sortable Drag and Drop
 app.post('/api/admin/lessons/reorder', authenticateToken, isAdmin, async (req, res) => {
     const { orderedIds } = req.body;
     try {
