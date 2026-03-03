@@ -64,8 +64,22 @@ const DELETE_PASSWORD = (process.env.DELETE_PASSWORD || "admin123").trim();
 const JWT_SECRET = (process.env.JWT_SECRET || "super_secret_key_123").trim();
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@rdalgo.in").trim();
 const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || "admin123").trim();
-const DEMO_EMAIL = (process.env.DEMO_EMAIL || "demo@rdalgo.in").trim();
-const DEMO_PASSWORD = (process.env.DEMO_PASSWORD || "demo123").trim();
+// Define multiple demo users here
+const DEMO_USERS = [
+    { 
+        email: (process.env.DEMO_EMAIL || "demo@rdalgo.in").trim(), 
+        password: (process.env.DEMO_PASSWORD || "demo123").trim() 
+    },
+    { 
+        email: "demo2@rdalgo.in", 
+        password: "demo123" 
+    },
+    { 
+        email: "demo3@rdalgo.in", 
+        password: "demo123" 
+    }
+    // You can add as many as you want here by copying the format above
+];
 
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
