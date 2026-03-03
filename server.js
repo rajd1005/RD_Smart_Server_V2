@@ -173,14 +173,19 @@ app.get('/api/settings', async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error" }); }
 });
 
-// UPDATED: Added show_call_widget to the Admin Settings save logic
+// UPDATED: Added show_call_widget & homepage_layout to the Admin Settings save logic
 app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
-    const { accordion_state, hide_trade_tab, show_gallery, show_call_widget } = req.body;
+    const { accordion_state, hide_trade_tab, show_gallery, show_call_widget, homepage_layout } = req.body;
     try {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state || 'first']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('hide_trade_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [hide_trade_tab || 'false']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_gallery', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_gallery || 'true']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_call_widget', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_call_widget || 'true']);
+        
+        if (homepage_layout) {
+            await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('homepage_layout', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [homepage_layout]);
+        }
+        
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -438,6 +443,19 @@ app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+// NEW API: Bulk Update Module Display Order from Sortable Drag and Drop
+app.post('/api/admin/modules/reorder', authenticateToken, isAdmin, async (req, res) => {
+    const { orderedIds } = req.body;
+    try {
+        if (orderedIds && Array.isArray(orderedIds)) {
+            for (let i = 0; i < orderedIds.length; i++) {
+                await pool.query("UPDATE learning_modules SET display_order = $1 WHERE id = $2", [i, orderedIds[i]]);
+            }
+        }
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
 app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name: 'video_file', maxCount: 1 }, { name: 'thumbnail_file', maxCount: 1 }]), async (req, res) => {
     const { module_id, title, description, display_order } = req.body;
     
@@ -545,6 +563,19 @@ app.delete('/api/admin/lessons/:id', authenticateToken, isAdmin, async (req, res
         }
         await pool.query("DELETE FROM lesson_videos WHERE id = $1", [req.params.id]); 
         res.json({ success: true }); 
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// NEW API: Bulk Update Lesson Display Order from Sortable Drag and Drop
+app.post('/api/admin/lessons/reorder', authenticateToken, isAdmin, async (req, res) => {
+    const { orderedIds } = req.body;
+    try {
+        if (orderedIds && Array.isArray(orderedIds)) {
+            for (let i = 0; i < orderedIds.length; i++) {
+                await pool.query("UPDATE lesson_videos SET display_order = $1 WHERE id = $2", [i, orderedIds[i]]);
+            }
+        }
+        res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
