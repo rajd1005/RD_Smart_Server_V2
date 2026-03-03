@@ -754,10 +754,13 @@
         }
 
         function startWatermark() {
-            const wmEl = document.getElementById('dynamicWatermark');
-            wmEl.innerHTML = `RD ALGO DEMO<br>Register to Unlock<br>Rdalgo.in`; wmEl.style.display = 'block';
-            if (watermarkInterval) clearInterval(watermarkInterval); moveWatermark(); watermarkInterval = setInterval(moveWatermark, 3000); 
-        }
+    const wmEl = document.getElementById('dynamicWatermark');
+    wmEl.innerHTML = `Rdalgo.in`; // <-- Updated to show only one line
+    wmEl.style.display = 'block';
+    if (watermarkInterval) clearInterval(watermarkInterval); 
+    moveWatermark(); 
+    watermarkInterval = setInterval(moveWatermark, 3000); 
+}
 
         function stopWatermark() { if (watermarkInterval) clearInterval(watermarkInterval); watermarkInterval = null; document.getElementById('dynamicWatermark').style.display = 'none'; }
 
