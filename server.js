@@ -42,7 +42,7 @@ const redisConnection = {
 };
 const videoQueue = new Queue('video-encoding', { connection: redisConnection });
 
-// --- ADD PUSH NOTIFICATION QUEUE ---
+// --- PUSH NOTIFICATION QUEUE ---
 const pushQueue = new Queue('push-notifications', { connection: redisConnection });
 
 // === INITIALIZE EXPRESS APP FIRST ===
@@ -165,7 +165,6 @@ function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
-// --- DEDUPLICATION LOGIC INCLUDED HERE ---
 async function sendPushNotification(payload) {
     try {
         const subs = await pool.query("SELECT sub_data FROM push_subscriptions");
@@ -195,7 +194,6 @@ app.get('/api/push/public_key', (req, res) => {
     }
 });
 
-// --- DEDUPLICATE SUBSCRIPTIONS ON SAVE ---
 app.post('/api/push/subscribe', authenticateToken, async (req, res) => {
     const subscription = req.body;
     const endpoint = subscription.endpoint;
@@ -828,7 +826,7 @@ app.post('/api/admin/lessons/reorder', authenticateToken, isAdmin, async (req, r
 });
 
 // ==========================================
-// PUSH NOTIFICATION ADMIN ROUTES
+// PUSH NOTIFICATION ADMIN ROUTES (WITH IST FIX)
 // ==========================================
 app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
     try {
@@ -840,13 +838,24 @@ app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res)
 app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
     const { title, body, url, schedule_time } = req.body;
     try {
+        let parsedScheduleTime = null;
+        if (schedule_time) {
+            // Frontend string lacks timezone (e.g., "YYYY-MM-DDTHH:mm"). Explicitly assign IST (+05:30).
+            if (!schedule_time.includes('+') && !schedule_time.endsWith('Z')) {
+                const istString = schedule_time.length === 16 ? schedule_time + ":00+05:30" : schedule_time + "+05:30";
+                parsedScheduleTime = new Date(istString).toISOString(); 
+            } else {
+                parsedScheduleTime = new Date(schedule_time).toISOString();
+            }
+        }
+
         const result = await pool.query(
             "INSERT INTO scheduled_notifications (title, body, url, scheduled_for, status) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-            [title, body, url || '/', schedule_time || null, schedule_time ? 'pending' : 'sent']
+            [title, body, url || '/', parsedScheduleTime || null, parsedScheduleTime ? 'pending' : 'sent']
         );
         const notificationId = result.rows[0].id;
 
-        if (!schedule_time) {
+        if (!parsedScheduleTime) {
             const subs = await pool.query("SELECT sub_data FROM push_subscriptions");
             const payload = { title, body, url: url || '/' };
             
@@ -865,7 +874,8 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res
                 }); 
             });
         } else {
-            const delay = new Date(schedule_time).getTime() - Date.now();
+            // Evaluates exact milliseconds remaining until explicit IST time
+            const delay = new Date(parsedScheduleTime).getTime() - Date.now();
             await pushQueue.add('send-push', { notificationId }, { delay: Math.max(delay, 0), jobId: `push_${notificationId}` });
         }
         res.json({ success: true, msg: "Notification saved!" });
@@ -875,15 +885,25 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res
 app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, res) => {
     const { title, body, url, schedule_time } = req.body;
     try {
+        let parsedScheduleTime = null;
+        if (schedule_time) {
+            if (!schedule_time.includes('+') && !schedule_time.endsWith('Z')) {
+                const istString = schedule_time.length === 16 ? schedule_time + ":00+05:30" : schedule_time + "+05:30";
+                parsedScheduleTime = new Date(istString).toISOString(); 
+            } else {
+                parsedScheduleTime = new Date(schedule_time).toISOString();
+            }
+        }
+
         await pool.query(
             "UPDATE scheduled_notifications SET title = $1, body = $2, url = $3, scheduled_for = $4 WHERE id = $5 AND status = 'pending'",
-            [title, body, url || '/', schedule_time, req.params.id]
+            [title, body, url || '/', parsedScheduleTime, req.params.id]
         );
         const jobId = `push_${req.params.id}`;
         const existingJob = await pushQueue.getJob(jobId);
         if (existingJob) await existingJob.remove();
         
-        const delay = new Date(schedule_time).getTime() - Date.now();
+        const delay = new Date(parsedScheduleTime).getTime() - Date.now();
         await pushQueue.add('send-push', { notificationId: req.params.id }, { delay: Math.max(delay, 0), jobId });
         
         res.json({ success: true });
