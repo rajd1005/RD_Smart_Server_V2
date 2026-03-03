@@ -295,7 +295,7 @@
                             const istOffset = 5.5 * 60 * 60 * 1000;
                             const todayIST = new Date(now.getTime() + istOffset);
                             const past30 = new Date(todayIST);
-                            past30.setDate(todayIST.getDate() - 29);
+                            past30.setDate(todayIST.getDate() - 6);
                             return [past30, todayIST];
                         })(),
                         onReady: function (selectedDates) {
