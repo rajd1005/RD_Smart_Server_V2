@@ -186,6 +186,21 @@ async function sendPushNotification(payload) {
     } catch (err) { console.error("Error fetching subscriptions", err); }
 }
 
+// Check if Trade Pushes are enabled in DB
+async function checkTradePushEnabled() {
+    try {
+        const cachedSettings = await redisClient.get('system_settings').catch(()=>null);
+        if (cachedSettings) {
+            const settings = JSON.parse(cachedSettings);
+            if (settings.push_trade_alerts === 'false') return false;
+            return true;
+        }
+        const res = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'push_trade_alerts'");
+        if (res.rows.length > 0 && res.rows[0].setting_value === 'false') return false;
+        return true;
+    } catch(e) { return true; }
+}
+
 app.get('/api/push/public_key', (req, res) => {
     if (app.locals.vapidPublicKey) {
         res.json({ success: true, publicKey: app.locals.vapidPublicKey });
@@ -255,13 +270,14 @@ app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
         accordion_state, hide_trade_tab, show_gallery, show_call_widget, homepage_layout,
         show_sticky_footer, sticky_btn1_text, sticky_btn1_link, sticky_btn1_icon,
         sticky_btn2_text, sticky_btn2_link, sticky_btn2_icon,
-        show_disclaimer, register_link
+        show_disclaimer, register_link, push_trade_alerts
     } = req.body;
     try {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state || 'first']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('hide_trade_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [hide_trade_tab || 'false']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_gallery', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_gallery || 'true']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_call_widget', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_call_widget || 'true']);
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('push_trade_alerts', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [push_trade_alerts || 'true']);
         
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_sticky_footer', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_sticky_footer || 'false']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('sticky_btn1_text', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [sticky_btn1_text || '']);
@@ -932,7 +948,7 @@ app.post('/api/signal_detected', async (req, res) => {
         await pool.query("DELETE FROM trades WHERE CAST(created_at AS TIMESTAMP) < NOW() - INTERVAL '30 days'");
         
         io.emit('trade_update'); 
-        sendPushNotification({ title: '🚨 NEW SIGNAL', body: `${symbol} - ${type}` }); 
+        if (await checkTradePushEnabled()) sendPushNotification({ title: '🚨 NEW SIGNAL', body: `${symbol} - ${type}` }); 
         
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -952,7 +968,7 @@ app.post('/api/setup_confirmed', async (req, res) => {
         await bot.sendMessage(CHAT_ID, `✅ *SETUP CONFIRMED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n🚀 *Type:* ${toMarkdown(type)}\n🚪 *Entry:* ${toMarkdown(entry)}\n🛑 *SL:* ${toMarkdown(sl)}\n\n🎯 *TP1:* ${toMarkdown(tp1)}\n🎯 *TP2:* ${toMarkdown(tp2)}\n🎯 *TP3:* ${toMarkdown(tp3)}`, opts);
         
         io.emit('trade_update'); 
-        sendPushNotification({ title: '✅ SETUP CONFIRMED', body: `${symbol} - Entry: ${entry}` }); 
+        if (await checkTradePushEnabled()) sendPushNotification({ title: '✅ SETUP CONFIRMED', body: `${symbol} - Entry: ${entry}` }); 
         
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -982,7 +998,7 @@ app.post('/api/log_event', async (req, res) => {
         await bot.sendMessage(CHAT_ID, `⚡ *UPDATE: ${toMarkdown(new_status)}*\n\n💎 *Symbol:* #${toMarkdown(trade.symbol)}\n📉 *Price:* ${toMarkdown(price)}`, opts);
         
         io.emit('trade_update'); 
-        sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); 
+        if (await checkTradePushEnabled()) sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); 
         
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
