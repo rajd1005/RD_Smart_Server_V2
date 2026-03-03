@@ -11,6 +11,7 @@ const fs = require('fs');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
 const mysql = require('mysql2/promise');
+const cron = require('node-cron');
 
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
@@ -678,6 +679,21 @@ app.post('/api/delete_trades', authenticateToken, async (req, res) => {
     if (password !== DELETE_PASSWORD) { return res.status(401).json({ success: false, msg: "❌ Incorrect Password!" }); }
     if (!trade_ids || !Array.isArray(trade_ids) || trade_ids.length === 0) { return res.status(400).json({ success: false, msg: "No IDs provided" }); }
     try { await pool.query("DELETE FROM trades WHERE trade_id = ANY($1)", [trade_ids]); io.emit('trade_update'); res.json({ success: true }); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// =========================================================
+// DAILY AUTOMATED LOGOUT (6:30 AM)
+// =========================================================
+cron.schedule('30 6 * * *', async () => {
+    try {
+        await pool.query("DELETE FROM login_logs");
+        console.log("✅ Daily Reset: All user sessions cleared at 6:30 AM.");
+    } catch (err) {
+        console.error("❌ Error clearing daily sessions:", err);
+    }
+}, {
+    scheduled: true,
+    timezone: "Asia/Kolkata"
 });
 
 const PORT = process.env.PORT || 3000;
