@@ -622,11 +622,15 @@ function applyFilters(preserveIds = []) {
         endDate = datePicker.selectedDates.length === 2 ? datePicker.selectedDates[1].toLocaleDateString('en-CA', formatOpts) : startDate;
     }
     const dateDisplay = document.getElementById('activeDateDisplay');
-    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     if (dateDisplay) {
-        if (!startDate && !endDate) { dateDisplay.innerText = "All Time"; } 
-        else if (startDate === endDate) { dateDisplay.innerText = (startDate === todayStr) ? "Today" : startDate; } 
-        else { dateDisplay.innerText = `${startDate.substring(5)} to ${endDate.substring(5)}`; }
+        if (!startDate && !endDate) { 
+            dateDisplay.innerText = "All Time"; 
+        } else if (startDate === endDate) { 
+            // Formats the date to show directly (e.g., 03 Mar 2026)
+            dateDisplay.innerText = datePicker.selectedDates[0].toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); 
+        } else { 
+            dateDisplay.innerText = `${startDate.substring(5)} to ${endDate.substring(5)}`; 
+        }
     }
 
     const filtered = allTrades.reduce((acc, trade) => {
