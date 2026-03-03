@@ -130,7 +130,6 @@ document.addEventListener('show.bs.collapse', function (e) {
     }
 });
 
-// --- UPDATED NAVIGATION SWITCH LOGIC ---
 function switchSection(section) {
     document.getElementById('tradeSection').style.display = 'none';
     document.getElementById('learningSection').style.display = 'none';
@@ -156,14 +155,13 @@ function switchSection(section) {
     } else if (section === 'push') {
         if(pushSec) pushSec.style.display = 'flex';
         if(navPushBtn) navPushBtn.classList.add('b-active');
-        fetchChatNotifications(); // Load chat broadcast history
+        fetchChatNotifications(); 
     } else {
         document.getElementById('learningSection').style.display = 'block';
         document.getElementById('navLearnBtn').classList.add('b-active');
         fetchCourses();
     }
 }
-// ----------------------------------------
 
 function toggleAccordions(action) {
     const allCollapses = document.querySelectorAll('.accordion-collapse');
@@ -866,7 +864,6 @@ function applyRoleRestrictions() {
         if (statPoints) statPoints.style.display = 'flex';
         if (statWinRate) statWinRate.style.display = 'flex';
 
-        // --- SHOW NEW PUSH NAV BUTTON ONLY FOR ADMIN ---
         const navPushBtn = document.getElementById('navPushBtn');
         if (navPushBtn) navPushBtn.style.display = 'flex';
 
@@ -1112,7 +1109,7 @@ if (filterCategoryEl) filterCategoryEl.addEventListener('change', () => applyFil
 
 
 // ========================================================
-// PUSH NOTIFICATION CHAT UI LOGIC
+// PUSH NOTIFICATION CHAT UI LOGIC (WITH IST TIME FIX)
 // ========================================================
 let chatNotifications = [];
 
@@ -1134,7 +1131,8 @@ async function fetchChatNotifications() {
 
             history.innerHTML = sorted.map(n => {
                 const dateObj = n.scheduled_for ? new Date(n.scheduled_for) : new Date(n.created_at);
-                const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' ' + dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                // ALWAYS render time as explicit IST TimeZone, regardless of client browser setup
+                const dateStr = dateObj.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }) + ' ' + dateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
                 
                 const isScheduled = n.status === 'pending';
                 const bubbleClass = isScheduled ? 'scheduled' : 'sent';
@@ -1154,7 +1152,6 @@ async function fetchChatNotifications() {
                 </div>`;
             }).join('');
             
-            // Scroll to bottom
             history.scrollTop = history.scrollHeight;
         }
     } catch (e) {
