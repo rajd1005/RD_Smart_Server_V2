@@ -253,6 +253,8 @@ async function fetchCourses() {
         
         // Initialize Sortable logic for admin users
         if (userData.role === 'admin' && typeof Sortable !== 'undefined') {
+            
+            // 1. Module Dragging
             const courseContainer = document.getElementById('courseModuleContainer');
             if (courseContainer) {
                 new Sortable(courseContainer, {
@@ -265,6 +267,7 @@ async function fetchCourses() {
                 });
             }
 
+            // 2. Lesson Dragging
             document.querySelectorAll('.lesson-container-sortable').forEach(container => {
                 new Sortable(container, {
                     animation: 150,
@@ -275,6 +278,15 @@ async function fetchCourses() {
                     }
                 });
             });
+
+            // 3. Homepage Layout Dragging (Added Missing Initialization)
+            const layoutDraggable = document.getElementById('homepageLayoutDraggable');
+            if (layoutDraggable) {
+                new Sortable(layoutDraggable, {
+                    animation: 150,
+                    ghostClass: 'bg-light'
+                });
+            }
         }
         
         try {
@@ -294,7 +306,6 @@ async function fetchCourses() {
             const adminGalleryCheck = document.getElementById('adminShowGallery');
             if (adminGalleryCheck) adminGalleryCheck.checked = showGallery;
 
-            // --- UPDATED: PULL CALL WIDGET SETTING FOR ADMIN VIEW ---
             const showCallWidget = settings.show_call_widget !== 'false';
             const adminCallWidgetCheck = document.getElementById('adminShowCallWidget');
             if (adminCallWidgetCheck) adminCallWidgetCheck.checked = showCallWidget;
