@@ -105,7 +105,6 @@
         .admin-edit-btn { color: var(--blue); background: none; border: none; font-size: 14px; padding: 5px; }
         .admin-del-btn { color: var(--red); background: none; border: none; font-size: 14px; padding: 5px; }
 
-        /* --- NEW PUSH NOTIFICATION CHAT STYLES --- */
         .chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 12px; margin-bottom: 12px; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .chat-bubble.sent { background-color: #dcf8c6; margin-left: auto; border-bottom-right-radius: 0; }
         .chat-bubble.scheduled { background-color: #fff3cd; margin-left: auto; border-bottom-right-radius: 0; }
@@ -175,7 +174,7 @@
                 <span class="material-icons-round text-primary me-2">campaign</span>
                 <div>
                     <h6 class="mb-0 fw-bold" style="font-size:14px;">Push Broadcasts</h6>
-                    <div style="font-size:10px; color:var(--text-secondary);">Send updates to all devices instantly</div>
+                    <div style="font-size:10px; color:var(--text-secondary);">Send updates to specific audiences</div>
                 </div>
             </div>
             
@@ -184,6 +183,11 @@
             
             <div class="p-2 bg-white border-top shadow-lg">
                 <form id="formChatPush" class="d-flex flex-column gap-2 mb-0">
+                    <select id="chatPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px; font-weight:bold; color:var(--blue);">
+                        <option value="both">🌍 Send to ALL Users (Login + Public)</option>
+                        <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
+                        <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
+                    </select>
                     <input type="text" id="chatPushTitle" class="form-control bg-light" placeholder="Notification Title (e.g. 🚨 New Strategy)" style="font-size:13px; font-weight:bold;" required>
                     <textarea id="chatPushBody" class="form-control bg-light" rows="2" placeholder="Type your message description here..." style="font-size:13px;" required></textarea>
                     <div class="d-flex gap-2">
