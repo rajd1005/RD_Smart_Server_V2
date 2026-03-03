@@ -124,11 +124,22 @@
         </header>
 
         <div id="tradeSection">
-            <div class="stats-bar">
-                <div class="stat-item"><span class="stat-lbl">Points</span><span class="stat-val" id="totalPips">0.00</span></div>
+            <div class="stats-bar align-items-center">
+                <div class="stat-item" id="statPoints" style="display:none;"><span class="stat-lbl">Points</span><span class="stat-val" id="totalPips">0.00</span></div>
                 <div class="stat-item"><span class="stat-lbl">Active</span><span class="stat-val" id="activeTrades">0</span></div>
-                <div class="stat-item"><span class="stat-lbl">Win Rate</span><span class="stat-val" id="winRate">0%</span></div>
+                <div class="stat-item" id="statWinRate" style="display:none;"><span class="stat-lbl">Win Rate</span><span class="stat-val" id="winRate">0%</span></div>
                 <div class="stat-item"><span class="stat-lbl">Signals</span><span class="stat-val" id="totalTrades">0</span></div>
+                
+                <div class="stat-item ms-auto">
+                    <span class="stat-lbl">Market</span>
+                    <select id="filterCategory" class="form-select border-1" style="padding: 2px 18px 2px 6px; font-size: 11px; height: 24px; box-shadow: none;" onchange="applyFilters()">
+                        <option value="ALL">All</option>
+                        <option value="Forex/Crypto">Forex/Crypto</option>
+                        <option value="Stock">Stock</option>
+                        <option value="Index">Index</option>
+                        <option value="Mcx">Mcx</option>
+                    </select>
+                </div>
             </div>
             <div class="trade-list" id="tradeListContainer"></div>
             <div id="noData" style="display:none;"><span class="material-icons-round" style="font-size:32px; opacity:0.3;">toc</span><div class="mt-2 text-muted small">No trades found</div></div>
@@ -230,6 +241,9 @@
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link fw-bold text-uppercase" id="tab-progress" data-bs-toggle="tab" data-bs-target="#pane-progress" type="button" role="tab" style="font-size: 10px;" onclick="fetchVideoProgress()">4. Progress</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-uppercase" id="tab-symbols" data-bs-toggle="tab" data-bs-target="#pane-symbols" type="button" role="tab" style="font-size: 10px;">5. Symbols</button>
                         </li>
                     </ul>
 
@@ -401,6 +415,30 @@
                                 </table>
                             </div>
                             <button type="button" class="btn btn-sm btn-outline-primary w-100 mt-2 fw-bold" onclick="fetchVideoProgress()" style="padding:8px; border-radius:4px;">↻ Refresh Report</button>
+                        </div>
+
+                        <div class="tab-pane fade" id="pane-symbols" role="tabpanel">
+                            <h6 class="fw-bold mb-2" style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary);">Manage Symbol Categories</h6>
+                            <p class="text-muted" style="font-size: 10px; margin-bottom: 12px;">Enter comma-separated symbol names (e.g., XAUUSD, BTCUSD) that belong to each category.</p>
+                            <form id="formAdminSymbols">
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px;">Forex/Crypto</label>
+                                    <input type="text" id="adminCatForex" class="form-control" placeholder="EURUSD, BTCUSD">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px;">Stock</label>
+                                    <input type="text" id="adminCatStock" class="form-control" placeholder="AAPL, TSLA">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px;">Index</label>
+                                    <input type="text" id="adminCatIndex" class="form-control" placeholder="US30, NAS100">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px;">Mcx</label>
+                                    <input type="text" id="adminCatMcx" class="form-control" placeholder="CRUDEOIL, GOLD">
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-success w-100 fw-bold" style="padding:8px; border-radius:4px;">Save Symbols</button>
+                            </form>
                         </div>
 
                     </div>
