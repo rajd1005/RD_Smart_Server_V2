@@ -42,6 +42,9 @@ const redisConnection = {
 };
 const videoQueue = new Queue('video-encoding', { connection: redisConnection });
 
+// --- ADD PUSH NOTIFICATION QUEUE ---
+const pushQueue = new Queue('push-notifications', { connection: redisConnection });
+
 // === INITIALIZE EXPRESS APP FIRST ===
 const app = express();
 
@@ -746,6 +749,32 @@ const worker = new Worker('video-encoding', async job => {
 }, { connection: redisConnection });
 // --------------------------------------------
 
+// --- PUSH NOTIFICATION WORKER ---
+const pushWorker = new Worker('push-notifications', async job => {
+    const { notificationId } = job.data;
+    const { rows } = await pool.query("SELECT * FROM scheduled_notifications WHERE id = $1 AND status = 'pending'", [notificationId]);
+    
+    if (rows.length > 0) {
+        const notification = rows[0];
+        try {
+            const subs = await pool.query("SELECT sub_data FROM push_subscriptions");
+            const payload = { title: notification.title, body: notification.body, url: notification.url || '/' };
+            
+            // Send to all subscribers
+            for (let sub of subs.rows) {
+                await webpush.sendNotification(sub.sub_data, JSON.stringify(payload)).catch(e => {});
+            }
+            
+            // Update DB status
+            await pool.query("UPDATE scheduled_notifications SET status = 'sent' WHERE id = $1", [notificationId]);
+            console.log(`✅ Scheduled push notification sent: ${notification.title}`);
+        } catch (e) {
+            console.error("❌ Scheduled push failed:", e);
+        }
+    }
+}, { connection: redisConnection });
+// --------------------------------
+
 app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, upload.single('thumbnail_file'), async (req, res) => {
     const { title, description, display_order } = req.body;
     try {
@@ -796,6 +825,74 @@ app.post('/api/admin/lessons/reorder', authenticateToken, isAdmin, async (req, r
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
+
+// ==========================================
+// PUSH NOTIFICATION ADMIN ROUTES
+// ==========================================
+
+// Get all scheduled & sent notifications
+app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM scheduled_notifications ORDER BY created_at DESC LIMIT 50");
+        res.json({ success: true, data: result.rows });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// Create a new notification (Send Now or Schedule)
+app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
+    const { title, body, url, schedule_time } = req.body;
+    try {
+        // Insert into DB
+        const result = await pool.query(
+            "INSERT INTO scheduled_notifications (title, body, url, scheduled_for, status) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+            [title, body, url || '/', schedule_time || null, schedule_time ? 'pending' : 'sent']
+        );
+        const notificationId = result.rows[0].id;
+
+        if (!schedule_time) {
+            // Send Immediately
+            const subs = await pool.query("SELECT sub_data FROM push_subscriptions");
+            const payload = { title, body, url: url || '/' };
+            subs.rows.forEach(sub => { webpush.sendNotification(sub.sub_data, JSON.stringify(payload)).catch(e => {}); });
+        } else {
+            // Schedule via BullMQ
+            const delay = new Date(schedule_time).getTime() - Date.now();
+            await pushQueue.add('send-push', { notificationId }, { delay: Math.max(delay, 0), jobId: `push_${notificationId}` });
+        }
+        res.json({ success: true, msg: "Notification saved!" });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// Update an existing scheduled notification
+app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, res) => {
+    const { title, body, url, schedule_time } = req.body;
+    try {
+        await pool.query(
+            "UPDATE scheduled_notifications SET title = $1, body = $2, url = $3, scheduled_for = $4 WHERE id = $5 AND status = 'pending'",
+            [title, body, url || '/', schedule_time, req.params.id]
+        );
+        // Remove old job and add new updated job delay
+        const jobId = `push_${req.params.id}`;
+        const existingJob = await pushQueue.getJob(jobId);
+        if (existingJob) await existingJob.remove();
+        
+        const delay = new Date(schedule_time).getTime() - Date.now();
+        await pushQueue.add('send-push', { notificationId: req.params.id }, { delay: Math.max(delay, 0), jobId });
+        
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// Delete a scheduled notification
+app.delete('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        await pool.query("DELETE FROM scheduled_notifications WHERE id = $1", [req.params.id]);
+        const existingJob = await pushQueue.getJob(`push_${req.params.id}`);
+        if (existingJob) await existingJob.remove();
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+// ==========================================
 
 app.get('/api/trades', authenticateToken, async (req, res) => {
     try { res.json((await pool.query(`SELECT * FROM trades WHERE CAST(created_at AS TIMESTAMP) >= NOW() - INTERVAL '30 days' ORDER BY id DESC`)).rows); } catch (err) { res.status(500).json({ error: err.message }); }
