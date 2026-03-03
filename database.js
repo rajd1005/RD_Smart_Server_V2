@@ -66,7 +66,9 @@ const initDb = async () => {
     ('sticky_btn1_icon', 'chat'),
     ('sticky_btn2_text', 'JoinTelegram'),
     ('sticky_btn2_link', 'https://t.me/'),
-    ('sticky_btn2_icon', 'send')
+    ('sticky_btn2_icon', 'send'),
+    ('show_disclaimer', 'true'),
+    ('register_link', '#')
     ON CONFLICT (setting_key) DO NOTHING;`;
 
     try {
