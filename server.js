@@ -44,8 +44,8 @@ if (vapidPublicKey && vapidPrivateKey) {
     try {
         webpush.setVapidDetails(
             'mailto:' + (process.env.ADMIN_EMAIL || 'admin@rdalgo.in'),
-            vapidPublicKey,
-            vapidPrivateKey
+            vapidPublicKey.trim(),
+            vapidPrivateKey.trim()
         );
         console.log("✅ Web Push VAPID keys configured.");
     } catch (e) {
@@ -53,7 +53,6 @@ if (vapidPublicKey && vapidPrivateKey) {
     }
 } else {
     console.warn("⚠️ VAPID keys not found in .env. Push notifications are disabled.");
-    console.warn("⚠️ To enable, run 'npx web-push generate-vapid-keys' and add them to your .env file.");
 }
 // ------------------------------------
 
