@@ -37,11 +37,25 @@ const redisConnection = { host: process.env.REDIS_HOST || '127.0.0.1', port: par
 const videoQueue = new Queue('video-encoding', { connection: redisConnection });
 
 // --- PWA WEB PUSH SETUP ---
-webpush.setVapidDetails(
-    'mailto:' + (process.env.ADMIN_EMAIL || 'admin@rdalgo.in'),
-    process.env.VAPID_PUBLIC_KEY || 'BIfZ9H7J_D1J_Yj2M2zG3d_U9kGjA-A2R0d5xYVbE0n9W4s5yB7jXz6_m_tX9uP_bT2D5YVbE0n9W4s5yB7jXz6', // Replace with real VAPID public in .env
-    process.env.VAPID_PRIVATE_KEY || 'z_D1J_Yj2M2zG3d_U9kGjA-A2R0d5xYVbE0n9W4s5y' // Replace with real VAPID private in .env
-);
+const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+
+if (vapidPublicKey && vapidPrivateKey) {
+    try {
+        webpush.setVapidDetails(
+            'mailto:' + (process.env.ADMIN_EMAIL || 'admin@rdalgo.in'),
+            vapidPublicKey,
+            vapidPrivateKey
+        );
+        console.log("✅ Web Push VAPID keys configured.");
+    } catch (e) {
+        console.error("❌ Invalid VAPID keys in .env. Push notifications disabled:", e.message);
+    }
+} else {
+    console.warn("⚠️ VAPID keys not found in .env. Push notifications are disabled.");
+    console.warn("⚠️ To enable, run 'npx web-push generate-vapid-keys' and add them to your .env file.");
+}
+// ------------------------------------
 
 const app = express();
 
