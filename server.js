@@ -399,7 +399,8 @@ app.post('/api/set_password', async (req, res) => {
 app.post('/api/forgot_password', async (req, res) => {
     const { email } = req.body;
     try {
-        if (email === ADMIN_EMAIL || email === DEMO_EMAIL) return res.status(400).json({ success: false, msg: "This account password cannot be reset here." });
+        const isDemoEmail = DEMO_USERS.some(user => user.email === email);
+if (email === ADMIN_EMAIL || isDemoEmail) return res.status(400).json({ success: false, msg: "This account password cannot be reset here." });
         const [rows] = await authPool.query("SELECT student_email FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
         if (rows.length === 0) return res.status(404).json({ success: false, msg: "Email not found in registry." });
 
