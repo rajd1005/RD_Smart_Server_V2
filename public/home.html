@@ -388,10 +388,10 @@
                         if (profit === 0) profitColor = 'var(--text-secondary)';
 
                         html += `
-                            <div class="daily-toggle">
-                                <div>${prettyDate} ${badge}</div>
-                                <div style="color:${profitColor}">${formatINR(profit)}</div>
-                            </div>
+    <div class="daily-toggle">
+        <div>${prettyDate} | Accuracy: ${acc}% ${badge}</div>
+        <div style="color:${profitColor}">${formatINR(profit)}</div>
+    </div>
                             <div class="daily-details">
                                 <div class="day-header-cards">
                                     <div class="card">Accuracy<span>${acc}%</span></div>
