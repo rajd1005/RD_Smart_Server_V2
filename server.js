@@ -358,7 +358,12 @@ app.post('/api/login', async (req, res) => {
         const token = jwt.sign({ email: userEmail, phone: userPhone, sessionId: sessionId, role: userRole, accessLevels: accessLevels }, JWT_SECRET, { expiresIn: rememberMe ? '30d' : '1d' });
         const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
         res.cookie('authToken', token, { httpOnly: true, secure: isSecure, sameSite: 'lax', path: '/', maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 });
-        res.json({ success: true, msg: "Login successful", email: userEmail, phone: userPhone, role: userRole, accessLevels: accessLevels });
+        
+        // --- ADD THIS LINE: Broadcast the new login to all connected clients ---
+        io.emit('force_logout', { email: userEmail, newSessionId: sessionId });
+
+        // --- UPDATE THIS LINE: Include sessionId in the response ---
+        res.json({ success: true, msg: "Login successful", email: userEmail, phone: userPhone, role: userRole, accessLevels: accessLevels, sessionId: sessionId });
     } catch (error) { res.status(500).json({ success: false, msg: "Database connection error" }); }
 });
 
