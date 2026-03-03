@@ -275,6 +275,7 @@
     <script>
         let videoPlayer = null; 
         let watermarkInterval = null; 
+        let progressInterval = null; // --- NEW: Video Progress Tracker ---
         let tempSetupToken = null;
         let tempResetEmail = null;
 
@@ -770,8 +771,6 @@
                     } else {
                         // Fallback for iOS devices
                         if (vw > vh && window.innerHeight > window.innerWidth) {
-                            // Video is landscape, but phone is portrait
-                            // You can show a custom toast/alert here
                             alert("For the best experience, please rotate your device horizontally.");
                         }
                     }
@@ -787,11 +786,29 @@
                 playerContainer.style.display = 'block';
                 if (playerContainer.requestFullscreen) { await playerContainer.requestFullscreen().catch(e => {}); } 
                 else if (playerContainer.webkitRequestFullscreen) { await playerContainer.webkitRequestFullscreen().catch(e => {}); }
-                startWatermark(); videoPlayer.play();
+                
+                startWatermark(); 
+                videoPlayer.play();
+
+                // --- NEW: Start Video Progress Tracking ---
+                if (progressInterval) clearInterval(progressInterval);
+                progressInterval = setInterval(() => {
+                    if (!videoPlayer.paused()) {
+                        fetch('/api/video/progress', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ lessonId: lessonId, currentTime: videoPlayer.currentTime() })
+                        }).catch(e => {});
+                    }
+                }, 10000);
+                // ------------------------------------------
+
             } catch(err) { alert("🚨 Error loading video stream."); }
         }
 
         function closeVideoPlayer() {
+            if (progressInterval) clearInterval(progressInterval); // --- NEW: Stop Video Tracking ---
             if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
             if (screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch (e) {} }
             if (document.fullscreenElement || document.webkitFullscreenElement) {
