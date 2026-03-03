@@ -616,26 +616,32 @@ function applyFilters(preserveIds = []) {
     const filterStatus = document.getElementById('filterStatus')?.value || 'ALL';
     const filterType = document.getElementById('filterType')?.value || 'ALL';
     let startDate = ""; let endDate = "";
+    
     if (datePicker && datePicker.selectedDates.length > 0) {
         const formatOpts = { timeZone: 'Asia/Kolkata' };
         startDate = datePicker.selectedDates[0].toLocaleDateString('en-CA', formatOpts);
         endDate = datePicker.selectedDates.length === 2 ? datePicker.selectedDates[1].toLocaleDateString('en-CA', formatOpts) : startDate;
     }
+    
     const dateDisplay = document.getElementById('activeDateDisplay');
     if (dateDisplay) {
         if (!startDate && !endDate) { 
             dateDisplay.innerText = "All Time"; 
         } else if (startDate === endDate) { 
-            // Formats the date to show directly (e.g., 03 Mar 2026)
             dateDisplay.innerText = datePicker.selectedDates[0].toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); 
         } else { 
             dateDisplay.innerText = `${startDate.substring(5)} to ${endDate.substring(5)}`; 
         }
     }
 
+    // 👇 ADD THIS LINE FIX: Define todayStr in IST timezone so the filter has a baseline 
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
     const filtered = allTrades.reduce((acc, trade) => {
         const tradeDateObj = new Date(trade.created_at);
+        // This converts the UTC DB timestamp safely to your user's IST date string
         const tradeDateStr = tradeDateObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+        
         let dateMatch = true;
         if (startDate && endDate) dateMatch = (tradeDateStr >= startDate && tradeDateStr <= endDate);
         else if (startDate) dateMatch = (tradeDateStr >= startDate);
@@ -644,6 +650,8 @@ function applyFilters(preserveIds = []) {
 
         let displayStatus = trade.status;
         let isVisuallyActive = (trade.status === 'ACTIVE' || trade.status === 'SETUP');
+        
+        // This logic will now work correctly instead of throwing an error
         if (isVisuallyActive && tradeDateStr < todayStr) {
             isVisuallyActive = false; 
             const pts = parseFloat(trade.points_gained || 0);
@@ -655,11 +663,14 @@ function applyFilters(preserveIds = []) {
         const typeMatch = (filterType === 'ALL' || trade.type === filterType);
         const symbolMatch = (filterSymbol === "" || trade.symbol === filterSymbol);
         let statusMatch = true;
+        
         if (filterStatus === 'TP') statusMatch = (displayStatus.includes('TP') || displayStatus.includes('PROFIT'));
         else if (filterStatus === 'SL') statusMatch = (displayStatus.includes('SL') || displayStatus.includes('LOSS'));
         else if (filterStatus === 'OPEN') statusMatch = isVisuallyActive;
 
-        if (typeMatch && symbolMatch && statusMatch) { acc.push({ ...trade, displayStatus, isVisuallyActive, tradeDateObj }); }
+        if (typeMatch && symbolMatch && statusMatch) { 
+            acc.push({ ...trade, displayStatus, isVisuallyActive, tradeDateObj }); 
+        }
         return acc;
     }, []);
 
