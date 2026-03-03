@@ -41,8 +41,6 @@ const redisConnection = {
     password: process.env.REDISPASSWORD || process.env.REDIS_PASSWORD || undefined
 };
 const videoQueue = new Queue('video-encoding', { connection: redisConnection });
-
-// --- PUSH NOTIFICATION QUEUE ---
 const pushQueue = new Queue('push-notifications', { connection: redisConnection });
 
 // === INITIALIZE EXPRESS APP FIRST ===
@@ -165,9 +163,11 @@ function getDBTime() { return new Date().toISOString(); }
 function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPrice) return 0; return (type === 'BUY') ? (currentPrice - entry) : (entry - currentPrice); }
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
+// --- AUTOMATED TRADE ALERTS (LOGGED-IN ONLY & SAVED TO CHAT) ---
 async function sendPushNotification(payload) {
     try {
-        const subs = await pool.query("SELECT sub_data FROM push_subscriptions");
+        // Trade alerts strictly target logged-in users only
+        const subs = await pool.query("SELECT sub_data FROM push_subscriptions WHERE email != 'public'");
         const uniqueSubs = [];
         const endpoints = new Set();
         
@@ -183,10 +183,15 @@ async function sendPushNotification(payload) {
                 if (e.statusCode === 410) { pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{}); }
             });
         });
+
+        // Save into Chat History automatically
+        await pool.query(
+            "INSERT INTO scheduled_notifications (title, body, url, status, target_audience) VALUES ($1, $2, $3, 'sent', 'logged_in')",
+            [payload.title, payload.body, payload.url || '/']
+        );
     } catch (err) { console.error("Error fetching subscriptions", err); }
 }
 
-// Check if Trade Pushes are enabled in DB
 async function checkTradePushEnabled() {
     try {
         const cachedSettings = await redisClient.get('system_settings').catch(()=>null);
@@ -209,15 +214,28 @@ app.get('/api/push/public_key', (req, res) => {
     }
 });
 
-app.post('/api/push/subscribe', authenticateToken, async (req, res) => {
+// --- SUBSCRIPTION ROUTE (ALLOWED FOR NON-LOGGED IN USERS) ---
+app.post('/api/push/subscribe', async (req, res) => {
     const subscription = req.body;
     const endpoint = subscription.endpoint;
+    let email = 'public';
+
+    // If they have an auth cookie, grab their actual email
+    const token = req.cookies.authToken;
+    if (token) {
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            email = decoded.email;
+        } catch(e) {}
+    }
+
     try {
         const existing = await pool.query("SELECT id FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [endpoint]);
         if (existing.rows.length === 0) {
-            await pool.query("INSERT INTO push_subscriptions (email, sub_data) VALUES ($1, $2)", [req.user.email, subscription]);
+            await pool.query("INSERT INTO push_subscriptions (email, sub_data) VALUES ($1, $2)", [email, subscription]);
         } else {
-            await pool.query("UPDATE push_subscriptions SET email = $1, sub_data = $2 WHERE id = $3", [req.user.email, subscription, existing.rows[0].id]);
+            // Update email identity if it changed (e.g. they just logged in)
+            await pool.query("UPDATE push_subscriptions SET email = $1, sub_data = $2 WHERE id = $3", [email, subscription, existing.rows[0].id]);
         }
         res.status(201).json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
@@ -235,7 +253,6 @@ app.get('/api/public/call-report', async (req, res) => {
         const data = await response.json();
         res.json({ success: true, show_widget: true, data: data.data || [] });
     } catch (err) {
-        console.error("Call Report Proxy Error:", err);
         res.status(500).json({ success: false, msg: "Failed to fetch call report." });
     }
 });
@@ -753,9 +770,8 @@ const worker = new Worker('video-encoding', async job => {
             .run();
     });
 }, { connection: redisConnection });
-// --------------------------------------------
 
-// --- DEDUPLICATED PUSH WORKER ---
+// --- DEDUPLICATED & TARGETED PUSH WORKER ---
 const pushWorker = new Worker('push-notifications', async job => {
     const { notificationId } = job.data;
     const { rows } = await pool.query("SELECT * FROM scheduled_notifications WHERE id = $1 AND status = 'pending'", [notificationId]);
@@ -763,7 +779,11 @@ const pushWorker = new Worker('push-notifications', async job => {
     if (rows.length > 0) {
         const notification = rows[0];
         try {
-            const subs = await pool.query("SELECT sub_data FROM push_subscriptions");
+            let query = "SELECT sub_data FROM push_subscriptions";
+            if (notification.target_audience === 'logged_in') query += " WHERE email != 'public'";
+            else if (notification.target_audience === 'non_logged_in') query += " WHERE email = 'public'";
+            
+            const subs = await pool.query(query);
             const payload = { title: notification.title, body: notification.body, url: notification.url || '/' };
             
             const uniqueSubs = [];
@@ -788,7 +808,6 @@ const pushWorker = new Worker('push-notifications', async job => {
         }
     }
 }, { connection: redisConnection });
-// --------------------------------
 
 app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, upload.single('thumbnail_file'), async (req, res) => {
     const { title, description, display_order } = req.body;
@@ -842,7 +861,7 @@ app.post('/api/admin/lessons/reorder', authenticateToken, isAdmin, async (req, r
 });
 
 // ==========================================
-// PUSH NOTIFICATION ADMIN ROUTES (WITH IST FIX)
+// PUSH NOTIFICATION ADMIN ROUTES (WITH TARGETING)
 // ==========================================
 app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
     try {
@@ -852,11 +871,10 @@ app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res)
 });
 
 app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
-    const { title, body, url, schedule_time } = req.body;
+    const { title, body, url, schedule_time, target_audience } = req.body;
     try {
         let parsedScheduleTime = null;
         if (schedule_time) {
-            // Frontend string lacks timezone (e.g., "YYYY-MM-DDTHH:mm"). Explicitly assign IST (+05:30).
             if (!schedule_time.includes('+') && !schedule_time.endsWith('Z')) {
                 const istString = schedule_time.length === 16 ? schedule_time + ":00+05:30" : schedule_time + "+05:30";
                 parsedScheduleTime = new Date(istString).toISOString(); 
@@ -866,13 +884,17 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res
         }
 
         const result = await pool.query(
-            "INSERT INTO scheduled_notifications (title, body, url, scheduled_for, status) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-            [title, body, url || '/', parsedScheduleTime || null, parsedScheduleTime ? 'pending' : 'sent']
+            "INSERT INTO scheduled_notifications (title, body, url, scheduled_for, status, target_audience) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+            [title, body, url || '/', parsedScheduleTime || null, parsedScheduleTime ? 'pending' : 'sent', target_audience || 'both']
         );
         const notificationId = result.rows[0].id;
 
         if (!parsedScheduleTime) {
-            const subs = await pool.query("SELECT sub_data FROM push_subscriptions");
+            let query = "SELECT sub_data FROM push_subscriptions";
+            if (target_audience === 'logged_in') query += " WHERE email != 'public'";
+            else if (target_audience === 'non_logged_in') query += " WHERE email = 'public'";
+            
+            const subs = await pool.query(query);
             const payload = { title, body, url: url || '/' };
             
             const uniqueSubs = [];
@@ -890,39 +912,10 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res
                 }); 
             });
         } else {
-            // Evaluates exact milliseconds remaining until explicit IST time
             const delay = new Date(parsedScheduleTime).getTime() - Date.now();
             await pushQueue.add('send-push', { notificationId }, { delay: Math.max(delay, 0), jobId: `push_${notificationId}` });
         }
         res.json({ success: true, msg: "Notification saved!" });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
-app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, res) => {
-    const { title, body, url, schedule_time } = req.body;
-    try {
-        let parsedScheduleTime = null;
-        if (schedule_time) {
-            if (!schedule_time.includes('+') && !schedule_time.endsWith('Z')) {
-                const istString = schedule_time.length === 16 ? schedule_time + ":00+05:30" : schedule_time + "+05:30";
-                parsedScheduleTime = new Date(istString).toISOString(); 
-            } else {
-                parsedScheduleTime = new Date(schedule_time).toISOString();
-            }
-        }
-
-        await pool.query(
-            "UPDATE scheduled_notifications SET title = $1, body = $2, url = $3, scheduled_for = $4 WHERE id = $5 AND status = 'pending'",
-            [title, body, url || '/', parsedScheduleTime, req.params.id]
-        );
-        const jobId = `push_${req.params.id}`;
-        const existingJob = await pushQueue.getJob(jobId);
-        if (existingJob) await existingJob.remove();
-        
-        const delay = new Date(parsedScheduleTime).getTime() - Date.now();
-        await pushQueue.add('send-push', { notificationId: req.params.id }, { delay: Math.max(delay, 0), jobId });
-        
-        res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
