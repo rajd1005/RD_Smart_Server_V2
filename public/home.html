@@ -527,6 +527,7 @@
                     localStorage.setItem('userEmail', data.email);
                     localStorage.setItem('userPhone', data.phone);
                     localStorage.setItem('accessLevels', JSON.stringify(data.accessLevels));
+                    localStorage.setItem('sessionId', data.sessionId);
                     window.location.href = '/'; 
                 } else {
                     errorMsg.innerText = data.msg;
