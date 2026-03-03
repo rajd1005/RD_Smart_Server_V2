@@ -375,7 +375,6 @@ async function fetchCourses() {
             const adminHideCheck = document.getElementById('adminHideTradeTab');
             if (adminHideCheck) adminHideCheck.checked = hideTradeTab;
 
-            // --- TRADE PUSH ALERTS TOGGLE FETCHING ---
             const pushTradeAlerts = settings.push_trade_alerts !== 'false';
             const adminPushTradeCheck = document.getElementById('adminPushTradeAlerts');
             if (adminPushTradeCheck) adminPushTradeCheck.checked = pushTradeAlerts;
@@ -1116,7 +1115,7 @@ if (filterCategoryEl) filterCategoryEl.addEventListener('change', () => applyFil
 
 
 // ========================================================
-// PUSH NOTIFICATION CHAT UI LOGIC (WITH IST TIME FIX)
+// PUSH NOTIFICATION CHAT UI LOGIC
 // ========================================================
 let chatNotifications = [];
 
@@ -1145,12 +1144,18 @@ async function fetchChatNotifications() {
                 const icon = isScheduled ? 'schedule' : 'done_all';
                 const iconColor = isScheduled ? '#856404' : '#53bdeb';
                 
+                let targetText = '';
+                if (n.target_audience === 'logged_in') targetText = '🔒 Login Users';
+                else if (n.target_audience === 'non_logged_in') targetText = '🌐 Public Users';
+                else targetText = '🌍 All Users';
+
                 return `
                 <div class="chat-bubble ${bubbleClass}">
                     <div class="chat-title">${n.title}</div>
                     <div class="chat-body">${n.body}</div>
                     ${n.url && n.url !== '/' ? `<a href="${n.url}" target="_blank" class="chat-link">${n.url}</a>` : ''}
                     <div class="chat-meta">
+                        <span class="badge bg-secondary me-auto" style="font-size:8px;">${targetText}</span>
                         <span>${isScheduled ? 'Sched: ' : ''}${dateStr}</span>
                         <span class="material-icons-round" style="font-size:14px; color:${iconColor};">${icon}</span>
                         <span class="material-icons-round chat-del-btn ms-2" onclick="deleteChatPush(${n.id})">delete</span>
@@ -1174,6 +1179,7 @@ if (formChatPush) {
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
         const payload = {
+            target_audience: document.getElementById('chatPushTarget').value,
             title: document.getElementById('chatPushTitle').value,
             body: document.getElementById('chatPushBody').value,
             url: document.getElementById('chatPushUrl').value,
@@ -1189,7 +1195,10 @@ if (formChatPush) {
             });
 
             if (res.ok) {
-                formChatPush.reset();
+                document.getElementById('chatPushTitle').value = '';
+                document.getElementById('chatPushBody').value = '';
+                document.getElementById('chatPushUrl').value = '';
+                document.getElementById('chatPushSchedule').value = '';
                 fetchChatNotifications();
             } else {
                 alert("Error sending notification.");
