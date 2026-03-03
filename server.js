@@ -17,7 +17,7 @@ const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath); 
 
-// --- NEW ADVANCED FEATURE IMPORTS ---
+// --- ADVANCED FEATURE IMPORTS ---
 const { createClient } = require('redis');
 const { Queue, Worker } = require('bullmq');
 const webpush = require('web-push');
@@ -27,14 +27,14 @@ const { pool, initDb } = require('./database');
 const authPool = require('./authDb'); 
 require('dotenv').config();
 
-// --- REDIS SETUP (Updated for Railway) ---
+// --- REDIS SETUP ---
 const redisClient = createClient({ 
     url: process.env.REDIS_URL || 'redis://127.0.0.1:6379' 
 });
 redisClient.on('error', (err) => console.log('Redis Client Error', err.message));
 redisClient.connect().then(() => console.log('✅ Connected to Redis')).catch(console.error);
 
-// --- BULLMQ QUEUE SETUP (Updated for Railway) ---
+// --- BULLMQ QUEUE SETUP ---
 const redisConnection = { 
     host: process.env.REDISHOST || process.env.REDIS_HOST || '127.0.0.1', 
     port: parseInt(process.env.REDISPORT || process.env.REDIS_PORT || '6379'),
@@ -42,14 +42,7 @@ const redisConnection = {
 };
 const videoQueue = new Queue('video-encoding', { connection: redisConnection });
 
-app.get('/api/push/public_key', (req, res) => {
-    if (app.locals.vapidPublicKey) {
-        res.json({ success: true, publicKey: app.locals.vapidPublicKey });
-    } else {
-        res.status(500).json({ success: false, msg: "VAPID key not initialized." });
-    }
-});
-
+// === INITIALIZE EXPRESS APP FIRST ===
 const app = express();
 
 app.set('trust proxy', true); 
@@ -171,6 +164,15 @@ async function sendPushNotification(payload) {
         });
     } catch (err) { console.error("Error fetching subscriptions", err); }
 }
+
+// --- NEW PUBLIC KEY ENDPOINT ---
+app.get('/api/push/public_key', (req, res) => {
+    if (app.locals.vapidPublicKey) {
+        res.json({ success: true, publicKey: app.locals.vapidPublicKey });
+    } else {
+        res.status(500).json({ success: false, msg: "VAPID key not initialized." });
+    }
+});
 
 app.post('/api/push/subscribe', authenticateToken, async (req, res) => {
     const subscription = req.body;
@@ -506,7 +508,6 @@ app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
 });
 
-// --- NEW VIDEO WATCH TRACKING ENDPOINTS ---
 app.post('/api/video/progress', authenticateToken, async (req, res) => {
     const { lessonId, currentTime } = req.body;
     try {
@@ -529,7 +530,6 @@ app.get('/api/admin/video/progress', authenticateToken, isAdmin, async (req, res
         res.json(result.rows);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
-// ------------------------------------------
 
 app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
     const { title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility } = req.body;
@@ -838,8 +838,10 @@ cron.schedule('30 6 * * *', async () => {
 });
 
 const PORT = process.env.PORT || 3000;
+
+// === SERVER INITIALIZATION & AUTO-GENERATE VAPID KEYS ===
 initDb().then(async () => { 
-    // --- NEW: Auto-Generate & Save VAPID Keys to Database ---
+    
     let vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
     let vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
 
@@ -876,7 +878,6 @@ initDb().then(async () => {
     } catch (e) {
         console.error("❌ Failed to setup VAPID keys:", e.message);
     }
-    // ---------------------------------------------------------
 
     server.listen(PORT, () => console.log(`🚀 RD Broker Server running on ${PORT}`)); 
 });
