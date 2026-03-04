@@ -169,11 +169,19 @@ function toMarkdown(text) { if (text === undefined || text === null) return ""; 
 // ========================================================
 async function getValidPushSubscribers(audienceType) {
     let query = "SELECT id, email, sub_data FROM push_subscriptions";
-    if (audienceType === 'logged_in') query += " WHERE email != 'public'";
-    else if (audienceType === 'non_logged_in') query += " WHERE email = 'public'";
+    
+    // Public non-login targeting
+    if (audienceType === 'non_logged_in') {
+        query += " WHERE email = 'public'";
+    } 
+    // Any kind of logged-in user targeting
+    else if (audienceType !== 'both') {
+        query += " WHERE email != 'public'";
+    }
     
     const subs = await pool.query(query);
     
+    // Quick exit for purely public notifications
     if (audienceType === 'non_logged_in') {
         const unique = [];
         const eps = new Set();
@@ -186,11 +194,17 @@ async function getValidPushSubscribers(audienceType) {
     const emailsToCheck = [...new Set(subs.rows.filter(r => r.email !== 'public').map(r => String(r.email).toLowerCase().trim()))];
     const actuallyValidEmails = new Set([ADMIN_EMAIL, ...DEMO_USERS.map(u => u.email), 'public']);
     const expiredEmails = new Set();
+    const userLevels = new Map(); // Store level access per email
+
+    // Admin and Demo users default to having all levels
+    userLevels.set(ADMIN_EMAIL, { level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' });
+    DEMO_USERS.forEach(u => userLevels.set(u.email, { level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' }));
 
     if (emailsToCheck.length > 0) {
         const placeholders = emailsToCheck.map(() => '?').join(',');
         try {
-            const [wpRows] = await authPool.query(`SELECT student_email, student_expiry_date FROM wp_gf_student_registrations WHERE student_email IN (${placeholders})`, emailsToCheck);
+            // Updated Query to also pull level statuses
+            const [wpRows] = await authPool.query(`SELECT student_email, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email IN (${placeholders})`, emailsToCheck);
             
             const d = new Date();
             const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
@@ -199,7 +213,16 @@ async function getValidPushSubscribers(audienceType) {
             wpRows.forEach(row => {
                 const expiry = new Date(row.student_expiry_date);
                 if (isNaN(expiry.getTime()) || expiry >= nowIST) {
-                    if (row.student_email) actuallyValidEmails.add(String(row.student_email).toLowerCase().trim());
+                    if (row.student_email) {
+                        const email = String(row.student_email).toLowerCase().trim();
+                        actuallyValidEmails.add(email);
+                        // Save their level statuses
+                        userLevels.set(email, {
+                            level_2_status: row.level_2_status || 'No',
+                            level_3_status: row.level_3_status || 'No',
+                            level_4_status: row.level_4_status || 'No'
+                        });
+                    }
                 }
             });
 
@@ -212,6 +235,7 @@ async function getValidPushSubscribers(audienceType) {
         }
     }
 
+    // Downgrade expired subscriptions to public
     if (expiredEmails.size > 0) {
         const expiredArray = Array.from(expiredEmails);
         await pool.query("UPDATE push_subscriptions SET email = 'public' WHERE LOWER(email) = ANY($1)", [expiredArray]).catch(()=>{});
@@ -229,6 +253,18 @@ async function getValidPushSubscribers(audienceType) {
             if (rowEmail === 'public' || actuallyValidEmails.has(rowEmail)) isValidAudience = true;
         } else if (audienceType === 'logged_in') {
             if (rowEmail !== 'public' && actuallyValidEmails.has(rowEmail)) isValidAudience = true;
+        } else {
+            // Handle the new specific level-based rules
+            if (rowEmail !== 'public' && actuallyValidEmails.has(rowEmail)) {
+                const levels = userLevels.get(rowEmail) || { level_2_status: 'No', level_3_status: 'No', level_4_status: 'No' };
+                
+                if (audienceType === 'login_no_level_2' && levels.level_2_status !== 'Yes') isValidAudience = true;
+                else if (audienceType === 'login_no_level_3' && levels.level_3_status !== 'Yes') isValidAudience = true;
+                else if (audienceType === 'login_no_level_4' && levels.level_4_status !== 'Yes') isValidAudience = true;
+                else if (audienceType === 'login_with_level_2' && levels.level_2_status === 'Yes') isValidAudience = true;
+                else if (audienceType === 'login_with_level_3' && levels.level_3_status === 'Yes') isValidAudience = true;
+                else if (audienceType === 'login_with_level_4' && levels.level_4_status === 'Yes') isValidAudience = true;
+            }
         }
 
         if (isValidAudience && !endpoints.has(row.sub_data.endpoint)) {
