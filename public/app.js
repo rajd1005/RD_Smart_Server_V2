@@ -46,6 +46,7 @@ async function loadAdminSettings() {
         const settings = await settingsRes.json();
         
         const defaultState = settings.accordion_state || 'first';
+        setTimeout(() => { toggleAccordions(defaultState); }, 100);
         
         const adminSettingDropdown = document.getElementById('adminAccordionState');
         if (adminSettingDropdown) adminSettingDropdown.value = defaultState;
@@ -452,15 +453,6 @@ async function fetchCourses() {
                     ghostClass: 'bg-light'
                 });
             }
-        }
-        
-        // --- FIX: Apply Accordion logic strictly after DOM is built ---
-        try {
-            const settingsRes = await fetch('/api/settings');
-            const settings = await settingsRes.json();
-            setTimeout(() => { toggleAccordions(settings.accordion_state || 'first'); }, 100);
-        } catch(e) {
-            setTimeout(() => { toggleAccordions('first'); }, 100);
         }
         
     } catch (err) { container.innerHTML = `<div class="p-3 text-danger text-center">❌ Error loading courses.</div>`; }
@@ -1124,17 +1116,17 @@ async function deleteSelected() {
     } catch (err) {}
 }
 
-// --- FIX: LOGOUT REDIRECT GUARANTEE ---
+// --- FIX: SAFE LOGOUT ---
 async function logout() {
     try { 
         await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); 
-    } catch (err) {}
-    
+    } catch (err) {
+        console.error(err);
+    }
     sessionStorage.clear(); 
     localStorage.clear(); 
     window.location.href = '/home.html'; 
 }
-// --------------------------------------
 
 const filterSymbolEl = document.getElementById('filterSymbol');
 if (filterSymbolEl) filterSymbolEl.addEventListener('change', () => applyFilters());
