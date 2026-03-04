@@ -79,6 +79,7 @@ const initDb = async () => {
         scheduled_for TIMESTAMP,
         status VARCHAR(20) DEFAULT 'pending',
         target_audience VARCHAR(50) DEFAULT 'both',
+        recurrence VARCHAR(20) DEFAULT 'none',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`;
 
@@ -122,6 +123,7 @@ const initDb = async () => {
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS dashboard_visibility VARCHAR(20) DEFAULT 'all';`); } catch(e){}
         try { await pool.query(`ALTER TABLE lesson_videos ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;`); } catch(e){}
         try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS target_audience VARCHAR(50) DEFAULT 'both';`); } catch(e){}
+        try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS recurrence VARCHAR(20) DEFAULT 'none';`); } catch(e){}
 
         console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push + Notifications)");
     } catch (err) {
