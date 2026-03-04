@@ -30,6 +30,15 @@ window.onload = function() {
     registerServiceWorker(); 
 };
 
+// --- NEW FALLBACK BACKGROUND POLLER TO GUARANTEE LIVE UPDATES ---
+setInterval(() => {
+    const tradeSec = document.getElementById('tradeSection');
+    if (tradeSec && tradeSec.style.display === 'block' && !isSelectionMode) {
+        fetchTrades();
+    }
+}, 5000); 
+// ---------------------------------------------------------------
+
 async function registerServiceWorker() {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
         try {
@@ -1149,13 +1158,17 @@ async function fetchChatNotifications() {
                 else if (n.target_audience === 'non_logged_in') targetText = '🌐 Public Users';
                 else targetText = '🌍 All Users';
 
+                let recurrenceText = '';
+                if (n.recurrence === 'daily') recurrenceText = ' | 🔁 Daily';
+                else if (n.recurrence === 'weekly') recurrenceText = ' | 🔁 Weekly';
+
                 return `
                 <div class="chat-bubble ${bubbleClass}">
                     <div class="chat-title">${n.title}</div>
                     <div class="chat-body">${n.body}</div>
                     ${n.url && n.url !== '/' ? `<a href="${n.url}" target="_blank" class="chat-link">${n.url}</a>` : ''}
                     <div class="chat-meta">
-                        <span class="badge bg-secondary me-auto" style="font-size:8px;">${targetText}</span>
+                        <span class="badge bg-secondary me-auto" style="font-size:8px;">${targetText}${recurrenceText}</span>
                         <span>${isScheduled ? 'Sched: ' : ''}${dateStr}</span>
                         <span class="material-icons-round" style="font-size:14px; color:${iconColor};">${icon}</span>
                         <span class="material-icons-round chat-del-btn ms-2" onclick="deleteChatPush(${n.id})">delete</span>
@@ -1183,7 +1196,8 @@ if (formChatPush) {
             title: document.getElementById('chatPushTitle').value,
             body: document.getElementById('chatPushBody').value,
             url: document.getElementById('chatPushUrl').value,
-            schedule_time: document.getElementById('chatPushSchedule').value || null
+            schedule_time: document.getElementById('chatPushSchedule').value || null,
+            recurrence: document.getElementById('chatPushRecurrence').value || 'none'
         };
 
         try {
@@ -1199,6 +1213,7 @@ if (formChatPush) {
                 document.getElementById('chatPushBody').value = '';
                 document.getElementById('chatPushUrl').value = '';
                 document.getElementById('chatPushSchedule').value = '';
+                document.getElementById('chatPushRecurrence').value = 'none';
                 fetchChatNotifications();
             } else {
                 alert("Error sending notification.");
