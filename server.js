@@ -214,7 +214,6 @@ async function getValidPushSubscribers(audienceType) {
     if (expiredEmails.size > 0) {
         const expiredArray = Array.from(expiredEmails);
         await pool.query("UPDATE push_subscriptions SET email = 'public' WHERE LOWER(email) = ANY($1)", [expiredArray]).catch(()=>{});
-        console.log(`📉 Push Subs Downgraded to Public (Expired): ${expiredArray.length} users`);
     }
 
     const uniqueSubs = [];
@@ -241,11 +240,7 @@ async function getValidPushSubscribers(audienceType) {
 
 async function sendPushNotification(payload) {
     try {
-        console.log(`\n🔔 --- PREPARING TRADE PUSH ---`);
-        console.log(`📝 Title: ${payload.title}`);
-        
         const uniqueSubs = await getValidPushSubscribers('logged_in');
-        console.log(`🚀 Final Targeted Audience: ${uniqueSubs.length} Active Logged-in Devices`);
         
         for (let sub of uniqueSubs) {
             await webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
@@ -257,7 +252,6 @@ async function sendPushNotification(payload) {
             "INSERT INTO scheduled_notifications (title, body, url, status, target_audience, recurrence) VALUES ($1, $2, $3, 'sent', 'logged_in', 'none')",
             [payload.title, payload.body, payload.url || '/']
         );
-        console.log(`✅ Trade Push Successfully Saved to Dashboard History!\n`);
     } catch (err) { console.error("❌ Error sending trade push:", err); }
 }
 
@@ -392,354 +386,43 @@ app.put('/api/admin/settings/symbols', authenticateToken, isAdmin, async (req, r
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-app.get('/api/public/courses', async (req, res) => {
+app.get('/api/courses', authenticateToken, async (req, res) => {
     try {
-        const cachedCourses = await redisClient.get('public_courses').catch(()=>null);
-        if (cachedCourses) return res.json(JSON.parse(cachedCourses));
-
-        const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility FROM learning_modules ORDER BY display_order ASC");
+        const modulesResult = await pool.query("SELECT * FROM learning_modules ORDER BY display_order ASC");
         const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url, hls_manifest_url FROM lesson_videos ORDER BY display_order ASC");
         
         const coursesStructure = modulesResult.rows.map(mod => { 
-            const isLocked = mod.required_level !== 'demo';
+            // FALLBACK FIX: Handles old JWTs securely without crashing
+            const isLocked = req.user.role !== 'admin' && mod.required_level !== 'demo' && (req.user.accessLevels || {})[mod.required_level] !== 'Yes';
             const safeLessons = lessonsResult.rows.filter(l => l.module_id === mod.id).map(l => {
                 if (isLocked) {
                     const hasVideo = l.hls_manifest_url && l.hls_manifest_url.length > 5;
                     return { 
                         ...l, 
                         hls_manifest_url: hasVideo ? 'locked_video_link' : null, 
-                        description: hasVideo ? '' : '🔒 This text content is protected. Please login to view.' 
+                        description: hasVideo ? '' : '🔒 This text content is restricted to your access level.' 
                     };
                 }
                 return l;
             });
             return { ...mod, lessons: safeLessons }; 
         });
-
-        await redisClient.setEx('public_courses', 600, JSON.stringify(coursesStructure)).catch(()=>{}); 
         res.json(coursesStructure);
-    } catch (err) { res.status(500).json({ error: "Server Error fetching public courses." }); }
+    } catch (err) { res.status(500).json({ error: "Server Error fetching courses." }); }
 });
 
-app.get('/api/public/lesson/:id', async (req, res) => {
+app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query("SELECT lv.*, lm.required_level FROM lesson_videos lv JOIN learning_modules lm ON lv.module_id = lm.id WHERE lv.id = $1", [req.params.id]);
         if (result.rows.length === 0) return res.status(404).json({ success: false, msg: "Lesson not found." });
         const lesson = result.rows[0];
-        if (lesson.required_level !== 'demo') { return res.status(403).json({ success: false, msg: "🔒 LOGIN REQUIRED" }); }
+        if (req.user.role !== 'admin' && lesson.required_level !== 'demo' && (req.user.accessLevels || {})[lesson.required_level] !== 'Yes') {
+            return res.status(403).json({ success: false, msg: "🔒 ACCESS DENIED" });
+        }
         res.json({ success: true, title: lesson.title, hlsUrl: lesson.hls_manifest_url });
     } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
 });
 
-app.post('/api/login', async (req, res) => {
-    const { password, rememberMe } = req.body;
-    const email = req.body.email.trim().toLowerCase();
-    const clientIp = getClientIp(req);
-    
-    try {
-        let userEmail = ""; let userRole = "student"; let userPhone = "";
-        let accessLevels = { level_1_status: 'No', level_2_status: 'No', level_3_status: 'No', level_4_status: 'No' };
-        let studentRecord = null;
-
-        const matchedDemo = DEMO_USERS.find(user => user.email === email && user.password === password);
-
-        if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-            userEmail = ADMIN_EMAIL; userRole = "admin"; userPhone = "Admin";
-            accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
-            
-        } else if (matchedDemo) {
-            userEmail = matchedDemo.email; 
-            userRole = "student"; 
-            userPhone = "Demo Account";
-            accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
-            
-        } else {
-            const localCreds = await pool.query("SELECT * FROM user_credentials WHERE email = $1", [email]);
-            if (localCreds.rows.length > 0) {
-                const { salt, hash } = localCreds.rows[0];
-                const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-                if (verifyHash !== hash) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
-                const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
-                if (rows.length === 0) return res.status(401).json({ success: false, msg: "Account not found in registry." });
-                studentRecord = rows[0];
-            } else {
-                const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?", [email, password]);
-                if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
-                const setupToken = jwt.sign({ email: rows[0].student_email, phone: rows[0].student_phone }, JWT_SECRET, { expiresIn: '15m' });
-                return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
-            }
-            
-            const expiryDate = new Date(studentRecord.student_expiry_date);
-            const getISTDate = () => { const d = new Date(); const utc = d.getTime() + (d.getTimezoneOffset() * 60000); return new Date(utc + (3600000 * 5.5)); };
-            if (!isNaN(expiryDate.getTime()) && expiryDate < getISTDate()) { 
-                return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." }); 
-            }
-            
-            userEmail = String(studentRecord.student_email).toLowerCase().trim();
-            userPhone = studentRecord.student_phone; 
-            accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
-        }
-
-        const sessionId = crypto.randomUUID();
-        await pool.query("INSERT INTO login_logs (email, session_id, ip_address) VALUES ($1, $2, $3)", [userEmail, sessionId, clientIp]);
-        await pool.query("DELETE FROM login_logs WHERE login_time < NOW() - INTERVAL '30 days'");
-
-        const token = jwt.sign({ email: userEmail, phone: userPhone, sessionId: sessionId, role: userRole, accessLevels: accessLevels }, JWT_SECRET, { expiresIn: rememberMe ? '30d' : '1d' });
-        const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
-        res.cookie('authToken', token, { httpOnly: true, secure: isSecure, sameSite: 'lax', path: '/', maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 });
-        
-        io.emit('force_logout', { email: userEmail, newSessionId: sessionId });
-        res.json({ success: true, msg: "Login successful", email: userEmail, phone: userPhone, role: userRole, accessLevels: accessLevels, sessionId: sessionId });
-    } catch (error) { res.status(500).json({ success: false, msg: "Database connection error" }); }
-});
-
-app.post('/api/set_password', async (req, res) => {
-    const { setupToken, newPassword } = req.body;
-    try {
-        const decoded = jwt.verify(setupToken, JWT_SECRET);
-        const salt = crypto.randomBytes(16).toString('hex');
-        const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
-        await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [String(decoded.email).toLowerCase(), salt, hash]);
-        res.json({ success: true, email: decoded.email }); 
-    } catch (err) { res.status(401).json({ success: false, msg: "Setup session expired. Please log in again." }); }
-});
-
-app.post('/api/forgot_password', async (req, res) => {
-    const email = req.body.email.trim().toLowerCase();
-    try {
-        const isDemoEmail = DEMO_USERS.some(user => user.email === email);
-        if (email === ADMIN_EMAIL || isDemoEmail) return res.status(400).json({ success: false, msg: "This account password cannot be reset here." });
-        const [rows] = await authPool.query("SELECT student_email FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
-        if (rows.length === 0) return res.status(404).json({ success: false, msg: "Email not found in registry." });
-
-        const otp = Math.floor(100000 + Math.random() * 900000).toString(); 
-        await pool.query("INSERT INTO password_resets (email, otp, expires_at) VALUES ($1, $2, NOW() + INTERVAL '15 minutes') ON CONFLICT (email) DO UPDATE SET otp = EXCLUDED.otp, expires_at = EXCLUDED.expires_at", [email, otp]);
-
-        const mailOptions = {
-            from: `"RD Algo Security" <${process.env.SMTP_USER}>`,
-            to: email,
-            subject: `Password Reset OTP - RD Algo`,
-            html: `<div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #ddd; padding: 20px; border-radius: 10px;">
-                    <h2 style="color: #0056b3;">Password Reset</h2>
-                    <p>You requested to reset your password. Use the OTP below to set a new password. This code is valid for 15 minutes.</p>
-                    <div style="font-size: 24px; font-weight: bold; background: #f8f9fa; padding: 15px; text-align: center; letter-spacing: 5px; color: #000; border-radius: 8px;">${otp}</div>
-                   </div>`
-        };
-        transporter.sendMail(mailOptions).catch(e => console.error(e));
-        res.json({ success: true, msg: "OTP sent to your email." });
-    } catch (err) { res.status(500).json({ success: false, msg: "Server error generating OTP." }); }
-});
-
-app.post('/api/reset_password', async (req, res) => {
-    const { otp, newPassword } = req.body;
-    const email = req.body.email.trim().toLowerCase();
-    try {
-        const result = await pool.query("SELECT * FROM password_resets WHERE email = $1 AND otp = $2 AND expires_at > NOW()", [email, otp]);
-        if (result.rows.length === 0) return res.status(400).json({ success: false, msg: "Invalid or expired OTP." });
-
-        const salt = crypto.randomBytes(16).toString('hex');
-        const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
-        await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [email, salt, hash]);
-        await pool.query("DELETE FROM password_resets WHERE email = $1", [email]); 
-        res.json({ success: true, msg: "Password changed successfully. You can now login." });
-    } catch (err) { res.status(500).json({ success: false, msg: "Server error resetting password." }); }
-});
-
-app.post('/api/logout', (req, res) => { res.clearCookie('authToken', { path: '/' }); res.json({ success: true }); });
-
-// ==========================================
-// STUDENT/USER NOTIFICATIONS API 
-// ==========================================
-app.get('/api/notifications', authenticateToken, async (req, res) => {
-    try {
-        // Fetch only sent notifications meant for logged in users
-        const result = await pool.query(
-            "SELECT * FROM scheduled_notifications WHERE status = 'sent' AND target_audience IN ('both', 'logged_in') ORDER BY created_at DESC LIMIT 50"
-        );
-        res.json({ success: true, data: result.rows });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
-// ==========================================
-// ADMIN DASHBOARD ROUTES
-// ==========================================
-app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
-    try {
-        const result = await pool.query("SELECT * FROM scheduled_notifications ORDER BY created_at DESC LIMIT 50");
-        res.json({ success: true, data: result.rows });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
-app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
-    const { title, body, url, schedule_time, target_audience, recurrence } = req.body;
-    try {
-        let parsedScheduleTime = null;
-        if (schedule_time) {
-            if (!schedule_time.includes('+') && !schedule_time.endsWith('Z')) {
-                const istString = schedule_time.length === 16 ? schedule_time + ":00+05:30" : schedule_time + "+05:30";
-                parsedScheduleTime = new Date(istString).toISOString(); 
-            } else {
-                parsedScheduleTime = new Date(schedule_time).toISOString();
-            }
-        }
-
-        const result = await pool.query(
-            "INSERT INTO scheduled_notifications (title, body, url, scheduled_for, status, target_audience, recurrence) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-            [title, body, url || '/', parsedScheduleTime || null, parsedScheduleTime ? 'pending' : 'sent', target_audience || 'both', recurrence || 'none']
-        );
-        const notificationId = result.rows[0].id;
-
-        if (!parsedScheduleTime) {
-            const uniqueSubs = await getValidPushSubscribers(target_audience || 'both');
-            const payload = { title, body, url: url || '/' };
-            
-            uniqueSubs.forEach(sub => { 
-                webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
-                    if(e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
-                }); 
-            });
-        } else {
-            const delay = new Date(parsedScheduleTime).getTime() - Date.now();
-            await pushQueue.add('send-push', { notificationId }, { delay: Math.max(delay, 0), jobId: `push_${notificationId}_${Date.now()}` });
-        }
-        res.json({ success: true, msg: "Notification saved!" });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
-app.delete('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, res) => {
-    try {
-        await pool.query("DELETE FROM scheduled_notifications WHERE id = $1", [req.params.id]);
-        
-        const jobs = await pushQueue.getDelayed();
-        for (let job of jobs) {
-            if (job.data.notificationId === parseInt(req.params.id)) await job.remove();
-        }
-
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
-// ========================================================
-// TRADE ROUTES (WITH REVERSAL COMBINATION LOGIC)
-// ========================================================
-app.get('/api/trades', authenticateToken, async (req, res) => {
-    try { res.json((await pool.query(`SELECT * FROM trades WHERE CAST(created_at AS TIMESTAMP) >= NOW() - INTERVAL '30 days' ORDER BY id DESC`)).rows); } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/signal_detected', async (req, res) => {
-    const { trade_id, symbol, type, entry, sl, tp1, tp2, tp3 } = req.body;
-    try {
-        let sentMsgId = null;
-        try {
-            let tgMsg = `🚨 *NEW SIGNAL DETECTED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n📊 *Type:* ${toMarkdown(type)}\n🕒 *Time:* ${toMarkdown(getISTTime())}`;
-            if (entry || sl || tp1) {
-                tgMsg += `\n\n🚪 *Entry:* ${toMarkdown(entry)}\n🛑 *SL:* ${toMarkdown(sl)}\n🎯 *TP1:* ${toMarkdown(tp1)} | *TP2:* ${toMarkdown(tp2)} | *TP3:* ${toMarkdown(tp3)}`;
-            }
-            const sentMsg = await bot.sendMessage(CHAT_ID, tgMsg, { parse_mode: 'Markdown' });
-            sentMsgId = sentMsg.message_id;
-        } catch (tgErr) { console.error("⚠️ Telegram Send Failed (Skipping TG):", tgErr.message); }
-
-        await pool.query(
-            `INSERT INTO trades (trade_id, symbol, type, entry_price, sl_price, tp1_price, tp2_price, tp3_price, telegram_msg_id, created_at, status) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SIGNAL') ON CONFLICT (trade_id) DO NOTHING;`, 
-             [trade_id, symbol, type, entry || 0, sl || 0, tp1 || 0, tp2 || 0, tp3 || 0, sentMsgId, getDBTime()]
-        );
-        await pool.query("DELETE FROM trades WHERE CAST(created_at AS TIMESTAMP) < NOW() - INTERVAL '30 days'");
-        
-        io.emit('trade_update'); 
-        res.json({ success: true });
-    } catch (err) { 
-        console.error("❌ SIGNAL ENDPOINT ERROR:", err);
-        res.status(500).json({ error: err.message }); 
-    }
-});
-
-app.post('/api/setup_confirmed', async (req, res) => {
-    const { trade_id, symbol, type, entry, sl, tp1, tp2, tp3 } = req.body;
-    try {
-        const isPushEnabled = await checkTradePushEnabled();
-        let reversalHappened = false;
-
-        const oldTrades = await pool.query("SELECT * FROM trades WHERE symbol = $1 AND status IN ('SIGNAL', 'SETUP', 'ACTIVE') AND trade_id != $2", [symbol, trade_id]);
-        for (const t of oldTrades.rows) {
-            await pool.query("UPDATE trades SET status = 'CLOSED (Reversal)' WHERE trade_id = $1", [t.trade_id]);
-            reversalHappened = true;
-            try {
-                if(t.telegram_msg_id) { await bot.sendMessage(CHAT_ID, `🔄 *Trade Reversed*\n❌ Closed by new signal.`, { reply_to_message_id: t.telegram_msg_id, parse_mode: 'Markdown' }); }
-            } catch(tgErr) {}
-        }
-        
-        const check = await pool.query("SELECT telegram_msg_id FROM trades WHERE trade_id = $1", [trade_id]);
-        await pool.query(`INSERT INTO trades (trade_id, symbol, type, entry_price, sl_price, tp1_price, tp2_price, tp3_price, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'SETUP', $9) ON CONFLICT (trade_id) DO UPDATE SET entry_price = EXCLUDED.entry_price, sl_price = EXCLUDED.sl_price, tp1_price = EXCLUDED.tp1_price, tp2_price = EXCLUDED.tp2_price, tp3_price = EXCLUDED.tp3_price, status = 'SETUP';`, [trade_id, symbol, type, entry, sl, tp1, tp2, tp3, getDBTime()]);
-        
-        try {
-            const opts = { parse_mode: 'Markdown' }; if (check.rows[0]?.telegram_msg_id) opts.reply_to_message_id = check.rows[0].telegram_msg_id;
-            await bot.sendMessage(CHAT_ID, `✅ *SETUP CONFIRMED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n🚀 *Type:* ${toMarkdown(type)}\n🚪 *Entry:* ${toMarkdown(entry)}\n🛑 *SL:* ${toMarkdown(sl)}\n\n🎯 *TP1:* ${toMarkdown(tp1)}\n🎯 *TP2:* ${toMarkdown(tp2)}\n🎯 *TP3:* ${toMarkdown(tp3)}`, opts);
-        } catch(tgErr) {}
-
-        io.emit('trade_update'); 
-        
-        if (isPushEnabled) { 
-            let pTitle = reversalHappened ? '🔄 REVERSAL & NEW SETUP' : '✅ SETUP CONFIRMED';
-            let pBody = reversalHappened ? `Previous trade closed!\n` : '';
-            pBody += `${symbol} - ${type}\nEntry: ${entry} | SL: ${sl}\nTargets: ${tp1}, ${tp2}, ${tp3}`;
-            
-            await sendPushNotification({ 
-                title: pTitle, 
-                body: pBody 
-            }); 
-        }
-        
-        res.json({ success: true });
-    } catch (err) { 
-        console.error("❌ SETUP ENDPOINT ERROR:", err);
-        res.status(500).json({ error: err.message }); 
-    }
-});
-
-app.post('/api/price_update', async (req, res) => {
-    const { symbol, bid, ask } = req.body;
-    try {
-        const trades = await pool.query("SELECT * FROM trades WHERE symbol = $1 AND status = 'ACTIVE'", [symbol]);
-        for (const t of trades.rows) { await pool.query("UPDATE trades SET points_gained = $1 WHERE id = $2", [calculatePoints(t.type, t.entry_price, (t.type === 'BUY') ? bid : ask), t.id]); }
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/log_event', async (req, res) => {
-    const { trade_id, new_status, price } = req.body;
-    try {
-        const result = await pool.query("SELECT * FROM trades WHERE trade_id = $1", [trade_id]);
-        if (result.rows.length === 0) return res.json({ success: false, msg: "Trade not found" });
-        const trade = result.rows[0];
-        
-        if (trade.status.includes('TP') && new_status === 'SL HIT') { return res.json({ success: true, msg: "Profit Locked: SL Ignored" }); }
-        if (trade.status === 'TP3 HIT' && (new_status === 'TP2 HIT' || new_status === 'TP1 HIT')) return res.json({ success: true });
-        if (trade.status === 'TP2 HIT' && new_status === 'TP1 HIT') return res.json({ success: true });
-        if (trade.status === new_status) return res.json({ success: true }); 
-
-        await pool.query("UPDATE trades SET status = $1, points_gained = $2 WHERE trade_id = $3", [new_status, calculatePoints(trade.type, trade.entry_price, price), trade_id]);
-        
-        try {
-            const opts = { parse_mode: 'Markdown' }; if (trade.telegram_msg_id) opts.reply_to_message_id = trade.telegram_msg_id;
-            await bot.sendMessage(CHAT_ID, `⚡ *UPDATE: ${toMarkdown(new_status)}*\n\n💎 *Symbol:* #${toMarkdown(trade.symbol)}\n📉 *Price:* ${toMarkdown(price)}`, opts);
-        } catch(tgErr) {}
-        
-        io.emit('trade_update'); 
-        
-        const isPushEnabled = await checkTradePushEnabled();
-        if (isPushEnabled && new_status !== 'SL HIT') { 
-            await sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); 
-        }
-        
-        res.json({ success: true });
-    } catch (err) { 
-        console.error("❌ LOG EVENT ENDPOINT ERROR:", err);
-        res.status(500).json({ error: err.message }); 
-    }
-});
-
-// ... [rest of file intact for brevity, video encoding, etc. remains same]
 app.post('/api/video/progress', authenticateToken, async (req, res) => {
     const { lessonId, currentTime } = req.body;
     try {
@@ -881,6 +564,86 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
     }
 });
 
+const worker = new Worker('video-encoding', async job => {
+    const { lessonDbId, videoPath, hlsDirStr } = job.data;
+    const lessonId = crypto.randomUUID();
+    const lessonHlsDir = path.join(hlsDirStr, lessonId);
+    if (!fs.existsSync(lessonHlsDir)) fs.mkdirSync(lessonHlsDir, { recursive: true });
+
+    const key = crypto.randomBytes(16);
+    const keyPath = path.join(lessonHlsDir, 'enc.key');
+    fs.writeFileSync(keyPath, key);
+
+    const keyUrl = `/api/hls-key/${lessonId}/enc.key`; 
+    const keyInfoPath = path.join(lessonHlsDir, 'enc.keyinfo');
+    fs.writeFileSync(keyInfoPath, `${keyUrl}\n${keyPath}`);
+
+    const m3u8Path = `/hls/${lessonId}/output.m3u8`;
+
+    return new Promise((resolve, reject) => {
+        ffmpeg(videoPath)
+            .outputOptions([
+                '-profile:v baseline', 
+                '-level 3.0', 
+                '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+                '-start_number 0', 
+                '-hls_time 10', 
+                '-hls_list_size 0', 
+                '-f hls', 
+                `-hls_key_info_file ${keyInfoPath}`
+            ])
+            .output(path.join(lessonHlsDir, 'output.m3u8'))
+            .on('end', async () => {
+                if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath);
+                await pool.query("UPDATE lesson_videos SET hls_manifest_url = $1 WHERE id = $2", [m3u8Path, lessonDbId]);
+                await redisClient.del('public_courses').catch(()=>{});
+                console.log(`✅ Background processing complete for Lesson ID: ${lessonDbId}`);
+                resolve();
+            })
+            .on('error', (err) => { 
+                if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); 
+                reject(err); 
+            })
+            .run();
+    });
+}, { connection: redisConnection });
+
+const pushWorker = new Worker('push-notifications', async job => {
+    const { notificationId } = job.data;
+    const { rows } = await pool.query("SELECT * FROM scheduled_notifications WHERE id = $1 AND status = 'pending'", [notificationId]);
+    
+    if (rows.length > 0) {
+        const notification = rows[0];
+        try {
+            const uniqueSubs = await getValidPushSubscribers(notification.target_audience || 'both');
+            const payload = { title: notification.title, body: notification.body, url: notification.url || '/' };
+
+            for (let sub of uniqueSubs) {
+                await webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
+                    if (e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
+                });
+            }
+            
+            if (notification.recurrence && notification.recurrence !== 'none') {
+                let nextTime = new Date(notification.scheduled_for || new Date());
+                if (notification.recurrence === 'daily') nextTime.setDate(nextTime.getDate() + 1);
+                else if (notification.recurrence === 'weekly') nextTime.setDate(nextTime.getDate() + 7);
+                
+                await pool.query("UPDATE scheduled_notifications SET scheduled_for = $1 WHERE id = $2", [nextTime, notificationId]);
+                
+                const delay = nextTime.getTime() - Date.now();
+                await pushQueue.add('send-push', { notificationId }, { delay: Math.max(delay, 0), jobId: `push_${notificationId}_${nextTime.getTime()}` });
+                console.log(`🔁 Notification ${notificationId} sent and rescheduled for ${nextTime}`);
+            } else {
+                await pool.query("UPDATE scheduled_notifications SET status = 'sent' WHERE id = $1", [notificationId]);
+                console.log(`✅ Scheduled push notification sent: ${notification.title}`);
+            }
+        } catch (e) {
+            console.error("❌ Scheduled push failed:", e);
+        }
+    }
+}, { connection: redisConnection });
+
 app.put('/api/admin/lessons/:id', authenticateToken, isAdmin, upload.single('thumbnail_file'), async (req, res) => {
     const { title, description, display_order } = req.body;
     try {
@@ -932,6 +695,179 @@ app.post('/api/admin/lessons/reorder', authenticateToken, isAdmin, async (req, r
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(
+            "SELECT * FROM scheduled_notifications WHERE status = 'sent' AND target_audience IN ('both', 'logged_in') ORDER BY created_at DESC LIMIT 50"
+        );
+        res.json({ success: true, data: result.rows });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM scheduled_notifications ORDER BY created_at DESC LIMIT 50");
+        res.json({ success: true, data: result.rows });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
+    const { title, body, url, schedule_time, target_audience, recurrence } = req.body;
+    try {
+        let parsedScheduleTime = null;
+        if (schedule_time) {
+            if (!schedule_time.includes('+') && !schedule_time.endsWith('Z')) {
+                const istString = schedule_time.length === 16 ? schedule_time + ":00+05:30" : schedule_time + "+05:30";
+                parsedScheduleTime = new Date(istString).toISOString(); 
+            } else {
+                parsedScheduleTime = new Date(schedule_time).toISOString();
+            }
+        }
+
+        const result = await pool.query(
+            "INSERT INTO scheduled_notifications (title, body, url, scheduled_for, status, target_audience, recurrence) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+            [title, body, url || '/', parsedScheduleTime || null, parsedScheduleTime ? 'pending' : 'sent', target_audience || 'both', recurrence || 'none']
+        );
+        const notificationId = result.rows[0].id;
+
+        if (!parsedScheduleTime) {
+            const uniqueSubs = await getValidPushSubscribers(target_audience || 'both');
+            const payload = { title, body, url: url || '/' };
+            
+            uniqueSubs.forEach(sub => { 
+                webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
+                    if(e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
+                }); 
+            });
+        } else {
+            const delay = new Date(parsedScheduleTime).getTime() - Date.now();
+            await pushQueue.add('send-push', { notificationId }, { delay: Math.max(delay, 0), jobId: `push_${notificationId}_${Date.now()}` });
+        }
+        res.json({ success: true, msg: "Notification saved!" });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+app.delete('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        await pool.query("DELETE FROM scheduled_notifications WHERE id = $1", [req.params.id]);
+        
+        const jobs = await pushQueue.getDelayed();
+        for (let job of jobs) {
+            if (job.data.notificationId === parseInt(req.params.id)) await job.remove();
+        }
+
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+app.get('/api/trades', authenticateToken, async (req, res) => {
+    try { res.json((await pool.query(`SELECT * FROM trades WHERE CAST(created_at AS TIMESTAMP) >= NOW() - INTERVAL '30 days' ORDER BY id DESC`)).rows); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/signal_detected', async (req, res) => {
+    const { trade_id, symbol, type, entry, sl, tp1, tp2, tp3 } = req.body;
+    try {
+        let sentMsgId = null;
+        try {
+            let tgMsg = `🚨 *NEW SIGNAL DETECTED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n📊 *Type:* ${toMarkdown(type)}\n🕒 *Time:* ${toMarkdown(getISTTime())}`;
+            if (entry || sl || tp1) {
+                tgMsg += `\n\n🚪 *Entry:* ${toMarkdown(entry)}\n🛑 *SL:* ${toMarkdown(sl)}\n🎯 *TP1:* ${toMarkdown(tp1)} | *TP2:* ${toMarkdown(tp2)} | *TP3:* ${toMarkdown(tp3)}`;
+            }
+            const sentMsg = await bot.sendMessage(CHAT_ID, tgMsg, { parse_mode: 'Markdown' });
+            sentMsgId = sentMsg.message_id;
+        } catch (tgErr) {}
+
+        await pool.query(
+            `INSERT INTO trades (trade_id, symbol, type, entry_price, sl_price, tp1_price, tp2_price, tp3_price, telegram_msg_id, created_at, status) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SIGNAL') ON CONFLICT (trade_id) DO NOTHING;`, 
+             [trade_id, symbol, type, entry || 0, sl || 0, tp1 || 0, tp2 || 0, tp3 || 0, sentMsgId, getDBTime()]
+        );
+        await pool.query("DELETE FROM trades WHERE CAST(created_at AS TIMESTAMP) < NOW() - INTERVAL '30 days'");
+        
+        io.emit('trade_update'); 
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/setup_confirmed', async (req, res) => {
+    const { trade_id, symbol, type, entry, sl, tp1, tp2, tp3 } = req.body;
+    try {
+        const isPushEnabled = await checkTradePushEnabled();
+        let reversalHappened = false;
+
+        const oldTrades = await pool.query("SELECT * FROM trades WHERE symbol = $1 AND status IN ('SIGNAL', 'SETUP', 'ACTIVE') AND trade_id != $2", [symbol, trade_id]);
+        for (const t of oldTrades.rows) {
+            await pool.query("UPDATE trades SET status = 'CLOSED (Reversal)' WHERE trade_id = $1", [t.trade_id]);
+            reversalHappened = true;
+            try {
+                if(t.telegram_msg_id) { await bot.sendMessage(CHAT_ID, `🔄 *Trade Reversed*\n❌ Closed by new signal.`, { reply_to_message_id: t.telegram_msg_id, parse_mode: 'Markdown' }); }
+            } catch(tgErr) {}
+        }
+        
+        const check = await pool.query("SELECT telegram_msg_id FROM trades WHERE trade_id = $1", [trade_id]);
+        await pool.query(`INSERT INTO trades (trade_id, symbol, type, entry_price, sl_price, tp1_price, tp2_price, tp3_price, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'SETUP', $9) ON CONFLICT (trade_id) DO UPDATE SET entry_price = EXCLUDED.entry_price, sl_price = EXCLUDED.sl_price, tp1_price = EXCLUDED.tp1_price, tp2_price = EXCLUDED.tp2_price, tp3_price = EXCLUDED.tp3_price, status = 'SETUP';`, [trade_id, symbol, type, entry, sl, tp1, tp2, tp3, getDBTime()]);
+        
+        try {
+            const opts = { parse_mode: 'Markdown' }; if (check.rows[0]?.telegram_msg_id) opts.reply_to_message_id = check.rows[0].telegram_msg_id;
+            await bot.sendMessage(CHAT_ID, `✅ *SETUP CONFIRMED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n🚀 *Type:* ${toMarkdown(type)}\n🚪 *Entry:* ${toMarkdown(entry)}\n🛑 *SL:* ${toMarkdown(sl)}\n\n🎯 *TP1:* ${toMarkdown(tp1)}\n🎯 *TP2:* ${toMarkdown(tp2)}\n🎯 *TP3:* ${toMarkdown(tp3)}`, opts);
+        } catch(tgErr) {}
+
+        io.emit('trade_update'); 
+        
+        if (isPushEnabled) { 
+            let pTitle = reversalHappened ? '🔄 REVERSAL & NEW SETUP' : '✅ SETUP CONFIRMED';
+            let pBody = reversalHappened ? `Previous trade closed!\n` : '';
+            pBody += `${symbol} - ${type}\nEntry: ${entry} | SL: ${sl}\nTargets: ${tp1}, ${tp2}, ${tp3}`;
+            
+            await sendPushNotification({ 
+                title: pTitle, 
+                body: pBody 
+            }); 
+        }
+        
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/price_update', async (req, res) => {
+    const { symbol, bid, ask } = req.body;
+    try {
+        const trades = await pool.query("SELECT * FROM trades WHERE symbol = $1 AND status = 'ACTIVE'", [symbol]);
+        for (const t of trades.rows) { await pool.query("UPDATE trades SET points_gained = $1 WHERE id = $2", [calculatePoints(t.type, t.entry_price, (t.type === 'BUY') ? bid : ask), t.id]); }
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/log_event', async (req, res) => {
+    const { trade_id, new_status, price } = req.body;
+    try {
+        const result = await pool.query("SELECT * FROM trades WHERE trade_id = $1", [trade_id]);
+        if (result.rows.length === 0) return res.json({ success: false, msg: "Trade not found" });
+        const trade = result.rows[0];
+        
+        if (trade.status.includes('TP') && new_status === 'SL HIT') { return res.json({ success: true, msg: "Profit Locked: SL Ignored" }); }
+        if (trade.status === 'TP3 HIT' && (new_status === 'TP2 HIT' || new_status === 'TP1 HIT')) return res.json({ success: true });
+        if (trade.status === 'TP2 HIT' && new_status === 'TP1 HIT') return res.json({ success: true });
+        if (trade.status === new_status) return res.json({ success: true }); 
+
+        await pool.query("UPDATE trades SET status = $1, points_gained = $2 WHERE trade_id = $3", [new_status, calculatePoints(trade.type, trade.entry_price, price), trade_id]);
+        
+        try {
+            const opts = { parse_mode: 'Markdown' }; if (trade.telegram_msg_id) opts.reply_to_message_id = trade.telegram_msg_id;
+            await bot.sendMessage(CHAT_ID, `⚡ *UPDATE: ${toMarkdown(new_status)}*\n\n💎 *Symbol:* #${toMarkdown(trade.symbol)}\n📉 *Price:* ${toMarkdown(price)}`, opts);
+        } catch(tgErr) {}
+        
+        io.emit('trade_update'); 
+        
+        const isPushEnabled = await checkTradePushEnabled();
+        if (isPushEnabled && new_status !== 'SL HIT') { 
+            await sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); 
+        }
+        
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/api/delete_trades', authenticateToken, async (req, res) => {
     const { trade_ids, password } = req.body; 
     if (password !== DELETE_PASSWORD) { return res.status(401).json({ success: false, msg: "❌ Incorrect Password!" }); }
@@ -942,19 +878,12 @@ app.post('/api/delete_trades', authenticateToken, async (req, res) => {
 cron.schedule('30 6 * * *', async () => {
     try {
         await pool.query("DELETE FROM login_logs");
-        console.log("✅ Daily Reset: All user sessions cleared at 6:30 AM.");
-    } catch (err) {
-        console.error("❌ Error clearing daily sessions:", err);
-    }
-}, {
-    scheduled: true,
-    timezone: "Asia/Kolkata"
-});
+    } catch (err) {}
+}, { scheduled: true, timezone: "Asia/Kolkata" });
 
 const PORT = process.env.PORT || 3000;
 
 initDb().then(async () => { 
-    
     let vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
     let vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
 
@@ -967,29 +896,16 @@ initDb().then(async () => {
                 vapidPublicKey = pubRes.rows[0].setting_value;
                 vapidPrivateKey = privRes.rows[0].setting_value;
             } else {
-                console.log("⚠️ No VAPID keys found in env or DB. Generating new ones automatically...");
                 const vapidKeys = webpush.generateVAPIDKeys();
                 vapidPublicKey = vapidKeys.publicKey;
                 vapidPrivateKey = vapidKeys.privateKey;
-                
                 await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('vapid_public', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [vapidPublicKey]);
                 await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('vapid_private', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [vapidPrivateKey]);
-                console.log("✅ New VAPID keys generated and saved to PostgreSQL.");
             }
         }
-
-        webpush.setVapidDetails(
-            'mailto:' + (process.env.ADMIN_EMAIL || 'admin@rdalgo.in'),
-            vapidPublicKey.trim(),
-            vapidPrivateKey.trim()
-        );
-        
+        webpush.setVapidDetails('mailto:' + (process.env.ADMIN_EMAIL || 'admin@rdalgo.in'), vapidPublicKey.trim(), vapidPrivateKey.trim());
         app.locals.vapidPublicKey = vapidPublicKey.trim();
-        console.log("✅ Web Push VAPID configured successfully.");
-
-    } catch (e) {
-        console.error("❌ Failed to setup VAPID keys:", e.message);
-    }
+    } catch (e) {}
 
     server.listen(PORT, () => console.log(`🚀 RD Broker Server running on ${PORT}`)); 
 });
