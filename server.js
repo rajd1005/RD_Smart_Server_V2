@@ -456,7 +456,7 @@ app.post('/api/login', async (req, res) => {
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
             
         } else {
-            const localCreds = await pool.query("SELECT * FROM user_credentials স্পেন WHERE email = $1", [email]);
+            const localCreds = await pool.query("SELECT * FROM user_credentials WHERE email = $1", [email]);
             if (localCreds.rows.length > 0) {
                 const { salt, hash } = localCreds.rows[0];
                 const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
@@ -938,14 +938,18 @@ app.post('/api/admin/lessons/reorder', authenticateToken, isAdmin, async (req, r
 // ==========================================
 app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
     try {
-        const result = await pool.query("SELECT * FROM scheduled_notifications ORDER BY created_at DESC LIMIT 50");
+        const limit = parseInt(req.query.limit) || 15;
+        const offset = parseInt(req.query.offset) || 0;
+        const result = await pool.query("SELECT * FROM scheduled_notifications ORDER BY COALESCE(scheduled_for, created_at) DESC LIMIT $1 OFFSET $2", [limit, offset]);
         res.json({ success: true, data: result.rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 app.get('/api/user/notifications', authenticateToken, async (req, res) => {
     try {
-        const result = await pool.query("SELECT * FROM scheduled_notifications WHERE status = 'sent' AND target_audience IN ('logged_in', 'both') ORDER BY COALESCE(scheduled_for, created_at) DESC LIMIT 50");
+        const limit = parseInt(req.query.limit) || 15;
+        const offset = parseInt(req.query.offset) || 0;
+        const result = await pool.query("SELECT * FROM scheduled_notifications WHERE status = 'sent' AND target_audience IN ('logged_in', 'both') ORDER BY COALESCE(scheduled_for, created_at) DESC LIMIT $1 OFFSET $2", [limit, offset]);
         res.json({ success: true, data: result.rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -1146,14 +1150,15 @@ app.post('/api/delete_trades', authenticateToken, async (req, res) => {
 });
 
 // =========================================================
-// DAILY AUTOMATED LOGOUT (6:30 AM)
+// DAILY AUTOMATED LOGOUT (6:30 AM) & NOTIFICATION CLEANUP
 // =========================================================
 cron.schedule('30 6 * * *', async () => {
     try {
         await pool.query("DELETE FROM login_logs");
-        console.log("✅ Daily Reset: All user sessions cleared at 6:30 AM.");
+        await pool.query("DELETE FROM scheduled_notifications WHERE created_at < NOW() - INTERVAL '30 days'");
+        console.log("✅ Daily Reset: All user sessions cleared and notifications older than 30 days deleted at 6:30 AM.");
     } catch (err) {
-        console.error("❌ Error clearing daily sessions:", err);
+        console.error("❌ Error clearing daily sessions/notifications:", err);
     }
 }, {
     scheduled: true,
