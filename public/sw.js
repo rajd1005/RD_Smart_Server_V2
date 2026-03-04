@@ -10,6 +10,7 @@ self.addEventListener('push', event => {
         body: data.body,
         icon: '/logo.png',
         badge: '/logo.png',
+        image: data.image ? data.image : undefined, // <-- NEW IMAGE PAYLOAD ADDED HERE
         sound: '/chaching.mp3', // <-- ADDS THE CUSTOM MONEY SOUND
         requireInteraction: true,
         vibrate: [200, 100, 200], 
