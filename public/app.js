@@ -1252,20 +1252,26 @@ if (formChatPush) {
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
-        const payload = {
-            target_audience: document.getElementById('chatPushTarget').value,
-            title: document.getElementById('chatPushTitle').value,
-            body: document.getElementById('chatPushBody').value,
-            url: document.getElementById('chatPushUrl').value,
-            schedule_time: document.getElementById('chatPushSchedule').value || null,
-            recurrence: document.getElementById('chatPushRecurrence').value || 'none'
-        };
+        const formData = new FormData();
+        formData.append('target_audience', document.getElementById('chatPushTarget').value);
+        formData.append('title', document.getElementById('chatPushTitle').value);
+        formData.append('body', document.getElementById('chatPushBody').value);
+        formData.append('url', document.getElementById('chatPushUrl').value);
+        
+        const scheduleTime = document.getElementById('chatPushSchedule').value;
+        if (scheduleTime) formData.append('schedule_time', scheduleTime);
+        
+        formData.append('recurrence', document.getElementById('chatPushRecurrence').value || 'none');
+        
+        const imageEl = document.getElementById('chatPushImage');
+        if (imageEl && imageEl.files[0]) {
+            formData.append('push_image', imageEl.files[0]);
+        }
 
         try {
             const res = await fetch('/api/admin/notifications', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: formData,
                 credentials: 'same-origin'
             });
 
@@ -1275,6 +1281,7 @@ if (formChatPush) {
                 document.getElementById('chatPushUrl').value = '';
                 document.getElementById('chatPushSchedule').value = '';
                 document.getElementById('chatPushRecurrence').value = 'none';
+                if (imageEl) imageEl.value = '';
                 fetchChatNotifications(false); // Reset and load newest
             } else {
                 alert("Error sending notification.");
