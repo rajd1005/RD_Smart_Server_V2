@@ -37,6 +37,13 @@ window.onload = function() {
             if (badge) badge.style.display = 'none';
         });
     }
+
+    const scheduledPushModalEl = document.getElementById('scheduledPushModal');
+    if (scheduledPushModalEl) {
+        scheduledPushModalEl.addEventListener('show.bs.modal', function () {
+            fetchScheduledPushes();
+        });
+    }
 };
 
 // --- FALLBACK BACKGROUND POLLER TO GUARANTEE LIVE UPDATES ---
@@ -1287,6 +1294,112 @@ window.deleteChatPush = async function(id) {
         if(res.ok) fetchChatNotifications(false);
     } catch(e) { alert("Error deleting."); }
 };
+
+// --- SCHEDULED PUSHES MANAGEMENT ---
+async function fetchScheduledPushes() {
+    const list = document.getElementById('scheduledPushList');
+    if(!list) return;
+    list.innerHTML = '<div class="text-center text-muted p-3" style="font-size: 12px;">Loading...</div>';
+    try {
+        const res = await fetch('/api/admin/notifications/scheduled', { credentials: 'same-origin' });
+        const json = await res.json();
+        if(json.success) {
+            if(json.data.length === 0) {
+                list.innerHTML = '<div class="text-center text-muted p-3" style="font-size: 12px;">No scheduled or recurring pushes found.</div>';
+                return;
+            }
+            list.innerHTML = json.data.map(n => {
+                const dateObj = n.scheduled_for ? new Date(n.scheduled_for) : null;
+                const dateStr = dateObj ? dateObj.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }) + ' ' + dateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }) : 'Immediate/Sent';
+                
+                let targetText = n.target_audience === 'logged_in' ? '🔒 Login Users' : (n.target_audience === 'non_logged_in' ? '🌐 Public Users' : '🌍 All Users');
+                let recurrenceText = n.recurrence === 'daily' ? ' | 🔁 Daily' : (n.recurrence === 'weekly' ? ' | 🔁 Weekly' : ' | Once');
+
+                return `
+                <div class="p-2 mb-2 bg-white rounded border shadow-sm position-relative">
+                    <div class="fw-bold text-dark" style="font-size: 13px;">${n.title}</div>
+                    <div class="text-muted" style="font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${n.body}</div>
+                    <div class="mt-1 d-flex justify-content-between align-items-center">
+                        <span class="badge bg-light text-dark border" style="font-size: 9px;">${targetText}${recurrenceText}</span>
+                        <span class="text-primary fw-bold" style="font-size: 10px;">${dateStr}</span>
+                    </div>
+                    <div class="mt-2 d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-primary w-50 py-1" style="font-size:10px; font-weight:bold;" onclick='openEditPushModal(${JSON.stringify(n).replace(/'/g, "\\'")})'>Edit</button>
+                        <button class="btn btn-sm btn-outline-danger w-50 py-1" style="font-size:10px; font-weight:bold;" onclick="deleteScheduledPush(${n.id})">Delete</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    } catch(e) { list.innerHTML = '<div class="text-center text-danger p-3" style="font-size: 12px;">Error loading.</div>'; }
+}
+
+window.openEditPushModal = function(n) {
+    document.getElementById('editPushId').value = n.id;
+    document.getElementById('editPushTarget').value = n.target_audience || 'both';
+    document.getElementById('editPushTitle').value = n.title || '';
+    document.getElementById('editPushBody').value = n.body || '';
+    document.getElementById('editPushUrl').value = n.url !== '/' ? n.url : '';
+    document.getElementById('editPushRecurrence').value = n.recurrence || 'none';
+    
+    if (n.scheduled_for) {
+        // Convert ISO to datetime-local format (YYYY-MM-DDThh:mm) respecting timezone offset
+        const d = new Date(n.scheduled_for);
+        const tzOffset = d.getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(d - tzOffset)).toISOString().slice(0, 16);
+        document.getElementById('editPushSchedule').value = localISOTime;
+    } else {
+        document.getElementById('editPushSchedule').value = '';
+    }
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('editPushModal')).show();
+};
+
+window.deleteScheduledPush = async function(id) {
+    if(!confirm("Delete this scheduled notification?")) return;
+    try {
+        const res = await fetch(`/api/admin/notifications/${id}`, { method: 'DELETE', credentials: 'same-origin' });
+        if(res.ok) {
+            fetchScheduledPushes();
+            fetchChatNotifications(false);
+        }
+    } catch(e) { alert("Error deleting."); }
+};
+
+const formEditPush = document.getElementById('formEditPush');
+if (formEditPush) {
+    formEditPush.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('btnEditPushSubmit');
+        btn.disabled = true; btn.innerText = 'Saving...';
+
+        const id = document.getElementById('editPushId').value;
+        const payload = {
+            target_audience: document.getElementById('editPushTarget').value,
+            title: document.getElementById('editPushTitle').value,
+            body: document.getElementById('editPushBody').value,
+            url: document.getElementById('editPushUrl').value,
+            schedule_time: document.getElementById('editPushSchedule').value || null,
+            recurrence: document.getElementById('editPushRecurrence').value || 'none'
+        };
+
+        try {
+            const res = await fetch(`/api/admin/notifications/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                credentials: 'same-origin'
+            });
+            if (res.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('editPushModal')).hide();
+                fetchScheduledPushes();
+                fetchChatNotifications(false);
+            } else {
+                alert("Error updating notification.");
+            }
+        } catch (e) { alert("Network Error"); }
+        finally { btn.disabled = false; btn.innerText = 'Save Changes'; }
+    });
+}
 
 // --- PAGINATED USER NOTIFICATIONS LOGIC ---
 let userNotifications = [];
