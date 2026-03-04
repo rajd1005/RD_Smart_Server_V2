@@ -42,6 +42,7 @@ const redisConnection = {
 };
 const videoQueue = new Queue('video-encoding', { connection: redisConnection });
 const pushQueue = new Queue('push-notifications', { connection: redisConnection });
+const chatQueue = new Queue('chat-messages', { connection: redisConnection }); // NEW CHAT QUEUE
 
 // === INITIALIZE EXPRESS APP FIRST ===
 const app = express();
@@ -1001,7 +1002,7 @@ app.post('/api/admin/lessons/reorder', authenticateToken, isAdmin, async (req, r
 });
 
 // ==========================================
-// CHAT ADMIN & MODERATOR API ROUTES (NEW)
+// CHAT ADMIN & MODERATOR API ROUTES (UPDATED)
 // ==========================================
 
 // --- CHAT MODERATOR ADMIN APIs ---
@@ -1033,11 +1034,8 @@ app.delete('/api/admin/moderators/:email', authenticateToken, isAdmin, async (re
 app.get('/api/chat/channels', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM chat_channels ORDER BY created_at ASC");
-        let channels = result.rows;
-        if (req.user.role === 'student') {
-            channels = channels.filter(c => c.required_level === 'all' || req.user.accessLevels[c.required_level] === 'Yes');
-        }
-        res.json({ success: true, data: channels });
+        // We send ALL channels. The frontend handles showing the lock icon for unaccessible channels.
+        res.json({ success: true, data: result.rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
@@ -1079,47 +1077,86 @@ app.get('/api/chat/channels/:channelId/messages', authenticateToken, async (req,
                 return res.status(403).json({ success: false, msg: "Access Denied" });
             }
         }
-        const result = await pool.query("SELECT * FROM chat_messages WHERE channel_id = $1 AND status = 'sent' ORDER BY created_at ASC", [channelId]);
+        // Ordered by pinned first, then by date
+        const result = await pool.query("SELECT * FROM chat_messages WHERE channel_id = $1 AND status = 'sent' ORDER BY is_pinned DESC, created_at ASC", [channelId]);
         res.json({ success: true, data: result.rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+// NEW POST: Handles Scheduled and Recurring Chat Messages
 app.post('/api/chat/messages', authenticateToken, isModOrAdmin, upload.single('chat_image'), async (req, res) => {
-    const { channel_id, message_text, link_url, reply_to_id } = req.body;
+    const { channel_id, message_text, link_url, reply_to_id, schedule_time, recurrence } = req.body;
     let imagePath = req.file ? `/uploads/${req.file.filename}` : null;
+    
     try {
+        let parsedScheduleTime = null;
+        if (schedule_time) {
+            if (!schedule_time.includes('+') && !schedule_time.endsWith('Z')) {
+                const istString = schedule_time.length === 16 ? schedule_time + ":00+05:30" : schedule_time + "+05:30";
+                parsedScheduleTime = new Date(istString).toISOString(); 
+            } else {
+                parsedScheduleTime = new Date(schedule_time).toISOString();
+            }
+        }
+
         const result = await pool.query(
-            "INSERT INTO chat_messages (channel_id, sender_name, message_text, image_path, link_url, reply_to_id, status) VALUES ($1, $2, $3, $4, $5, $6, 'sent') RETURNING *",
-            [channel_id, req.user.role === 'admin' ? 'Admin' : 'Moderator', message_text || '', imagePath, link_url || null, reply_to_id || null]
+            "INSERT INTO chat_messages (channel_id, sender_name, message_text, image_path, link_url, reply_to_id, status, scheduled_for, recurrence) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
+            [channel_id, req.user.role === 'admin' ? 'Admin' : 'Moderator', message_text || '', imagePath, link_url || null, reply_to_id || null, parsedScheduleTime ? 'pending' : 'sent', parsedScheduleTime || null, recurrence || 'none']
         );
         
         const newMsg = result.rows[0];
-        io.emit('new_chat_message', newMsg);
-        
-        const ch = await pool.query("SELECT name, required_level FROM chat_channels WHERE id = $1", [channel_id]);
-        if (ch.rows.length > 0) {
-            const reqLevel = ch.rows[0].required_level;
-            let audience = 'logged_in';
-            if (reqLevel === 'level_2_status') audience = 'login_with_level_2';
-            if (reqLevel === 'level_3_status') audience = 'login_with_level_3';
-            if (reqLevel === 'level_4_status') audience = 'login_with_level_4';
+
+        if (!parsedScheduleTime) {
+            // Immediate Broadcast
+            io.emit('new_chat_message', newMsg);
             
-            const uniqueSubs = await getValidPushSubscribers(audience);
-            const payload = { 
-                title: `New Message in ${ch.rows[0].name}`, 
-                body: (message_text || 'Image/Link Attachment').substring(0, 100), 
-                url: '/', 
-                image: imagePath 
-            };
-            
-            uniqueSubs.forEach(sub => { 
-                webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
-                    if(e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
-                }); 
-            });
+            const ch = await pool.query("SELECT name, required_level FROM chat_channels WHERE id = $1", [channel_id]);
+            if (ch.rows.length > 0) {
+                const reqLevel = ch.rows[0].required_level;
+                let audience = 'logged_in';
+                if (reqLevel === 'level_2_status') audience = 'login_with_level_2';
+                if (reqLevel === 'level_3_status') audience = 'login_with_level_3';
+                if (reqLevel === 'level_4_status') audience = 'login_with_level_4';
+                
+                const uniqueSubs = await getValidPushSubscribers(audience);
+                const payload = { title: `New Message in ${ch.rows[0].name}`, body: (message_text || 'Image/Link Attachment').substring(0, 100), url: '/', image: imagePath };
+                
+                uniqueSubs.forEach(sub => { 
+                    webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
+                        if(e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
+                    }); 
+                });
+            }
+        } else {
+            // Scheduled via BullMQ
+            const delay = new Date(parsedScheduleTime).getTime() - Date.now();
+            await chatQueue.add('send-chat', { messageId: newMsg.id }, { delay: Math.max(delay, 0), jobId: `chat_${newMsg.id}_${Date.now()}` });
         }
         
-        res.json({ success: true, data: newMsg });
+        res.json({ success: true, data: newMsg, msg: parsedScheduleTime ? "Message Scheduled!" : "Message Sent" });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// EDIT Message Text
+app.put('/api/chat/messages/:id', authenticateToken, isModOrAdmin, async (req, res) => {
+    const { message_text } = req.body;
+    try {
+        await pool.query("UPDATE chat_messages SET message_text = $1, updated_at = NOW() WHERE id = $2 RETURNING *", [message_text, req.params.id]);
+        io.emit('update_chat_message', { id: req.params.id, message_text });
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// PIN/UNPIN Message
+app.put('/api/chat/messages/:id/pin', authenticateToken, isModOrAdmin, async (req, res) => {
+    const { is_pinned, channel_id } = req.body;
+    try {
+        if (is_pinned) {
+            await pool.query("UPDATE chat_messages SET is_pinned = FALSE WHERE channel_id = $1", [channel_id]); // Unpin others
+        }
+        await pool.query("UPDATE chat_messages SET is_pinned = $1 WHERE id = $2", [is_pinned, req.params.id]);
+        io.emit('pin_chat_message', { id: req.params.id, channel_id, is_pinned });
+        res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
@@ -1134,10 +1171,64 @@ app.delete('/api/chat/messages/:id', authenticateToken, isModOrAdmin, async (req
             }
             await pool.query("DELETE FROM chat_messages WHERE id = $1", [req.params.id]);
             io.emit('delete_chat_message', { id: req.params.id, channel_id: msg.rows[0].channel_id });
+            
+            const jobs = await chatQueue.getDelayed();
+            for (let job of jobs) { if (job.data.messageId === parseInt(req.params.id)) await job.remove(); }
         }
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
+
+
+// --- BULLMQ: NEW CHAT QUEUE WORKER ---
+const chatWorker = new Worker('chat-messages', async job => {
+    const { messageId } = job.data;
+    const { rows } = await pool.query("SELECT * FROM chat_messages WHERE id = $1 AND status = 'pending'", [messageId]);
+    
+    if (rows.length > 0) {
+        const msg = rows[0];
+        try {
+            const ch = await pool.query("SELECT name, required_level FROM chat_channels WHERE id = $1", [msg.channel_id]);
+            if (ch.rows.length > 0) {
+                const reqLevel = ch.rows[0].required_level;
+                let audience = 'logged_in';
+                if (reqLevel === 'level_2_status') audience = 'login_with_level_2';
+                if (reqLevel === 'level_3_status') audience = 'login_with_level_3';
+                if (reqLevel === 'level_4_status') audience = 'login_with_level_4';
+                
+                const uniqueSubs = await getValidPushSubscribers(audience);
+                const payload = { title: `New Message in ${ch.rows[0].name}`, body: (msg.message_text || 'Image/Link Attachment').substring(0, 100), url: '/', image: msg.image_path };
+                
+                for (let sub of uniqueSubs) {
+                    await webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
+                        if (e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
+                    });
+                }
+            }
+
+            if (msg.recurrence && msg.recurrence !== 'none') {
+                let nextTime = new Date(msg.scheduled_for || new Date());
+                if (msg.recurrence === 'daily') nextTime.setDate(nextTime.getDate() + 1);
+                else if (msg.recurrence === 'weekly') nextTime.setDate(nextTime.getDate() + 7);
+                
+                await pool.query("UPDATE chat_messages SET scheduled_for = $1 WHERE id = $2", [nextTime, messageId]);
+                const delay = nextTime.getTime() - Date.now();
+                await chatQueue.add('send-chat', { messageId }, { delay: Math.max(delay, 0), jobId: `chat_${messageId}_${nextTime.getTime()}` });
+                
+                // Duplicate message as 'sent' for current chat display
+                const newMsgRes = await pool.query("INSERT INTO chat_messages (channel_id, sender_name, message_text, image_path, link_url, status) VALUES ($1, $2, $3, $4, $5, 'sent') RETURNING *", [msg.channel_id, msg.sender_name, msg.message_text, msg.image_path, msg.link_url]);
+                io.emit('new_chat_message', newMsgRes.rows[0]);
+
+            } else {
+                await pool.query("UPDATE chat_messages SET status = 'sent' WHERE id = $1", [messageId]);
+                io.emit('new_chat_message', msg);
+            }
+        } catch (e) {
+            console.error("❌ Scheduled chat failed:", e);
+        }
+    }
+}, { connection: redisConnection });
+
 
 // ==========================================
 // PUSH NOTIFICATION ADMIN ROUTES 
@@ -1356,6 +1447,8 @@ app.post('/api/signal_detected', async (req, res) => {
         
         io.emit('trade_update'); 
         
+        // Removed Push Notification trigger from here to reduce spam.
+
         res.json({ success: true });
     } catch (err) { 
         console.error("❌ SIGNAL ENDPOINT ERROR:", err);
@@ -1446,6 +1539,7 @@ app.post('/api/log_event', async (req, res) => {
         
         const isPushEnabled = await checkTradePushEnabled();
         
+        // SL HIT Notifications are Muted
         if (isPushEnabled && new_status !== 'SL HIT') { 
             await sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); 
         } else if (new_status === 'SL HIT') {
@@ -1472,6 +1566,7 @@ app.post('/api/delete_trades', authenticateToken, async (req, res) => {
 cron.schedule('30 6 * * *', async () => {
     try {
         await pool.query("DELETE FROM login_logs");
+        // Ensure we only delete sent, NON-recurring notifications
         await pool.query("DELETE FROM scheduled_notifications WHERE created_at < NOW() - INTERVAL '30 days' AND (recurrence = 'none' OR recurrence IS NULL) AND status = 'sent'");
         console.log("✅ Daily Reset: All user sessions cleared and non-recurring notifications older than 30 days deleted at 6:30 AM.");
     } catch (err) {
@@ -1516,6 +1611,7 @@ initDb().then(async () => {
             vapidPrivateKey.trim()
         );
         
+        // Save globally so the frontend API can fetch it
         app.locals.vapidPublicKey = vapidPublicKey.trim();
         console.log("✅ Web Push VAPID configured successfully.");
 
