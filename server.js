@@ -493,30 +493,42 @@ app.post('/api/login', async (req, res) => {
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
             
         } else {
-            const localCreds = await pool.query("SELECT * FROM user_credentials WHERE email = $1", [email]);
-            if (localCreds.rows.length > 0) {
-                const { salt, hash } = localCreds.rows[0];
+            const modCreds = await pool.query("SELECT * FROM chat_moderators WHERE email = $1", [email]);
+            if (modCreds.rows.length > 0) {
+                const { salt, hash } = modCreds.rows[0];
                 const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
                 if (verifyHash !== hash) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
-                const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
-                if (rows.length === 0) return res.status(401).json({ success: false, msg: "Account not found in registry." });
-                studentRecord = rows[0];
+                
+                userEmail = email; 
+                userRole = "chat_moderator"; 
+                userPhone = "Moderator";
+                accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' }; 
             } else {
-                const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?", [email, password]);
-                if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
-                const setupToken = jwt.sign({ email: rows[0].student_email, phone: rows[0].student_phone }, JWT_SECRET, { expiresIn: '15m' });
-                return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
+                const localCreds = await pool.query("SELECT * FROM user_credentials WHERE email = $1", [email]);
+                if (localCreds.rows.length > 0) {
+                    const { salt, hash } = localCreds.rows[0];
+                    const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+                    if (verifyHash !== hash) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
+                    const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
+                    if (rows.length === 0) return res.status(401).json({ success: false, msg: "Account not found in registry." });
+                    studentRecord = rows[0];
+                } else {
+                    const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?", [email, password]);
+                    if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
+                    const setupToken = jwt.sign({ email: rows[0].student_email, phone: rows[0].student_phone }, JWT_SECRET, { expiresIn: '15m' });
+                    return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
+                }
+                
+                const expiryDate = new Date(studentRecord.student_expiry_date);
+                const getISTDate = () => { const d = new Date(); const utc = d.getTime() + (d.getTimezoneOffset() * 60000); return new Date(utc + (3600000 * 5.5)); };
+                if (!isNaN(expiryDate.getTime()) && expiryDate < getISTDate()) { 
+                    return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." }); 
+                }
+                
+                userEmail = String(studentRecord.student_email).toLowerCase().trim();
+                userPhone = studentRecord.student_phone; 
+                accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
             }
-            
-            const expiryDate = new Date(studentRecord.student_expiry_date);
-            const getISTDate = () => { const d = new Date(); const utc = d.getTime() + (d.getTimezoneOffset() * 60000); return new Date(utc + (3600000 * 5.5)); };
-            if (!isNaN(expiryDate.getTime()) && expiryDate < getISTDate()) { 
-                return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." }); 
-            }
-            
-            userEmail = String(studentRecord.student_email).toLowerCase().trim();
-            userPhone = studentRecord.student_phone; 
-            accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
         }
 
         const sessionId = crypto.randomUUID();
