@@ -1210,9 +1210,16 @@ async function fetchChatNotifications(loadMore = false) {
                 const iconColor = isScheduled ? '#856404' : '#53bdeb';
                 
                 let targetText = '';
-                if (n.target_audience === 'logged_in') targetText = '🔒 Login Users';
-                else if (n.target_audience === 'non_logged_in') targetText = '🌐 Public Users';
-                else targetText = '🌍 All Users';
+if (n.target_audience === 'logged_in') targetText = '🔒 Login Users';
+else if (n.target_audience === 'non_logged_in') targetText = '🌐 Public Users';
+else if (n.target_audience === 'both') targetText = '🌍 All Users';
+else if (n.target_audience === 'login_no_level_2') targetText = '🔒 Login (No Lvl 2)';
+else if (n.target_audience === 'login_no_level_3') targetText = '🔒 Login (No Lvl 3)';
+else if (n.target_audience === 'login_no_level_4') targetText = '🔒 Login (No Lvl 4)';
+else if (n.target_audience === 'login_with_level_2') targetText = '🔒 Login (With Lvl 2)';
+else if (n.target_audience === 'login_with_level_3') targetText = '🔒 Login (With Lvl 3)';
+else if (n.target_audience === 'login_with_level_4') targetText = '🔒 Login (With Lvl 4)';
+else targetText = '🌍 All Users';
 
                 let recurrenceText = '';
                 if (n.recurrence === 'daily') recurrenceText = ' | 🔁 Daily';
@@ -1319,7 +1326,15 @@ async function fetchScheduledPushes() {
                 const dateObj = n.scheduled_for ? new Date(n.scheduled_for) : null;
                 const dateStr = dateObj ? dateObj.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }) + ' ' + dateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }) : 'Immediate/Sent';
                 
-                let targetText = n.target_audience === 'logged_in' ? '🔒 Login Users' : (n.target_audience === 'non_logged_in' ? '🌐 Public Users' : '🌍 All Users');
+                let targetText = '🌍 All Users';
+if (n.target_audience === 'logged_in') targetText = '🔒 Login Users';
+else if (n.target_audience === 'non_logged_in') targetText = '🌐 Public Users';
+else if (n.target_audience === 'login_no_level_2') targetText = '🔒 Login (No Lvl 2)';
+else if (n.target_audience === 'login_no_level_3') targetText = '🔒 Login (No Lvl 3)';
+else if (n.target_audience === 'login_no_level_4') targetText = '🔒 Login (No Lvl 4)';
+else if (n.target_audience === 'login_with_level_2') targetText = '🔒 Login (With Lvl 2)';
+else if (n.target_audience === 'login_with_level_3') targetText = '🔒 Login (With Lvl 3)';
+else if (n.target_audience === 'login_with_level_4') targetText = '🔒 Login (With Lvl 4)';
                 let recurrenceText = n.recurrence === 'daily' ? ' | 🔁 Daily' : (n.recurrence === 'weekly' ? ' | 🔁 Weekly' : ' | Once');
 
                 return `
