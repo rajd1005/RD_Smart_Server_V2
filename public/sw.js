@@ -9,6 +9,9 @@ self.addEventListener('push', event => {
     const options = {
         body: data.body,
         icon: '/logo.png',
+        badge: '/logo.png', // Helps with Android rendering
+        requireInteraction: true, // PREVENTS "SPAM DETECTED" IN CHROME
+        vibrate: [200, 100, 200], // Adds haptic feedback on mobile
         data: { url: data.url || '/' }
     };
 
