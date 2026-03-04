@@ -15,8 +15,13 @@ let symbolCategories = { 'Forex/Crypto': [], 'Stock': [], 'Index': [], 'Mcx': []
 const userData = {
     email: localStorage.getItem('userEmail'),
     phone: localStorage.getItem('userPhone'),
-    role: localStorage.getItem('userRole')
+    role: localStorage.getItem('userRole'),
+    accessLevels: {}
 };
+
+try { 
+    userData.accessLevels = JSON.parse(localStorage.getItem('accessLevels')) || {}; 
+} catch(e) {}
 
 // --- CHAT SYSTEM STATE ---
 let chatChannels = [];
@@ -33,7 +38,6 @@ window.onload = function() {
     fetchUserNotifications(false); 
     applyRoleRestrictions(); 
     
-    // Default to learning section unless moderator
     if (userData.role === 'chat_moderator') {
         switchSection('chat');
     } else {
@@ -57,6 +61,24 @@ window.onload = function() {
             fetchScheduledPushes();
         });
     }
+
+    // Initialize Emoji Picker clicks
+    const emojiPickerEl = document.querySelector('emoji-picker');
+    if (emojiPickerEl) {
+        emojiPickerEl.addEventListener('emoji-click', event => {
+            const input = document.getElementById('chatInputText');
+            input.value += event.detail.unicode;
+            input.focus();
+        });
+    }
+
+    // Hide Emoji Picker on outside click
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#emojiPickerContainer') && !e.target.closest('.material-icons-round[onclick="toggleEmojiPicker()"]')) {
+            const picker = document.getElementById('emojiPickerContainer');
+            if (picker) picker.style.display = 'none';
+        }
+    });
 };
 
 setInterval(() => {
@@ -72,10 +94,7 @@ async function registerServiceWorker() {
             const keyRes = await fetch('/api/push/public_key');
             const keyData = await keyRes.json();
             
-            if (!keyData.success) {
-                console.log("Push keys not ready yet.");
-                return;
-            }
+            if (!keyData.success) { return; }
 
             const registration = await navigator.serviceWorker.register('/sw.js');
             const subscription = await registration.pushManager.subscribe({
@@ -89,9 +108,7 @@ async function registerServiceWorker() {
                 headers: { 'content-type': 'application/json' },
                 credentials: 'same-origin'
             });
-        } catch (error) {
-            console.log('Service Worker or Push Notification registration failed:', error);
-        }
+        } catch (error) {}
     }
 }
 
@@ -128,7 +145,7 @@ async function checkDisclaimer() {
                     bootstrap.Modal.getOrCreateInstance(modalEl).show();
                 }
             }
-        } catch (err) { console.error("Error loading disclaimer config"); }
+        } catch (err) {}
     }
 }
 
@@ -248,11 +265,8 @@ async function fetchCourses() {
         if (response.status === 401 || response.status === 403) { window.location.href = '/home.html'; return; }
         
         globalModules = await response.json();
-        let accessLevels = {};
-        try { accessLevels = JSON.parse(localStorage.getItem('accessLevels')) || {}; } catch(e) {}
 
         let htmlContent = '';
-        
         if (userData.role === 'admin') {
             const selectEl = document.getElementById('lessonModuleId');
             if (selectEl) {
@@ -262,8 +276,7 @@ async function fetchCourses() {
         }
 
         globalModules.forEach((mod) => {
-            const isLocked = userData.role !== 'admin' && mod.required_level !== 'demo' && accessLevels[mod.required_level] !== 'Yes';
-            
+            const isLocked = userData.role !== 'admin' && mod.required_level !== 'demo' && userData.accessLevels[mod.required_level] !== 'Yes';
             if (userData.role !== 'admin') {
                 if (mod.dashboard_visibility === 'hidden') return;
                 if (mod.dashboard_visibility === 'accessible' && isLocked) return;
@@ -289,11 +302,9 @@ async function fetchCourses() {
             let lessonHtml = '';
             if (mod.lessons && mod.lessons.length > 0) {
                 lessonHtml += `<div class="accordion w-100 lesson-container-sortable" id="accLsn${mod.id}">`;
-                
                 mod.lessons.forEach(l => {
                     const safeLT = (l.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
                     const safeLD = (l.description || '').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
-                    
                     const adminBtnsLess = userData.role === 'admin' ? `
                         <div class="d-flex flex-column align-items-center ms-2 border-start ps-2">
                             <button class="admin-edit-btn" onclick="openEditLesson(event, ${l.id}, '${safeLT}', '${safeLD}', ${l.display_order || 0})"><span class="material-icons-round" style="font-size: 16px;">edit</span></button>
@@ -319,10 +330,8 @@ async function fetchCourses() {
                         const thumbnailImg = l.thumbnail_url 
                             ? `<div class="thumb-wrapper-full"><img src="${l.thumbnail_url}" loading="lazy"><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${thumbIconColor};">${overlayIcon}</span></div></div>` 
                             : `<div class="thumb-wrapper-full"><div class="w-100 h-100 bg-dark d-flex align-items-center justify-content-center" style="min-height: 250px;"><span class="material-icons-round" style="font-size:48px; color:#444;">${overlayIcon}</span></div><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${thumbIconColor};">${overlayIcon}</span></div></div>`;
-
                         mediaHtml = `<div class="w-100" style="cursor: ${pointerEv};" ${onClickAction}>${thumbnailImg}</div>`;
                     }
-
                     const finalHeaderIcon = hasVideo ? overlayIcon : documentIcon;
 
                     lessonHtml += `
@@ -348,7 +357,6 @@ async function fetchCourses() {
                             </div>
                         </div>`;
                 });
-                
                 lessonHtml += `</div>`;
             } else {
                 lessonHtml += '<div class="text-muted p-3 text-center" style="font-size:12px;">No videos yet.</div>';
@@ -379,33 +387,24 @@ async function fetchCourses() {
             const courseContainer = document.getElementById('courseModuleContainer');
             if (courseContainer) {
                 new Sortable(courseContainer, {
-                    animation: 150,
-                    handle: '.accordion-header',
+                    animation: 150, handle: '.accordion-header',
                     onEnd: async function (evt) {
                         const orderedIds = Array.from(courseContainer.querySelectorAll('.course-module')).map(el => el.getAttribute('data-mod-id'));
                         try { await fetch('/api/admin/modules/reorder', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({ orderedIds }) }); } catch(e){}
                     }
                 });
             }
-
             document.querySelectorAll('.lesson-container-sortable').forEach(container => {
                 new Sortable(container, {
-                    animation: 150,
-                    handle: '.lesson-accordion-item', 
+                    animation: 150, handle: '.lesson-accordion-item', 
                     onEnd: async function (evt) {
                         const orderedIds = Array.from(container.querySelectorAll('.lesson-accordion-item')).map(el => el.getAttribute('data-lesson-id'));
                         try { await fetch('/api/admin/lessons/reorder', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({ orderedIds }) }); } catch(e){}
                     }
                 });
             });
-
             const layoutDraggable = document.getElementById('homepageLayoutDraggable');
-            if (layoutDraggable) {
-                new Sortable(layoutDraggable, {
-                    animation: 150,
-                    ghostClass: 'bg-light'
-                });
-            }
+            if (layoutDraggable) new Sortable(layoutDraggable, { animation: 150, ghostClass: 'bg-light' });
         }
         
         try {
@@ -417,19 +416,14 @@ async function fetchCourses() {
             const adminSettingDropdown = document.getElementById('adminAccordionState');
             if (adminSettingDropdown) adminSettingDropdown.value = defaultState;
 
-            // --- NEW: CHAT TAB TOGGLE ---
             const showChatTab = settings.show_chat_tab !== 'false';
             const navChatBtn = document.getElementById('navChatBtn');
             if (navChatBtn) {
-                if (showChatTab || userData.role === 'admin' || userData.role === 'chat_moderator') {
-                    navChatBtn.style.display = 'flex';
-                } else {
-                    navChatBtn.style.display = 'none';
-                }
+                if (showChatTab || userData.role === 'admin' || userData.role === 'chat_moderator') navChatBtn.style.display = 'flex';
+                else navChatBtn.style.display = 'none';
             }
             const adminChatTabCheck = document.getElementById('adminShowChatTab');
             if (adminChatTabCheck) adminChatTabCheck.checked = showChatTab;
-            // -----------------------------
 
             const hideTradeTab = settings.hide_trade_tab === 'true';
             const adminHideCheck = document.getElementById('adminHideTradeTab');
@@ -499,7 +493,6 @@ async function fetchCourses() {
                 if (navTradeBtn) navTradeBtn.style.display = 'none';
                 if (navLearnBtn) navLearnBtn.style.display = 'none';
                 if (navChatBtn) navChatBtn.style.display = 'flex';
-                switchSection('chat');
             } else {
                 if (navTradeBtn) {
                     if (hideTradeTab && userData.role !== 'admin') navTradeBtn.style.display = 'none';
@@ -508,10 +501,7 @@ async function fetchCourses() {
                 if (navLearnBtn) navLearnBtn.style.display = 'flex';
             }
 
-        } catch (e) {
-            setTimeout(() => { toggleAccordions('first'); }, 100);
-        }
-
+        } catch (e) { setTimeout(() => { toggleAccordions('first'); }, 100); }
     } catch (err) { container.innerHTML = `<div class="p-3 text-danger text-center">❌ Error loading courses.</div>`; }
 }
 
@@ -523,23 +513,11 @@ async function openSecureVideo(lessonId) {
         videoPlayer = videojs('my-video', { hls: { overrideNative: true }, html5: { vhs: { overrideNative: true } }, controlBar: { fullscreenToggle: false, pictureInPictureToggle: false } });
         videoPlayer.el().addEventListener('contextmenu', function(e) { e.preventDefault(); });
         videoPlayer.on('loadedmetadata', async function() {
-            const vw = videoPlayer.videoWidth();
-            const vh = videoPlayer.videoHeight();
-            
+            const vw = videoPlayer.videoWidth(); const vh = videoPlayer.videoHeight();
             if (screen.orientation && screen.orientation.lock) {
-                try { 
-                    if (vw > vh) { 
-                        await screen.orientation.lock("landscape"); 
-                    } else { 
-                        await screen.orientation.lock("portrait"); 
-                    } 
-                } catch (e) {
-                    console.log("Orientation lock failed", e);
-                }
+                try { if (vw > vh) { await screen.orientation.lock("landscape"); } else { await screen.orientation.lock("portrait"); } } catch (e) {}
             } else {
-                if (vw > vh && window.innerHeight > window.innerWidth) {
-                    alert("For the best experience, please rotate your device horizontally.");
-                }
+                if (vw > vh && window.innerHeight > window.innerWidth) alert("For the best experience, please rotate your device horizontally.");
             }
         });
     }
@@ -564,14 +542,11 @@ async function openSecureVideo(lessonId) {
         progressInterval = setInterval(() => {
             if (!videoPlayer.paused()) {
                 fetch('/api/video/progress', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'same-origin',
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
                     body: JSON.stringify({ lessonId: lessonId, currentTime: videoPlayer.currentTime() })
                 }).catch(e => {});
             }
         }, 10000);
-
     } catch(err) { alert("🚨 Error loading video stream."); }
 }
 
@@ -633,7 +608,7 @@ if (formAdminSettings) {
     formAdminSettings.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
-        
+
         const state = document.getElementById('adminAccordionState')?.value || 'first';
         const showChatTab = document.getElementById('adminShowChatTab')?.checked ? 'true' : 'false';
         const hideTrade = document.getElementById('adminHideTradeTab')?.checked ? 'true' : 'false';
@@ -648,24 +623,24 @@ if (formAdminSettings) {
         const sticky_btn2_text = document.getElementById('adminBtn2Text')?.value || '';
         const sticky_btn2_icon = document.getElementById('adminBtn2Icon')?.value || '';
         const sticky_btn2_link = document.getElementById('adminBtn2Link')?.value || '';
-        
+
         const showDisclaimer = document.getElementById('adminShowDisclaimer')?.checked ? 'true' : 'false';
         const register_link = document.getElementById('adminRegisterLink')?.value || '';
-        
+
         let homepage_layout = undefined;
         const layoutList = document.querySelectorAll('#homepageLayoutDraggable li');
         if (layoutList.length > 0) {
             const layoutArray = Array.from(layoutList).map(li => li.getAttribute('data-id'));
             homepage_layout = JSON.stringify(layoutArray);
         }
-        
+
         try {
-            const bodyData = { 
-                accordion_state: state, 
+            const bodyData = {
+                accordion_state: state,
                 show_chat_tab: showChatTab,
-                hide_trade_tab: hideTrade, 
+                hide_trade_tab: hideTrade,
                 push_trade_alerts: push_trade_alerts,
-                show_gallery: showGallery, 
+                show_gallery: showGallery,
                 show_call_widget: showCallWidget,
                 show_sticky_footer: showStickyFooter,
                 sticky_btn1_text: sticky_btn1_text,
@@ -679,17 +654,17 @@ if (formAdminSettings) {
             };
             if (homepage_layout) bodyData.homepage_layout = homepage_layout;
 
-            const res = await fetch('/api/admin/settings', { 
-                method: 'PUT', 
-                headers: {'Content-Type': 'application/json'}, 
-                credentials: 'same-origin', 
-                body: JSON.stringify(bodyData) 
+            const res = await fetch('/api/admin/settings', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify(bodyData)
             });
-            if(res.ok) { 
+            if(res.ok) {
                 const m = bootstrap.Modal.getInstance(document.getElementById('adminCourseModal'));
                 if(m) m.hide();
-                fetchCourses(); 
-            } else { 
+                fetchCourses();
+            } else {
                 const errData = await res.json().catch(()=>({}));
                 alert("Error saving settings: " + (errData.msg || "Unknown"));
             }
@@ -703,26 +678,26 @@ if (formAdminSymbols) {
     formAdminSymbols.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
-        
+
         try {
-            const bodyData = { 
+            const bodyData = {
                 cat_forex_crypto: document.getElementById('adminCatForex')?.value || '',
                 cat_stock: document.getElementById('adminCatStock')?.value || '',
                 cat_index: document.getElementById('adminCatIndex')?.value || '',
                 cat_mcx: document.getElementById('adminCatMcx')?.value || ''
             };
 
-            const res = await fetch('/api/admin/settings/symbols', { 
-                method: 'PUT', 
-                headers: {'Content-Type': 'application/json'}, 
-                credentials: 'same-origin', 
-                body: JSON.stringify(bodyData) 
+            const res = await fetch('/api/admin/settings/symbols', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify(bodyData)
             });
-            
-            if(res.ok) { 
+
+            if(res.ok) {
                 alert("Symbol Categories saved successfully!");
-                fetchCourses(); 
-            } else { 
+                fetchCourses();
+            } else {
                 const errData = await res.json().catch(()=>({}));
                 alert("Error saving symbols: " + (errData.msg || "Unknown"));
             }
@@ -1149,7 +1124,6 @@ function calculateStats(trades) {
         pipsEl.innerText = totalPoints.toFixed(2);
         pipsEl.className = totalPoints >= 0 ? 'stat-val val-green' : 'stat-val val-red';
     }
-    
     if(document.getElementById('activeTrades')) document.getElementById('activeTrades').innerText = active;
 }
 
@@ -1188,15 +1162,6 @@ async function logout() {
     try { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); sessionStorage.clear(); localStorage.clear(); window.location.href = '/home.html'; } catch (err) {}
 }
 
-const filterSymbolEl = document.getElementById('filterSymbol');
-if (filterSymbolEl) filterSymbolEl.addEventListener('change', () => applyFilters());
-const filterStatusEl = document.getElementById('filterStatus');
-if (filterStatusEl) filterStatusEl.addEventListener('change', () => applyFilters());
-const filterTypeEl = document.getElementById('filterType');
-if (filterTypeEl) filterTypeEl.addEventListener('change', () => applyFilters());
-const filterCategoryEl = document.getElementById('filterCategory');
-if (filterCategoryEl) filterCategoryEl.addEventListener('change', () => applyFilters());
-
 
 // ========================================================
 // CHAT SYSTEM LOGIC
@@ -1219,7 +1184,14 @@ function getChannelLevelText(level) {
     return level;
 }
 
-// 1. Fetching & Rendering Channels
+function toggleEmojiPicker() {
+    const picker = document.getElementById('emojiPickerContainer');
+    if (picker) {
+        picker.style.display = picker.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+// 1. Fetching & Rendering Channels (With Lock Icon Support)
 async function fetchChatChannels() {
     const container = document.getElementById('chatChannelContainer');
     if (!container) return;
@@ -1236,19 +1208,28 @@ async function fetchChatChannels() {
             
             let html = '';
             chatChannels.forEach(ch => {
+                let isLocked = false;
+                if (userData.role === 'student' && ch.required_level !== 'all') {
+                    isLocked = (userData.accessLevels && userData.accessLevels[ch.required_level] !== 'Yes');
+                }
+
                 const isAdminOrMod = (userData.role === 'admin' || userData.role === 'chat_moderator');
                 const levelTag = isAdminOrMod ? `<span class="badge bg-secondary ms-2" style="font-size:8px;">${getChannelLevelText(ch.required_level)}</span>` : '';
                 
+                const lockClass = isLocked ? 'locked' : '';
+                const iconHtml = isLocked ? `<span class="material-icons-round">lock</span>` : `#`;
+                const onClickHtml = isLocked ? `onclick="alert('🔒 This channel requires ${getChannelLevelText(ch.required_level)}. Please upgrade your access.')"` : `onclick="openChatRoom(${ch.id}, '${ch.name.replace(/'/g, "\\'")}', '${(ch.description || '').replace(/'/g, "\\'")}')"`;
+                
                 html += `
-                <div class="channel-card" onclick="openChatRoom(${ch.id}, '${ch.name.replace(/'/g, "\\'")}', '${(ch.description || '').replace(/'/g, "\\'")}')">
-                    <div class="d-flex align-items-center">
-                        <div class="channel-icon">#</div>
-                        <div>
-                            <div class="fw-bold" style="font-size:14px; color:#000;">${ch.name} ${levelTag}</div>
-                            <div style="font-size:11px; color:var(--text-secondary);">${ch.description || ''}</div>
+                <div class="channel-card ${lockClass}" ${onClickHtml}>
+                    <div class="d-flex align-items-center w-100">
+                        <div class="channel-icon">${iconHtml}</div>
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div class="fw-bold text-truncate" style="font-size:14px; color:#000;">${ch.name} ${levelTag}</div>
+                            <div class="text-truncate" style="font-size:11px; color:var(--text-secondary);">${ch.description || ''}</div>
                         </div>
                     </div>
-                    <span class="material-icons-round text-muted" style="font-size:16px;">chevron_right</span>
+                    ${isLocked ? '' : '<span class="material-icons-round text-muted" style="font-size:16px;">chevron_right</span>'}
                 </div>`;
             });
             container.innerHTML = html;
@@ -1307,15 +1288,25 @@ function renderMessages() {
     const container = document.getElementById('chatMessageHistory');
     if (currentChatMessages.length === 0) {
         container.innerHTML = '<div class="text-center text-muted mt-3" style="font-size:12px;">No messages yet.</div>';
+        const banner = document.getElementById('pinnedMessageBanner');
+        if (banner) {
+            banner.classList.add('d-none');
+            banner.classList.remove('d-flex');
+        }
         return;
     }
     
     const isAdminOrMod = (userData.role === 'admin' || userData.role === 'chat_moderator');
     let html = '';
+    let activePinnedMsg = null;
     
     currentChatMessages.forEach(msg => {
+        if (msg.is_pinned) activePinnedMsg = msg;
+
         const isSelf = (isAdminOrMod && (msg.sender_name === 'Admin' || msg.sender_name === 'Moderator'));
-        const bubbleClass = isSelf ? 'sent' : 'received';
+        let bubbleClass = isSelf ? 'sent' : 'received';
+        if (msg.is_pinned) bubbleClass += ' is-pinned';
+
         const dateObj = new Date(msg.created_at);
         const timeStr = dateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
         
@@ -1337,9 +1328,18 @@ function renderMessages() {
         if (msg.link_url) {
             linkHtml = `<a href="${msg.link_url}" target="_blank" class="chat-link">${msg.link_url}</a>`;
         }
+
+        const hoverMenu = isAdminOrMod ? `
+            <div class="chat-hover-actions shadow-sm">
+                <span class="material-icons-round chat-action-icon" onclick="selectedChatMsgId=${msg.id}; triggerReplyAction()" title="Reply">reply</span>
+                ${isSelf ? `<span class="material-icons-round chat-action-icon" onclick="selectedChatMsgId=${msg.id}; triggerEditChatAction()" title="Edit">edit</span>` : ''}
+                <span class="material-icons-round chat-action-icon" onclick="selectedChatMsgId=${msg.id}; triggerPinChatAction()" title="${msg.is_pinned ? 'Unpin' : 'Pin'}">${msg.is_pinned ? 'push_pin' : 'push_pin'}</span>
+                <span class="material-icons-round chat-action-icon text-danger" onclick="selectedChatMsgId=${msg.id}; triggerDeleteChatAction()" title="Delete">delete</span>
+            </div>
+        ` : '';
         
         html += `
-        <div class="chat-bubble ${bubbleClass} position-relative" id="msg-${msg.id}" 
+        <div class="chat-bubble ${bubbleClass}" id="msg-${msg.id}" 
              data-msg-id="${msg.id}" 
              data-msg-text="${(msg.message_text || '').replace(/"/g, '&quot;')}"
              ontouchstart="handleTouchStart(event, ${msg.id})" 
@@ -1347,8 +1347,9 @@ function renderMessages() {
              ontouchend="handleTouchEnd(event)">
              
             ${isAdminOrMod ? `<div class="swipe-reply-icon"><span class="material-icons-round" style="font-size:14px;">reply</span></div>` : ''}
+            ${hoverMenu}
             
-            <div class="chat-title" style="color:var(--blue); font-size:12px;">${msg.sender_name}</div>
+            <div class="chat-title" style="color:var(--blue); font-size:12px;">${msg.sender_name} ${msg.is_pinned ? '<span class="material-icons-round text-primary align-middle ms-1" style="font-size:12px;">push_pin</span>' : ''}</div>
             ${replyHtml}
             ${imgHtml}
             <div class="chat-body">${parseMarkdown(msg.message_text)}</div>
@@ -1361,13 +1362,26 @@ function renderMessages() {
     
     container.innerHTML = html;
     container.scrollTop = container.scrollHeight;
-}
 
-// 4. Input interactions (Emoji, Upload preview)
-function insertEmoji(emoji) {
-    const input = document.getElementById('chatInputText');
-    input.value += emoji;
-    input.focus();
+    const banner = document.getElementById('pinnedMessageBanner');
+    if (banner) {
+        if (activePinnedMsg) {
+            document.getElementById('pinnedMessageSender').innerText = activePinnedMsg.sender_name;
+            document.getElementById('pinnedMessageText').innerText = (activePinnedMsg.message_text || 'Attachment').substring(0, 50) + '...';
+            banner.classList.remove('d-none');
+            banner.classList.add('d-flex');
+            banner.setAttribute('onclick', `scrollToMsg(${activePinnedMsg.id})`);
+            
+            if (isAdminOrMod) {
+                document.getElementById('btnUnpinMessage').style.display = 'block';
+            } else {
+                document.getElementById('btnUnpinMessage').style.display = 'none';
+            }
+        } else {
+            banner.classList.add('d-none');
+            banner.classList.remove('d-flex');
+        }
+    }
 }
 
 const chatImgInput = document.getElementById('chatInputImage');
@@ -1382,7 +1396,7 @@ if (chatImgInput) {
     });
 }
 
-// 5. Sending Message
+// 5. Sending Message (With Scheduling)
 const formChatMessage = document.getElementById('formChatMessage');
 if (formChatMessage) {
     formChatMessage.addEventListener('submit', async (e) => {
@@ -1399,6 +1413,12 @@ if (formChatMessage) {
         
         if(replyToMessageId) formData.append('reply_to_id', replyToMessageId);
         
+        const scheduleEl = document.getElementById('chatInputSchedule');
+        if (scheduleEl && scheduleEl.value) formData.append('schedule_time', scheduleEl.value);
+
+        const recurEl = document.getElementById('chatInputRecurrence');
+        if (recurEl && recurEl.value !== 'none') formData.append('recurrence', recurEl.value);
+
         const imageEl = document.getElementById('chatInputImage');
         if (imageEl && imageEl.files[0]) {
             formData.append('chat_image', imageEl.files[0]);
@@ -1414,8 +1434,11 @@ if (formChatMessage) {
             if (res.ok) {
                 document.getElementById('chatInputText').value = '';
                 document.getElementById('chatInputLink').value = '';
+                if(scheduleEl) scheduleEl.value = '';
+                if(recurEl) recurEl.value = 'none';
                 if (imageEl) imageEl.value = '';
-                document.getElementById('chatImgPreviewIndicator').style.display = 'none';
+                const ind = document.getElementById('chatImgPreviewIndicator');
+                if(ind) ind.style.display = 'none';
                 cancelReply();
             } else {
                 alert("Error sending message.");
@@ -1436,7 +1459,6 @@ socket.on('new_chat_message', (msg) => {
         currentChatMessages.push(msg);
         renderMessages();
     }
-    // Also trigger sound
     tradeSound.play().catch(e => {});
 });
 
@@ -1447,6 +1469,22 @@ socket.on('delete_chat_message', (data) => {
     }
 });
 
+socket.on('update_chat_message', (data) => {
+    const msg = currentChatMessages.find(m => m.id === parseInt(data.id));
+    if (msg) {
+        msg.message_text = data.message_text;
+        renderMessages();
+    }
+});
+
+socket.on('pin_chat_message', (data) => {
+    if (currentChatChannelId === data.channel_id) {
+        currentChatMessages.forEach(m => m.is_pinned = false);
+        const msg = currentChatMessages.find(m => m.id === parseInt(data.id));
+        if (msg) msg.is_pinned = data.is_pinned;
+        renderMessages();
+    }
+});
 
 // 7. Swipe to Reply & Long Press Logic
 let touchStartX = 0;
@@ -1460,7 +1498,6 @@ function handleTouchStart(e, msgId) {
     swipingMsgId = msgId;
     isSwiping = false;
     
-    // Setup long press for context menu
     selectedChatMsgId = msgId;
     longPressTimer = setTimeout(() => {
         if(!isSwiping) openChatActionMenu();
@@ -1479,7 +1516,7 @@ function handleTouchMove(e) {
         clearTimeout(longPressTimer); 
     }
     
-    if (diffX > 0 && diffX < 80) { // Swiping right
+    if (diffX > 0 && diffX < 80) { 
         const bubble = document.getElementById(`msg-${swipingMsgId}`);
         const icon = bubble.querySelector('.swipe-reply-icon');
         bubble.style.transform = `translateX(${diffX}px)`;
@@ -1497,31 +1534,27 @@ function handleTouchEnd(e) {
     
     const diffX = touchCurrentX - touchStartX;
     if (diffX > 50 && isSwiping) {
-        // Trigger Reply
         triggerReplyAction();
     }
     
-    // Reset position
     bubble.style.transform = 'translateX(0)';
     if(icon) icon.style.opacity = 0;
-    
     swipingMsgId = null;
 }
 
-// 8. Admin Action Menu & Reply Setup
+// 8. Admin Action Menus & Logic
 function openChatActionMenu() {
     document.getElementById('chatActionOverlay').style.display = 'flex';
-    setTimeout(() => {
-        document.getElementById('chatActionMenu').classList.add('show');
-    }, 10);
-    // Vibrate lightly to indicate menu open
+    setTimeout(() => { document.getElementById('chatActionMenu').classList.add('show'); }, 10);
     if(navigator.vibrate) navigator.vibrate(50);
 }
 
 function closeChatActionMenu() {
-    document.getElementById('chatActionMenu').classList.remove('show');
-    setTimeout(() => {
-        document.getElementById('chatActionOverlay').style.display = 'none';
+    const menu = document.getElementById('chatActionMenu');
+    if (menu) menu.classList.remove('show');
+    setTimeout(() => { 
+        const overlay = document.getElementById('chatActionOverlay');
+        if (overlay) overlay.style.display = 'none'; 
     }, 300);
 }
 
@@ -1534,14 +1567,75 @@ function triggerReplyAction() {
     const text = bubble.getAttribute('data-msg-text') || 'Attachment';
     
     replyToMessageId = msgId;
-    document.getElementById('chatReplyPreview').classList.remove('d-none');
-    document.getElementById('chatReplyText').innerText = text;
-    document.getElementById('chatInputText').focus();
+    const preview = document.getElementById('chatReplyPreview');
+    if (preview) {
+        preview.classList.remove('d-none');
+        document.getElementById('chatReplyText').innerText = text;
+        document.getElementById('chatInputText').focus();
+    }
 }
 
 function cancelReply() {
     replyToMessageId = null;
-    document.getElementById('chatReplyPreview').classList.add('d-none');
+    const preview = document.getElementById('chatReplyPreview');
+    if (preview) preview.classList.add('d-none');
+}
+
+// Edit Modal Handling
+function triggerEditChatAction() {
+    closeChatActionMenu();
+    const msgId = selectedChatMsgId;
+    if(!msgId) return;
+    const msg = currentChatMessages.find(m => m.id === msgId);
+    if(!msg) return;
+    
+    document.getElementById('editChatMsgId').value = msg.id;
+    document.getElementById('editChatMsgText').value = msg.message_text || '';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('editChatMessageModal')).show();
+}
+
+const formEditChatMessage = document.getElementById('formEditChatMessage');
+if(formEditChatMessage) {
+    formEditChatMessage.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msgId = document.getElementById('editChatMsgId').value;
+        const newText = document.getElementById('editChatMsgText').value;
+        
+        try {
+            const res = await fetch(`/api/chat/messages/${msgId}`, {
+                method: 'PUT', headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin', body: JSON.stringify({ message_text: newText })
+            });
+            if(res.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('editChatMessageModal')).hide();
+            }
+        } catch(e) { alert("Error saving edits."); }
+    });
+}
+
+// Pin Message Logic
+async function triggerPinChatAction() {
+    closeChatActionMenu();
+    const msgId = selectedChatMsgId;
+    if(!msgId) return;
+    const msg = currentChatMessages.find(m => m.id === msgId);
+    if(!msg) return;
+    
+    const isCurrentlyPinned = msg.is_pinned;
+    try {
+        await fetch(`/api/chat/messages/${msgId}/pin`, {
+            method: 'PUT', headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin', body: JSON.stringify({ is_pinned: !isCurrentlyPinned, channel_id: currentChatChannelId })
+        });
+    } catch(e) {}
+}
+
+async function unpinActiveMessage() {
+    const pinnedMsg = currentChatMessages.find(m => m.is_pinned);
+    if(pinnedMsg) {
+        selectedChatMsgId = pinnedMsg.id;
+        triggerPinChatAction();
+    }
 }
 
 async function triggerDeleteChatAction() {
@@ -1552,7 +1646,6 @@ async function triggerDeleteChatAction() {
     if(confirm("Permanently delete this message?")) {
         try {
             await fetch(`/api/chat/messages/${msgId}`, { method: 'DELETE', credentials: 'same-origin' });
-            // Socket will handle removing it from UI
         } catch(e) { alert("Error deleting message."); }
     }
 }
@@ -1564,6 +1657,11 @@ function scrollToMsg(id) {
         el.style.backgroundColor = '#ffffcc';
         setTimeout(() => { el.style.backgroundColor = ''; }, 1500);
     }
+}
+
+function scrollToPinned() {
+    const pinnedMsg = currentChatMessages.find(m => m.is_pinned);
+    if(pinnedMsg) scrollToMsg(pinnedMsg.id);
 }
 
 
@@ -1712,7 +1810,7 @@ window.deleteModerator = async function(email) {
 
 
 // ========================================================
-// OLD PUSH NOTIFICATION SYSTEM (UNMODIFIED)
+// PUSH NOTIFICATION SYSTEM
 // ========================================================
 let chatNotifications = [];
 let adminNotifOffset = 0;
@@ -1763,16 +1861,16 @@ async function fetchChatNotifications(loadMore = false) {
                 const iconColor = isScheduled ? '#856404' : '#53bdeb';
                 
                 let targetText = '';
-if (n.target_audience === 'logged_in') targetText = '🔒 Login Users';
-else if (n.target_audience === 'non_logged_in') targetText = '🌐 Public Users';
-else if (n.target_audience === 'both') targetText = '🌍 All Users';
-else if (n.target_audience === 'login_no_level_2') targetText = '🔒 Login (No Lvl 2)';
-else if (n.target_audience === 'login_no_level_3') targetText = '🔒 Login (No Lvl 3)';
-else if (n.target_audience === 'login_no_level_4') targetText = '🔒 Login (No Lvl 4)';
-else if (n.target_audience === 'login_with_level_2') targetText = '🔒 Login (With Lvl 2)';
-else if (n.target_audience === 'login_with_level_3') targetText = '🔒 Login (With Lvl 3)';
-else if (n.target_audience === 'login_with_level_4') targetText = '🔒 Login (With Lvl 4)';
-else targetText = '🌍 All Users';
+                if (n.target_audience === 'logged_in') targetText = '🔒 Login Users';
+                else if (n.target_audience === 'non_logged_in') targetText = '🌐 Public Users';
+                else if (n.target_audience === 'both') targetText = '🌍 All Users';
+                else if (n.target_audience === 'login_no_level_2') targetText = '🔒 Login (No Lvl 2)';
+                else if (n.target_audience === 'login_no_level_3') targetText = '🔒 Login (No Lvl 3)';
+                else if (n.target_audience === 'login_no_level_4') targetText = '🔒 Login (No Lvl 4)';
+                else if (n.target_audience === 'login_with_level_2') targetText = '🔒 Login (With Lvl 2)';
+                else if (n.target_audience === 'login_with_level_3') targetText = '🔒 Login (With Lvl 3)';
+                else if (n.target_audience === 'login_with_level_4') targetText = '🔒 Login (With Lvl 4)';
+                else targetText = '🌍 All Users';
 
                 let recurrenceText = '';
                 if (n.recurrence === 'daily') recurrenceText = ' | 🔁 Daily';
@@ -1879,14 +1977,15 @@ async function fetchScheduledPushes() {
                 const dateStr = dateObj ? dateObj.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }) + ' ' + dateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }) : 'Immediate/Sent';
                 
                 let targetText = '🌍 All Users';
-if (n.target_audience === 'logged_in') targetText = '🔒 Login Users';
-else if (n.target_audience === 'non_logged_in') targetText = '🌐 Public Users';
-else if (n.target_audience === 'login_no_level_2') targetText = '🔒 Login (No Lvl 2)';
-else if (n.target_audience === 'login_no_level_3') targetText = '🔒 Login (No Lvl 3)';
-else if (n.target_audience === 'login_no_level_4') targetText = '🔒 Login (No Lvl 4)';
-else if (n.target_audience === 'login_with_level_2') targetText = '🔒 Login (With Lvl 2)';
-else if (n.target_audience === 'login_with_level_3') targetText = '🔒 Login (With Lvl 3)';
-else if (n.target_audience === 'login_with_level_4') targetText = '🔒 Login (With Lvl 4)';
+                if (n.target_audience === 'logged_in') targetText = '🔒 Login Users';
+                else if (n.target_audience === 'non_logged_in') targetText = '🌐 Public Users';
+                else if (n.target_audience === 'login_no_level_2') targetText = '🔒 Login (No Lvl 2)';
+                else if (n.target_audience === 'login_no_level_3') targetText = '🔒 Login (No Lvl 3)';
+                else if (n.target_audience === 'login_no_level_4') targetText = '🔒 Login (No Lvl 4)';
+                else if (n.target_audience === 'login_with_level_2') targetText = '🔒 Login (With Lvl 2)';
+                else if (n.target_audience === 'login_with_level_3') targetText = '🔒 Login (With Lvl 3)';
+                else if (n.target_audience === 'login_with_level_4') targetText = '🔒 Login (With Lvl 4)';
+                
                 let recurrenceText = n.recurrence === 'daily' ? ' | 🔁 Daily' : (n.recurrence === 'weekly' ? ' | 🔁 Weekly' : ' | Once');
 
                 return `
