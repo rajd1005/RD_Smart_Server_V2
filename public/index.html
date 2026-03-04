@@ -192,7 +192,14 @@
                     <textarea id="chatPushBody" class="form-control bg-light" rows="2" placeholder="Type your message description here..." style="font-size:13px;" required></textarea>
                     <div class="d-flex gap-2">
                         <input type="text" id="chatPushUrl" class="form-control form-control-sm bg-light" placeholder="Optional URL Link" style="font-size:12px;">
-                        <input type="datetime-local" id="chatPushSchedule" class="form-control form-control-sm bg-light" title="Schedule Time" style="font-size:12px; width: 150px;">
+                        <input type="datetime-local" id="chatPushSchedule" class="form-control form-control-sm bg-light" title="Schedule Time" style="font-size:12px; width: 140px;">
+                        
+                        <select id="chatPushRecurrence" class="form-select form-select-sm bg-light" style="font-size:12px; width: 85px;">
+                            <option value="none">Once</option>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                        </select>
+                        
                         <button type="submit" class="btn btn-primary d-flex align-items-center justify-content-center flex-shrink-0" id="btnChatPushSubmit" style="border-radius: 50%; width: 34px; height: 34px; padding: 0;"><span class="material-icons-round" style="margin-left:4px; font-size:18px;">send</span></button>
                     </div>
                 </form>
