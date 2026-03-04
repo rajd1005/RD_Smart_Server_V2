@@ -998,17 +998,27 @@ app.get('/api/trades', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/signal_detected', async (req, res) => {
-    const { trade_id, symbol, type } = req.body;
+    // We now accept entry, sl, tp1, tp2, tp3 directly at the signal phase if available
+    const { trade_id, symbol, type, entry, sl, tp1, tp2, tp3 } = req.body;
     try {
         console.log(`\n➡️ TRADE WEBHOOK RECEIVED: SIGNAL (${symbol} ${type})`);
         
         let sentMsgId = null;
         try {
-            const sentMsg = await bot.sendMessage(CHAT_ID, `🚨 *NEW SIGNAL DETECTED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n📊 *Type:* ${toMarkdown(type)}\n🕒 *Time:* ${toMarkdown(getISTTime())}`, { parse_mode: 'Markdown' });
+            let tgMsg = `🚨 *NEW SIGNAL DETECTED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n📊 *Type:* ${toMarkdown(type)}\n🕒 *Time:* ${toMarkdown(getISTTime())}`;
+            if (entry || sl || tp1) {
+                tgMsg += `\n\n🚪 *Entry:* ${toMarkdown(entry)}\n🛑 *SL:* ${toMarkdown(sl)}\n🎯 *TP1:* ${toMarkdown(tp1)} | *TP2:* ${toMarkdown(tp2)} | *TP3:* ${toMarkdown(tp3)}`;
+            }
+            const sentMsg = await bot.sendMessage(CHAT_ID, tgMsg, { parse_mode: 'Markdown' });
             sentMsgId = sentMsg.message_id;
         } catch (tgErr) { console.error("⚠️ Telegram Send Failed (Skipping TG):", tgErr.message); }
 
-        await pool.query(`INSERT INTO trades (trade_id, symbol, type, telegram_msg_id, created_at, status) VALUES ($1, $2, $3, $4, $5, 'SIGNAL') ON CONFLICT (trade_id) DO NOTHING;`, [trade_id, symbol, type, sentMsgId, getDBTime()]);
+        // We also save the entry/sl/tp data into the DB immediately so it updates on the frontend instantly
+        await pool.query(
+            `INSERT INTO trades (trade_id, symbol, type, entry_price, sl_price, tp1_price, tp2_price, tp3_price, telegram_msg_id, created_at, status) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SIGNAL') ON CONFLICT (trade_id) DO NOTHING;`, 
+             [trade_id, symbol, type, entry || 0, sl || 0, tp1 || 0, tp2 || 0, tp3 || 0, sentMsgId, getDBTime()]
+        );
         await pool.query("DELETE FROM trades WHERE CAST(created_at AS TIMESTAMP) < NOW() - INTERVAL '30 days'");
         
         io.emit('trade_update'); 
@@ -1017,7 +1027,14 @@ app.post('/api/signal_detected', async (req, res) => {
         console.log(`⚙️ Trade Push Enabled in Settings? : ${isPushEnabled}`);
         
         if (isPushEnabled) { 
-            await sendPushNotification({ title: '🚨 NEW SIGNAL', body: `${symbol} - ${type}` }); 
+            // --- UPDATED NEW SIGNAL BODY FORMAT ---
+            let pushBody = `${symbol} ${type}`;
+            if (entry || sl || tp1) {
+                pushBody += ` | Entry: ${entry || '-'}\nSL: ${sl || '-'} | TPs: ${tp1 || '-'}, ${tp2 || '-'}, ${tp3 || '-'}`;
+            } else {
+                pushBody += ` | Entry: TBA\nSL: TBA | TPs: TBA`;
+            }
+            await sendPushNotification({ title: '🚨 NEW SIGNAL', body: pushBody }); 
         }
         
         res.json({ success: true });
@@ -1043,7 +1060,6 @@ app.post('/api/setup_confirmed', async (req, res) => {
                 if(t.telegram_msg_id) { await bot.sendMessage(CHAT_ID, `🔄 *Trade Reversed*\n❌ Closed by new signal.`, { reply_to_message_id: t.telegram_msg_id, parse_mode: 'Markdown' }); }
             } catch(tgErr) { console.error("⚠️ Telegram Reversal Send Failed (Skipping TG):", tgErr.message); }
             
-            // --- NEW REVERSAL PUSH ---
             if (isPushEnabled) {
                 await sendPushNotification({ title: '🔄 TRADE CLOSED', body: `${t.symbol} - Reversal / New Signal` });
             }
@@ -1060,7 +1076,6 @@ app.post('/api/setup_confirmed', async (req, res) => {
         io.emit('trade_update'); 
         
         if (isPushEnabled) { 
-            // --- UPDATED SETUP CONFIRMED BODY FORMAT ---
             await sendPushNotification({ 
                 title: '✅ SETUP CONFIRMED', 
                 body: `${symbol} | Entry: ${entry}\nSL: ${sl} | TPs: ${tp1}, ${tp2}, ${tp3}` 
@@ -1109,7 +1124,6 @@ app.post('/api/log_event', async (req, res) => {
         const isPushEnabled = await checkTradePushEnabled();
         console.log(`⚙️ Trade Push Enabled in Settings? : ${isPushEnabled}`);
 
-        // --- EXCLUDE 'SL HIT' FROM TRIGGERING PUSH NOTIFICATIONS ---
         if (isPushEnabled && new_status !== 'SL HIT') { 
             await sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); 
         } else if (new_status === 'SL HIT') {
