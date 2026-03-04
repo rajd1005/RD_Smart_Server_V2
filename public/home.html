@@ -275,7 +275,7 @@
     <script>
         let videoPlayer = null; 
         let watermarkInterval = null; 
-        let progressInterval = null; 
+        let progressInterval = null; // --- NEW: Video Progress Tracker ---
         let tempSetupToken = null;
         let tempResetEmail = null;
 
@@ -293,6 +293,7 @@
             }
         });
 
+        // --- NEW: INITIALIZE CALL WIDGET FETCH & LOGIC ---
         async function initCallWidget() {
             try {
                 const settingsRes = await fetch('/api/settings');
@@ -309,7 +310,7 @@
                             const istOffset = 5.5 * 60 * 60 * 1000;
                             const todayIST = new Date(now.getTime() + istOffset);
                             const past10 = new Date(todayIST);
-                            past10.setDate(todayIST.getDate() - 10); 
+                            past10.setDate(todayIST.getDate() - 10); // Changed from 29 to 6 for the last 7 days
                             return [past10, todayIST];
                         })(),
                         onReady: function (selectedDates) {
@@ -726,6 +727,7 @@
                         } catch(e) {}
                     }
                     
+                    // --- NEW STICKY BUTTON RENDERING ---
                     if (settings.show_sticky_footer !== 'false') {
                         const wrapper = document.getElementById('stickyFooterWrapper');
                         if (wrapper) {
@@ -756,6 +758,7 @@
                     const vw = videoPlayer.videoWidth();
                     const vh = videoPlayer.videoHeight();
                     
+                    // Check if the API is supported
                     if (screen.orientation && screen.orientation.lock) {
                         try { 
                             if (vw > vh) { 
@@ -763,8 +766,11 @@
                             } else { 
                                 await screen.orientation.lock("portrait"); 
                             } 
-                        } catch (e) {}
+                        } catch (e) {
+                            console.log("Orientation lock failed", e);
+                        }
                     } else {
+                        // Fallback for iOS devices
                         if (vw > vh && window.innerHeight > window.innerWidth) {
                             alert("For the best experience, please rotate your device horizontally.");
                         }
@@ -785,6 +791,7 @@
                 startWatermark(); 
                 videoPlayer.play();
 
+                // --- NEW: Start Video Progress Tracking ---
                 if (progressInterval) clearInterval(progressInterval);
                 progressInterval = setInterval(() => {
                     if (!videoPlayer.paused()) {
@@ -796,12 +803,13 @@
                         }).catch(e => {});
                     }
                 }, 10000);
+                // ------------------------------------------
 
             } catch(err) { alert("🚨 Error loading video stream."); }
         }
 
         function closeVideoPlayer() {
-            if (progressInterval) clearInterval(progressInterval); 
+            if (progressInterval) clearInterval(progressInterval); // --- NEW: Stop Video Tracking ---
             if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
             if (screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch (e) {} }
             if (document.fullscreenElement || document.webkitFullscreenElement) {
@@ -812,7 +820,7 @@
 
         function startWatermark() {
             const wmEl = document.getElementById('dynamicWatermark');
-            wmEl.innerHTML = `Rdalgo.in`; 
+            wmEl.innerHTML = `Rdalgo.in`; // <-- Updated to show only one line
             wmEl.style.display = 'block';
             if (watermarkInterval) clearInterval(watermarkInterval); 
             moveWatermark(); 
@@ -835,6 +843,7 @@
             wmEl.style.left = Math.floor(Math.random() * (maxX - minX + 1)) + minX + 'px'; wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
         }
 
+        // --- NEW: FETCH REGISTRATION LINK ON LOAD ---
         async function fetchSystemSettings() {
             try {
                 const settingsRes = await fetch('/api/settings');
@@ -846,17 +855,10 @@
             } catch(e) {}
         }
 
-        async function logout() {
-            try { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); } catch (err) {}
-            sessionStorage.clear(); 
-            localStorage.clear(); 
-            window.location.reload(); 
-        }
-
         initCallWidget();
         loadGallery();
         fetchPublicCourses();
-        fetchSystemSettings(); 
+        fetchSystemSettings(); // Fetch registration link and update DOM
     </script>
     <script>
         async function registerPublicServiceWorker() {
@@ -877,9 +879,10 @@
                         body: JSON.stringify(subscription),
                         headers: { 'content-type': 'application/json' }
                     });
-                } catch (error) {}
+                } catch (error) { console.log('Public Push Registration failed'); }
             }
         }
+        // Give the page 3 seconds to load before prompting the user
         setTimeout(registerPublicServiceWorker, 3000);
     </script>
 </body>

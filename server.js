@@ -164,7 +164,7 @@ function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPric
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
 // ========================================================
-// PUSH TARGETING & EXPIRATION SYNC LOGIC
+// PUSH TARGETING & EXPIRATION SYNC LOGIC (IMMUNIZED)
 // ========================================================
 async function getValidPushSubscribers(audienceType) {
     let query = "SELECT id, email, sub_data FROM push_subscriptions";
@@ -214,6 +214,7 @@ async function getValidPushSubscribers(audienceType) {
     if (expiredEmails.size > 0) {
         const expiredArray = Array.from(expiredEmails);
         await pool.query("UPDATE push_subscriptions SET email = 'public' WHERE LOWER(email) = ANY($1)", [expiredArray]).catch(()=>{});
+        console.log(`📉 Push Subs Downgraded to Public (Expired): ${expiredArray.length} users`);
     }
 
     const uniqueSubs = [];
@@ -238,9 +239,14 @@ async function getValidPushSubscribers(audienceType) {
     return uniqueSubs;
 }
 
+// System-Generated Automated Trade Pushes
 async function sendPushNotification(payload) {
     try {
+        console.log(`\n🔔 --- PREPARING TRADE PUSH ---`);
+        console.log(`📝 Title: ${payload.title}`);
+        
         const uniqueSubs = await getValidPushSubscribers('logged_in');
+        console.log(`🚀 Final Targeted Audience: ${uniqueSubs.length} Active Logged-in Devices`);
         
         for (let sub of uniqueSubs) {
             await webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
@@ -252,6 +258,7 @@ async function sendPushNotification(payload) {
             "INSERT INTO scheduled_notifications (title, body, url, status, target_audience, recurrence) VALUES ($1, $2, $3, 'sent', 'logged_in', 'none')",
             [payload.title, payload.body, payload.url || '/']
         );
+        console.log(`✅ Trade Push Successfully Saved to Dashboard History!\n`);
     } catch (err) { console.error("❌ Error sending trade push:", err); }
 }
 
@@ -386,14 +393,240 @@ app.put('/api/admin/settings/symbols', authenticateToken, isAdmin, async (req, r
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+app.get('/api/public/courses', async (req, res) => {
+    try {
+        const cachedCourses = await redisClient.get('public_courses').catch(()=>null);
+        if (cachedCourses) return res.json(JSON.parse(cachedCourses));
+
+        const modulesResult = await pool.query("SELECT id, title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility FROM learning_modules ORDER BY display_order ASC");
+        const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url, hls_manifest_url FROM lesson_videos ORDER BY display_order ASC");
+        
+        const coursesStructure = modulesResult.rows.map(mod => { 
+            const isLocked = mod.required_level !== 'demo';
+            const safeLessons = lessonsResult.rows.filter(l => l.module_id === mod.id).map(l => {
+                if (isLocked) {
+                    const hasVideo = l.hls_manifest_url && l.hls_manifest_url.length > 5;
+                    return { 
+                        ...l, 
+                        hls_manifest_url: hasVideo ? 'locked_video_link' : null, 
+                        description: hasVideo ? '' : '🔒 This text content is protected. Please login to view.' 
+                    };
+                }
+                return l;
+            });
+            return { ...mod, lessons: safeLessons }; 
+        });
+
+        await redisClient.setEx('public_courses', 600, JSON.stringify(coursesStructure)).catch(()=>{}); 
+        res.json(coursesStructure);
+    } catch (err) { res.status(500).json({ error: "Server Error fetching public courses." }); }
+});
+
+app.get('/api/public/lesson/:id', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT lv.*, lm.required_level FROM lesson_videos lv JOIN learning_modules lm ON lv.module_id = lm.id WHERE lv.id = $1", [req.params.id]);
+        if (result.rows.length === 0) return res.status(404).json({ success: false, msg: "Lesson not found." });
+        const lesson = result.rows[0];
+        if (lesson.required_level !== 'demo') { return res.status(403).json({ success: false, msg: "🔒 LOGIN REQUIRED" }); }
+        res.json({ success: true, title: lesson.title, hlsUrl: lesson.hls_manifest_url });
+    } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
+});
+
+app.post('/api/login', async (req, res) => {
+    const { password, rememberMe } = req.body;
+    const email = req.body.email.trim().toLowerCase();
+    const clientIp = getClientIp(req);
+    
+    try {
+        let userEmail = ""; let userRole = "student"; let userPhone = "";
+        let accessLevels = { level_1_status: 'No', level_2_status: 'No', level_3_status: 'No', level_4_status: 'No' };
+        let studentRecord = null;
+
+        const matchedDemo = DEMO_USERS.find(user => user.email === email && user.password === password);
+
+        if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+            userEmail = ADMIN_EMAIL; userRole = "admin"; userPhone = "Admin";
+            accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
+            
+        } else if (matchedDemo) {
+            userEmail = matchedDemo.email; 
+            userRole = "student"; 
+            userPhone = "Demo Account";
+            accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
+            
+        } else {
+            const localCreds = await pool.query("SELECT * FROM user_credentials WHERE email = $1", [email]);
+            if (localCreds.rows.length > 0) {
+                const { salt, hash } = localCreds.rows[0];
+                const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+                if (verifyHash !== hash) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
+                const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
+                if (rows.length === 0) return res.status(401).json({ success: false, msg: "Account not found in registry." });
+                studentRecord = rows[0];
+            } else {
+                const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?", [email, password]);
+                if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
+                const setupToken = jwt.sign({ email: rows[0].student_email, phone: rows[0].student_phone }, JWT_SECRET, { expiresIn: '15m' });
+                return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
+            }
+            
+            const expiryDate = new Date(studentRecord.student_expiry_date);
+            const getISTDate = () => { const d = new Date(); const utc = d.getTime() + (d.getTimezoneOffset() * 60000); return new Date(utc + (3600000 * 5.5)); };
+            if (!isNaN(expiryDate.getTime()) && expiryDate < getISTDate()) { 
+                return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." }); 
+            }
+            
+            userEmail = String(studentRecord.student_email).toLowerCase().trim();
+            userPhone = studentRecord.student_phone; 
+            accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
+        }
+
+        const sessionId = crypto.randomUUID();
+        await pool.query("INSERT INTO login_logs (email, session_id, ip_address) VALUES ($1, $2, $3)", [userEmail, sessionId, clientIp]);
+        await pool.query("DELETE FROM login_logs WHERE login_time < NOW() - INTERVAL '30 days'");
+
+        const token = jwt.sign({ email: userEmail, phone: userPhone, sessionId: sessionId, role: userRole, accessLevels: accessLevels }, JWT_SECRET, { expiresIn: rememberMe ? '30d' : '1d' });
+        const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
+        res.cookie('authToken', token, { httpOnly: true, secure: isSecure, sameSite: 'lax', path: '/', maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 });
+        
+        io.emit('force_logout', { email: userEmail, newSessionId: sessionId });
+        res.json({ success: true, msg: "Login successful", email: userEmail, phone: userPhone, role: userRole, accessLevels: accessLevels, sessionId: sessionId });
+    } catch (error) { res.status(500).json({ success: false, msg: "Database connection error" }); }
+});
+
+app.post('/api/set_password', async (req, res) => {
+    const { setupToken, newPassword } = req.body;
+    try {
+        const decoded = jwt.verify(setupToken, JWT_SECRET);
+        const salt = crypto.randomBytes(16).toString('hex');
+        const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
+        await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [String(decoded.email).toLowerCase(), salt, hash]);
+        res.json({ success: true, email: decoded.email }); 
+    } catch (err) { res.status(401).json({ success: false, msg: "Setup session expired. Please log in again." }); }
+});
+
+app.post('/api/forgot_password', async (req, res) => {
+    const email = req.body.email.trim().toLowerCase();
+    try {
+        const isDemoEmail = DEMO_USERS.some(user => user.email === email);
+        if (email === ADMIN_EMAIL || isDemoEmail) return res.status(400).json({ success: false, msg: "This account password cannot be reset here." });
+        const [rows] = await authPool.query("SELECT student_email FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
+        if (rows.length === 0) return res.status(404).json({ success: false, msg: "Email not found in registry." });
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString(); 
+        await pool.query("INSERT INTO password_resets (email, otp, expires_at) VALUES ($1, $2, NOW() + INTERVAL '15 minutes') ON CONFLICT (email) DO UPDATE SET otp = EXCLUDED.otp, expires_at = EXCLUDED.expires_at", [email, otp]);
+
+        const mailOptions = {
+            from: `"RD Algo Security" <${process.env.SMTP_USER}>`,
+            to: email,
+            subject: `Password Reset OTP - RD Algo`,
+            html: `<div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #ddd; padding: 20px; border-radius: 10px;">
+                    <h2 style="color: #0056b3;">Password Reset</h2>
+                    <p>You requested to reset your password. Use the OTP below to set a new password. This code is valid for 15 minutes.</p>
+                    <div style="font-size: 24px; font-weight: bold; background: #f8f9fa; padding: 15px; text-align: center; letter-spacing: 5px; color: #000; border-radius: 8px;">${otp}</div>
+                   </div>`
+        };
+        transporter.sendMail(mailOptions).catch(e => console.error(e));
+        res.json({ success: true, msg: "OTP sent to your email." });
+    } catch (err) { res.status(500).json({ success: false, msg: "Server error generating OTP." }); }
+});
+
+app.post('/api/reset_password', async (req, res) => {
+    const { otp, newPassword } = req.body;
+    const email = req.body.email.trim().toLowerCase();
+    try {
+        const result = await pool.query("SELECT * FROM password_resets WHERE email = $1 AND otp = $2 AND expires_at > NOW()", [email, otp]);
+        if (result.rows.length === 0) return res.status(400).json({ success: false, msg: "Invalid or expired OTP." });
+
+        const salt = crypto.randomBytes(16).toString('hex');
+        const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
+        await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [email, salt, hash]);
+        await pool.query("DELETE FROM password_resets WHERE email = $1", [email]); 
+        res.json({ success: true, msg: "Password changed successfully. You can now login." });
+    } catch (err) { res.status(500).json({ success: false, msg: "Server error resetting password." }); }
+});
+
+app.post('/api/logout', (req, res) => { res.clearCookie('authToken', { path: '/' }); res.json({ success: true }); });
+
+app.post('/api/accept_terms', authenticateToken, async (req, res) => {
+    try {
+        const userEmail = req.user.email;
+        const clientIp = getClientIp(req);
+        const istTime = getISTTime();
+
+        const mailOptions = {
+            from: `"RD Algo Compliance" <${process.env.SMTP_USER}>`,
+            to: userEmail,
+            cc: ADMIN_EMAIL, 
+            subject: `Legal Disclaimer Accepted - ${userEmail}`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                    <h2 style="color: #0056b3; border-bottom: 2px solid #e9ecef; padding-bottom: 10px;">Official Agreement Record</h2>
+                    <p>Dear User,</p>
+                    <p>This email serves as a digital signature and official record that you have explicitly read, understood, and agreed to the RD Algo Mandatory Legal Disclaimer to access the platform.</p>
+                    
+                    <div style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba; margin: 20px 0;">
+                        <h4 style="margin-top: 0; color: #856404;">⚠️ CRITICAL WARNING: NO REAL MONEY TRADING</h4>
+                        <p style="margin-bottom: 0;">Do not trade with real money. All indicators, strategies, and signals provided by RD Algo are strictly for paper trading, educational evaluation, and forward-testing only. You are strictly advised to practice on virtual/paper trading platforms.</p>
+                    </div>
+
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #ddd;">
+                        <h4 style="margin-top: 0;">Agreed Terms & Conditions:</h4>
+                        <ul style="padding-left: 20px; font-size: 13px; color: #555;">
+                            <li style="margin-bottom: 8px;"><strong>Educational Purposes Only:</strong> All content, indicators, signals, and strategies provided by RD Algo are strictly for educational and informational purposes. They do not constitute financial, investment, or trading advice.</li>
+                            <li style="margin-bottom: 8px;"><strong>No SEBI Registration:</strong> RD Algo, its founders, and its team members are <strong>NOT registered with SEBI</strong> (Securities and Exchange Board of India) as financial advisors or research analysts.</li>
+                            <li style="margin-bottom: 8px;"><strong>High Risk Warning:</strong> Trading in financial markets involves a high degree of risk. You may lose some or all of your initial capital.</li>
+                            <li style="margin-bottom: 8px;"><strong>Your Sole Responsibility:</strong> You are 100% responsible for your own trading decisions. RD Algo will not be held liable for any financial losses, damages, or consequences resulting from the use of our platform.</li>
+                            <li style="margin-bottom: 0;"><strong>Past Performance:</strong> Past performance, whether actual or indicated by historical backtests, is no guarantee of future results.</li>
+                        </ul>
+                    </div>
+
+                    <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #007aff;">
+                        <h4 style="margin-top: 0; color: #0056b3;">Digital Footprint & Signature:</h4>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 5px;"><strong>User Account:</strong> ${userEmail}</li>
+                            <li style="margin-bottom: 5px;"><strong>Date & Time (IST):</strong> ${istTime}</li>
+                            <li style="margin-bottom: 0;"><strong>IP Address:</strong> ${clientIp}</li>
+                        </ul>
+                    </div>
+                    
+                    <p style="font-size: 12px; color: #888; text-align: center; margin-top: 30px;">This is an automated legal compliance email generated by the RD Algo System.</p>
+                </div>
+            `
+        };
+        
+        await transporter.sendMail(mailOptions);
+        res.json({ success: true });
+    } catch (err) { 
+        console.error("Mail Error:", err);
+        res.json({ success: true, msg: "Agreement recorded locally, but email failed to send." }); 
+    }
+});
+
+app.get('/api/hls-key/:lessonId/enc.key', async (req, res) => {
+    try {
+        const lessonId = req.params.lessonId;
+        const result = await pool.query("SELECT lm.required_level FROM lesson_videos lv JOIN learning_modules lm ON lv.module_id = lm.id WHERE lv.hls_manifest_url LIKE $1 LIMIT 1", [`%${lessonId}%`]);
+        const isDemo = result.rows.length > 0 && result.rows[0].required_level === 'demo';
+
+        if (!isDemo) {
+            const token = req.cookies.authToken;
+            if (!token) return res.status(401).send('Auth Required');
+            jwt.verify(token, JWT_SECRET); 
+        }
+
+        const keyPath = path.join(__dirname, 'public', 'hls', lessonId, 'enc.key');
+        if (fs.existsSync(keyPath)) { res.sendFile(keyPath); } else { res.status(404).send('Key not found'); }
+    } catch (err) { res.status(403).send('Forbidden'); }
+});
+
 app.get('/api/courses', authenticateToken, async (req, res) => {
     try {
         const modulesResult = await pool.query("SELECT * FROM learning_modules ORDER BY display_order ASC");
         const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url, hls_manifest_url FROM lesson_videos ORDER BY display_order ASC");
         
         const coursesStructure = modulesResult.rows.map(mod => { 
-            // FALLBACK FIX: Handles old JWTs securely without crashing
-            const isLocked = req.user.role !== 'admin' && mod.required_level !== 'demo' && (req.user.accessLevels || {})[mod.required_level] !== 'Yes';
+            const isLocked = req.user.role !== 'admin' && mod.required_level !== 'demo' && req.user.accessLevels[mod.required_level] !== 'Yes';
             const safeLessons = lessonsResult.rows.filter(l => l.module_id === mod.id).map(l => {
                 if (isLocked) {
                     const hasVideo = l.hls_manifest_url && l.hls_manifest_url.length > 5;
@@ -416,7 +649,7 @@ app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
         const result = await pool.query("SELECT lv.*, lm.required_level FROM lesson_videos lv JOIN learning_modules lm ON lv.module_id = lm.id WHERE lv.id = $1", [req.params.id]);
         if (result.rows.length === 0) return res.status(404).json({ success: false, msg: "Lesson not found." });
         const lesson = result.rows[0];
-        if (req.user.role !== 'admin' && lesson.required_level !== 'demo' && (req.user.accessLevels || {})[lesson.required_level] !== 'Yes') {
+        if (req.user.role !== 'admin' && lesson.required_level !== 'demo' && req.user.accessLevels[lesson.required_level] !== 'Yes') {
             return res.status(403).json({ success: false, msg: "🔒 ACCESS DENIED" });
         }
         res.json({ success: true, title: lesson.title, hlsUrl: lesson.hls_manifest_url });
@@ -551,6 +784,7 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
         const newLessonId = dbResult.rows[0].id;
         await redisClient.del('public_courses').catch(()=>{});
 
+        // Queue for Background Worker
         await videoQueue.add('encode', {
             lessonDbId: newLessonId,
             videoPath: videoFile.path,
@@ -564,6 +798,7 @@ app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name
     }
 });
 
+// --- BULLMQ BACKGROUND WORKER DEFINITION ---
 const worker = new Worker('video-encoding', async job => {
     const { lessonDbId, videoPath, hlsDirStr } = job.data;
     const lessonId = crypto.randomUUID();
@@ -608,6 +843,7 @@ const worker = new Worker('video-encoding', async job => {
     });
 }, { connection: redisConnection });
 
+// --- DEDUPLICATED, TARGETED & RECURRING PUSH WORKER ---
 const pushWorker = new Worker('push-notifications', async job => {
     const { notificationId } = job.data;
     const { rows } = await pool.query("SELECT * FROM scheduled_notifications WHERE id = $1 AND status = 'pending'", [notificationId]);
@@ -695,15 +931,9 @@ app.post('/api/admin/lessons/reorder', authenticateToken, isAdmin, async (req, r
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-app.get('/api/notifications', authenticateToken, async (req, res) => {
-    try {
-        const result = await pool.query(
-            "SELECT * FROM scheduled_notifications WHERE status = 'sent' AND target_audience IN ('both', 'logged_in') ORDER BY created_at DESC LIMIT 50"
-        );
-        res.json({ success: true, data: result.rows });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
+// ==========================================
+// PUSH NOTIFICATION ADMIN ROUTES 
+// ==========================================
 app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM scheduled_notifications ORDER BY created_at DESC LIMIT 50");
@@ -760,13 +990,19 @@ app.delete('/api/admin/notifications/:id', authenticateToken, isAdmin, async (re
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+// ========================================================
+// TRADE ROUTES WITH NEW PUSH NOTIFICATION RULES
+// ========================================================
 app.get('/api/trades', authenticateToken, async (req, res) => {
     try { res.json((await pool.query(`SELECT * FROM trades WHERE CAST(created_at AS TIMESTAMP) >= NOW() - INTERVAL '30 days' ORDER BY id DESC`)).rows); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// --- NEW SIGNAL: PUSH REMOVED ENTIRELY TO STOP SPAM ---
 app.post('/api/signal_detected', async (req, res) => {
     const { trade_id, symbol, type, entry, sl, tp1, tp2, tp3 } = req.body;
     try {
+        console.log(`\n➡️ TRADE WEBHOOK RECEIVED: SIGNAL (${symbol} ${type})`);
+        
         let sentMsgId = null;
         try {
             let tgMsg = `🚨 *NEW SIGNAL DETECTED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n📊 *Type:* ${toMarkdown(type)}\n🕒 *Time:* ${toMarkdown(getISTTime())}`;
@@ -775,7 +1011,7 @@ app.post('/api/signal_detected', async (req, res) => {
             }
             const sentMsg = await bot.sendMessage(CHAT_ID, tgMsg, { parse_mode: 'Markdown' });
             sentMsgId = sentMsg.message_id;
-        } catch (tgErr) {}
+        } catch (tgErr) { console.error("⚠️ Telegram Send Failed (Skipping TG):", tgErr.message); }
 
         await pool.query(
             `INSERT INTO trades (trade_id, symbol, type, entry_price, sl_price, tp1_price, tp2_price, tp3_price, telegram_msg_id, created_at, status) 
@@ -785,23 +1021,34 @@ app.post('/api/signal_detected', async (req, res) => {
         await pool.query("DELETE FROM trades WHERE CAST(created_at AS TIMESTAMP) < NOW() - INTERVAL '30 days'");
         
         io.emit('trade_update'); 
+        
+        // Removed Push Notification trigger from here to reduce spam.
+
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        console.error("❌ SIGNAL ENDPOINT ERROR:", err);
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
+// --- SETUP CONFIRMED: NOW SHOWS BUY/SELL AND FULL TARGETS ---
 app.post('/api/setup_confirmed', async (req, res) => {
     const { trade_id, symbol, type, entry, sl, tp1, tp2, tp3 } = req.body;
     try {
-        const isPushEnabled = await checkTradePushEnabled();
-        let reversalHappened = false;
+        console.log(`\n➡️ TRADE WEBHOOK RECEIVED: SETUP CONFIRMED (${symbol})`);
 
+        const isPushEnabled = await checkTradePushEnabled();
         const oldTrades = await pool.query("SELECT * FROM trades WHERE symbol = $1 AND status IN ('SIGNAL', 'SETUP', 'ACTIVE') AND trade_id != $2", [symbol, trade_id]);
         for (const t of oldTrades.rows) {
             await pool.query("UPDATE trades SET status = 'CLOSED (Reversal)' WHERE trade_id = $1", [t.trade_id]);
-            reversalHappened = true;
+            
             try {
                 if(t.telegram_msg_id) { await bot.sendMessage(CHAT_ID, `🔄 *Trade Reversed*\n❌ Closed by new signal.`, { reply_to_message_id: t.telegram_msg_id, parse_mode: 'Markdown' }); }
-            } catch(tgErr) {}
+            } catch(tgErr) { console.error("⚠️ Telegram Reversal Send Failed (Skipping TG):", tgErr.message); }
+            
+            if (isPushEnabled) {
+                await sendPushNotification({ title: '🔄 TRADE CLOSED', body: `${t.symbol} - Reversal / New Signal` });
+            }
         }
         
         const check = await pool.query("SELECT telegram_msg_id FROM trades WHERE trade_id = $1", [trade_id]);
@@ -810,23 +1057,23 @@ app.post('/api/setup_confirmed', async (req, res) => {
         try {
             const opts = { parse_mode: 'Markdown' }; if (check.rows[0]?.telegram_msg_id) opts.reply_to_message_id = check.rows[0].telegram_msg_id;
             await bot.sendMessage(CHAT_ID, `✅ *SETUP CONFIRMED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n🚀 *Type:* ${toMarkdown(type)}\n🚪 *Entry:* ${toMarkdown(entry)}\n🛑 *SL:* ${toMarkdown(sl)}\n\n🎯 *TP1:* ${toMarkdown(tp1)}\n🎯 *TP2:* ${toMarkdown(tp2)}\n🎯 *TP3:* ${toMarkdown(tp3)}`, opts);
-        } catch(tgErr) {}
+        } catch(tgErr) { console.error("⚠️ Telegram Send Failed (Skipping TG):", tgErr.message); }
 
         io.emit('trade_update'); 
         
         if (isPushEnabled) { 
-            let pTitle = reversalHappened ? '🔄 REVERSAL & NEW SETUP' : '✅ SETUP CONFIRMED';
-            let pBody = reversalHappened ? `Previous trade closed!\n` : '';
-            pBody += `${symbol} - ${type}\nEntry: ${entry} | SL: ${sl}\nTargets: ${tp1}, ${tp2}, ${tp3}`;
-            
+            // Type (BUY/SELL) successfully added to the Body
             await sendPushNotification({ 
-                title: pTitle, 
-                body: pBody 
+                title: '✅ SETUP CONFIRMED', 
+                body: `${symbol} - ${type}\nEntry: ${entry} | SL: ${sl}\nTargets: ${tp1}, ${tp2}, ${tp3}` 
             }); 
         }
         
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        console.error("❌ SETUP ENDPOINT ERROR:", err);
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 app.post('/api/price_update', async (req, res) => {
@@ -841,6 +1088,8 @@ app.post('/api/price_update', async (req, res) => {
 app.post('/api/log_event', async (req, res) => {
     const { trade_id, new_status, price } = req.body;
     try {
+        console.log(`\n➡️ TRADE WEBHOOK RECEIVED: EVENT (${new_status})`);
+
         const result = await pool.query("SELECT * FROM trades WHERE trade_id = $1", [trade_id]);
         if (result.rows.length === 0) return res.json({ success: false, msg: "Trade not found" });
         const trade = result.rows[0];
@@ -855,17 +1104,24 @@ app.post('/api/log_event', async (req, res) => {
         try {
             const opts = { parse_mode: 'Markdown' }; if (trade.telegram_msg_id) opts.reply_to_message_id = trade.telegram_msg_id;
             await bot.sendMessage(CHAT_ID, `⚡ *UPDATE: ${toMarkdown(new_status)}*\n\n💎 *Symbol:* #${toMarkdown(trade.symbol)}\n📉 *Price:* ${toMarkdown(price)}`, opts);
-        } catch(tgErr) {}
+        } catch(tgErr) { console.error("⚠️ Telegram Send Failed (Skipping TG):", tgErr.message); }
         
         io.emit('trade_update'); 
         
         const isPushEnabled = await checkTradePushEnabled();
+        
+        // SL HIT Notifications are Muted
         if (isPushEnabled && new_status !== 'SL HIT') { 
             await sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); 
+        } else if (new_status === 'SL HIT') {
+            console.log(`🔇 Skipping push notification for SL HIT as per rules.`);
         }
         
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        console.error("❌ LOG EVENT ENDPOINT ERROR:", err);
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 app.post('/api/delete_trades', authenticateToken, async (req, res) => {
@@ -875,15 +1131,26 @@ app.post('/api/delete_trades', authenticateToken, async (req, res) => {
     try { await pool.query("DELETE FROM trades WHERE trade_id = ANY($1)", [trade_ids]); io.emit('trade_update'); res.json({ success: true }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// =========================================================
+// DAILY AUTOMATED LOGOUT (6:30 AM)
+// =========================================================
 cron.schedule('30 6 * * *', async () => {
     try {
         await pool.query("DELETE FROM login_logs");
-    } catch (err) {}
-}, { scheduled: true, timezone: "Asia/Kolkata" });
+        console.log("✅ Daily Reset: All user sessions cleared at 6:30 AM.");
+    } catch (err) {
+        console.error("❌ Error clearing daily sessions:", err);
+    }
+}, {
+    scheduled: true,
+    timezone: "Asia/Kolkata"
+});
 
 const PORT = process.env.PORT || 3000;
 
+// === SERVER INITIALIZATION & AUTO-GENERATE VAPID KEYS ===
 initDb().then(async () => { 
+    
     let vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
     let vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
 
@@ -896,16 +1163,30 @@ initDb().then(async () => {
                 vapidPublicKey = pubRes.rows[0].setting_value;
                 vapidPrivateKey = privRes.rows[0].setting_value;
             } else {
+                console.log("⚠️ No VAPID keys found in env or DB. Generating new ones automatically...");
                 const vapidKeys = webpush.generateVAPIDKeys();
                 vapidPublicKey = vapidKeys.publicKey;
                 vapidPrivateKey = vapidKeys.privateKey;
+                
                 await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('vapid_public', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [vapidPublicKey]);
                 await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('vapid_private', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [vapidPrivateKey]);
+                console.log("✅ New VAPID keys generated and saved to PostgreSQL.");
             }
         }
-        webpush.setVapidDetails('mailto:' + (process.env.ADMIN_EMAIL || 'admin@rdalgo.in'), vapidPublicKey.trim(), vapidPrivateKey.trim());
+
+        webpush.setVapidDetails(
+            'mailto:' + (process.env.ADMIN_EMAIL || 'admin@rdalgo.in'),
+            vapidPublicKey.trim(),
+            vapidPrivateKey.trim()
+        );
+        
+        // Save globally so the frontend API can fetch it
         app.locals.vapidPublicKey = vapidPublicKey.trim();
-    } catch (e) {}
+        console.log("✅ Web Push VAPID configured successfully.");
+
+    } catch (e) {
+        console.error("❌ Failed to setup VAPID keys:", e.message);
+    }
 
     server.listen(PORT, () => console.log(`🚀 RD Broker Server running on ${PORT}`)); 
 });

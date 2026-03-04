@@ -21,104 +21,23 @@ const userData = {
 window.onload = function() {
     initDatePicker();
     fetchTrades(); 
-    
-    loadAdminSettings();
     fetchCourses(); 
-    
     applyRoleRestrictions(); 
+    
     switchSection('learning'); 
+    
     checkDisclaimer();
     registerServiceWorker(); 
-    fetchUserNotifications(); 
 };
 
-// Guarantee Live Updates
+// --- NEW FALLBACK BACKGROUND POLLER TO GUARANTEE LIVE UPDATES ---
 setInterval(() => {
     const tradeSec = document.getElementById('tradeSection');
     if (tradeSec && tradeSec.style.display === 'block' && !isSelectionMode) {
         fetchTrades();
     }
 }, 5000); 
-
-async function loadAdminSettings() {
-    try {
-        const settingsRes = await fetch('/api/settings');
-        const settings = await settingsRes.json();
-        
-        const defaultState = settings.accordion_state || 'first';
-        setTimeout(() => { toggleAccordions(defaultState); }, 100);
-        
-        const adminSettingDropdown = document.getElementById('adminAccordionState');
-        if (adminSettingDropdown) adminSettingDropdown.value = defaultState;
-
-        const hideTradeTab = settings.hide_trade_tab === 'true';
-        const adminHideCheck = document.getElementById('adminHideTradeTab');
-        if (adminHideCheck) adminHideCheck.checked = hideTradeTab;
-
-        const pushTradeAlerts = settings.push_trade_alerts !== 'false';
-        const adminPushTradeCheck = document.getElementById('adminPushTradeAlerts');
-        if (adminPushTradeCheck) adminPushTradeCheck.checked = pushTradeAlerts;
-
-        const showGallery = settings.show_gallery !== 'false';
-        const adminGalleryCheck = document.getElementById('adminShowGallery');
-        if (adminGalleryCheck) adminGalleryCheck.checked = showGallery;
-
-        const showCallWidget = settings.show_call_widget !== 'false';
-        const adminCallWidgetCheck = document.getElementById('adminShowCallWidget');
-        if (adminCallWidgetCheck) adminCallWidgetCheck.checked = showCallWidget;
-
-        const showStickyFooter = settings.show_sticky_footer !== 'false';
-        const adminStickyCheck = document.getElementById('adminShowStickyFooter');
-        if (adminStickyCheck) adminStickyCheck.checked = showStickyFooter;
-
-        const safeSetVal = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val || ''; };
-        safeSetVal('adminBtn1Text', settings.sticky_btn1_text);
-        safeSetVal('adminBtn1Icon', settings.sticky_btn1_icon);
-        safeSetVal('adminBtn1Link', settings.sticky_btn1_link);
-        safeSetVal('adminBtn2Text', settings.sticky_btn2_text);
-        safeSetVal('adminBtn2Icon', settings.sticky_btn2_icon);
-        safeSetVal('adminBtn2Link', settings.sticky_btn2_link);
-        
-        const showDisclaimer = settings.show_disclaimer !== 'false';
-        const adminDisclaimerCheck = document.getElementById('adminShowDisclaimer');
-        if (adminDisclaimerCheck) adminDisclaimerCheck.checked = showDisclaimer;
-        safeSetVal('adminRegisterLink', settings.register_link);
-
-        const catForex = settings.cat_forex_crypto || '';
-        const catStock = settings.cat_stock || '';
-        const catIndex = settings.cat_index || '';
-        const catMcx = settings.cat_mcx || '';
-        
-        symbolCategories['Forex/Crypto'] = catForex.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
-        symbolCategories['Stock'] = catStock.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
-        symbolCategories['Index'] = catIndex.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
-        symbolCategories['Mcx'] = catMcx.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
-
-        safeSetVal('adminCatForex', catForex);
-        safeSetVal('adminCatStock', catStock);
-        safeSetVal('adminCatIndex', catIndex);
-        safeSetVal('adminCatMcx', catMcx);
-
-        if (allTrades && allTrades.length > 0) applyFilters(); 
-
-        if (settings.homepage_layout && userData.role === 'admin') {
-            const layoutOrder = JSON.parse(settings.homepage_layout);
-            const layoutUl = document.getElementById('homepageLayoutDraggable');
-            if (layoutUl) {
-                layoutOrder.forEach(id => {
-                    const li = layoutUl.querySelector(`[data-id="${id}"]`);
-                    if(li) layoutUl.appendChild(li);
-                });
-            }
-        }
-
-        const navTradeBtn = document.getElementById('navTradeBtn');
-        if (navTradeBtn) {
-            if (hideTradeTab && userData.role !== 'admin') navTradeBtn.style.display = 'none';
-            else navTradeBtn.style.display = 'flex';
-        }
-    } catch(e) {}
-}
+// ---------------------------------------------------------------
 
 async function registerServiceWorker() {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -127,6 +46,7 @@ async function registerServiceWorker() {
             const keyData = await keyRes.json();
             
             if (!keyData.success) {
+                console.log("Push keys not ready yet.");
                 return;
             }
 
@@ -142,7 +62,9 @@ async function registerServiceWorker() {
                 headers: { 'content-type': 'application/json' },
                 credentials: 'same-origin'
             });
-        } catch (error) {}
+        } catch (error) {
+            console.log('Service Worker or Push Notification registration failed:', error);
+        }
     }
 }
 
@@ -179,7 +101,7 @@ async function checkDisclaimer() {
                     bootstrap.Modal.getOrCreateInstance(modalEl).show();
                 }
             }
-        } catch (err) {}
+        } catch (err) { console.error("Error loading disclaimer config"); }
     }
 }
 
@@ -197,7 +119,7 @@ window.acceptDisclaimer = async function() {
         const modal = bootstrap.Modal.getInstance(modalEl);
         if (modal) modal.hide();
     } catch (err) {
-        alert("Error recording agreement.");
+        alert("Error recording agreement. Please try again or check your connection.");
         btn.innerText = originalText;
         btn.disabled = false;
     }
@@ -289,12 +211,6 @@ async function fetchCourses() {
         if (response.status === 401 || response.status === 403) { window.location.href = '/home.html'; return; }
         
         globalModules = await response.json();
-        
-        if (!Array.isArray(globalModules)) {
-            container.innerHTML = `<div class="p-3 text-danger text-center">❌ Error loading courses. Please re-login.</div>`;
-            return;
-        }
-
         let accessLevels = {};
         try { accessLevels = JSON.parse(localStorage.getItem('accessLevels')) || {}; } catch(e) {}
 
@@ -455,6 +371,86 @@ async function fetchCourses() {
             }
         }
         
+        try {
+            const settingsRes = await fetch('/api/settings');
+            const settings = await settingsRes.json();
+            
+            const defaultState = settings.accordion_state || 'first';
+            setTimeout(() => { toggleAccordions(defaultState); }, 100);
+            const adminSettingDropdown = document.getElementById('adminAccordionState');
+            if (adminSettingDropdown) adminSettingDropdown.value = defaultState;
+
+            const hideTradeTab = settings.hide_trade_tab === 'true';
+            const adminHideCheck = document.getElementById('adminHideTradeTab');
+            if (adminHideCheck) adminHideCheck.checked = hideTradeTab;
+
+            const pushTradeAlerts = settings.push_trade_alerts !== 'false';
+            const adminPushTradeCheck = document.getElementById('adminPushTradeAlerts');
+            if (adminPushTradeCheck) adminPushTradeCheck.checked = pushTradeAlerts;
+
+            const showGallery = settings.show_gallery !== 'false';
+            const adminGalleryCheck = document.getElementById('adminShowGallery');
+            if (adminGalleryCheck) adminGalleryCheck.checked = showGallery;
+
+            const showCallWidget = settings.show_call_widget !== 'false';
+            const adminCallWidgetCheck = document.getElementById('adminShowCallWidget');
+            if (adminCallWidgetCheck) adminCallWidgetCheck.checked = showCallWidget;
+
+            const showStickyFooter = settings.show_sticky_footer !== 'false';
+            const adminStickyCheck = document.getElementById('adminShowStickyFooter');
+            if (adminStickyCheck) adminStickyCheck.checked = showStickyFooter;
+
+            const safeSetVal = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val || ''; };
+            safeSetVal('adminBtn1Text', settings.sticky_btn1_text);
+            safeSetVal('adminBtn1Icon', settings.sticky_btn1_icon);
+            safeSetVal('adminBtn1Link', settings.sticky_btn1_link);
+            safeSetVal('adminBtn2Text', settings.sticky_btn2_text);
+            safeSetVal('adminBtn2Icon', settings.sticky_btn2_icon);
+            safeSetVal('adminBtn2Link', settings.sticky_btn2_link);
+            
+            const showDisclaimer = settings.show_disclaimer !== 'false';
+            const adminDisclaimerCheck = document.getElementById('adminShowDisclaimer');
+            if (adminDisclaimerCheck) adminDisclaimerCheck.checked = showDisclaimer;
+            safeSetVal('adminRegisterLink', settings.register_link);
+
+            const catForex = settings.cat_forex_crypto || '';
+            const catStock = settings.cat_stock || '';
+            const catIndex = settings.cat_index || '';
+            const catMcx = settings.cat_mcx || '';
+            
+            symbolCategories['Forex/Crypto'] = catForex.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
+            symbolCategories['Stock'] = catStock.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
+            symbolCategories['Index'] = catIndex.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
+            symbolCategories['Mcx'] = catMcx.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
+
+            safeSetVal('adminCatForex', catForex);
+            safeSetVal('adminCatStock', catStock);
+            safeSetVal('adminCatIndex', catIndex);
+            safeSetVal('adminCatMcx', catMcx);
+
+            if (allTrades && allTrades.length > 0) applyFilters(); 
+
+            if (settings.homepage_layout && userData.role === 'admin') {
+                const layoutOrder = JSON.parse(settings.homepage_layout);
+                const layoutUl = document.getElementById('homepageLayoutDraggable');
+                if (layoutUl) {
+                    layoutOrder.forEach(id => {
+                        const li = layoutUl.querySelector(`[data-id="${id}"]`);
+                        if(li) layoutUl.appendChild(li);
+                    });
+                }
+            }
+
+            const navTradeBtn = document.getElementById('navTradeBtn');
+            if (navTradeBtn) {
+                if (hideTradeTab && userData.role !== 'admin') navTradeBtn.style.display = 'none';
+                else navTradeBtn.style.display = 'flex';
+            }
+
+        } catch (e) {
+            setTimeout(() => { toggleAccordions('first'); }, 100);
+        }
+
     } catch (err) { container.innerHTML = `<div class="p-3 text-danger text-center">❌ Error loading courses.</div>`; }
 }
 
@@ -476,7 +472,9 @@ async function openSecureVideo(lessonId) {
                     } else { 
                         await screen.orientation.lock("portrait"); 
                     } 
-                } catch (e) {}
+                } catch (e) {
+                    console.log("Orientation lock failed", e);
+                }
             } else {
                 if (vw > vh && window.innerHeight > window.innerWidth) {
                     alert("For the best experience, please rotate your device horizontally.");
@@ -895,14 +893,17 @@ function initDatePicker() {
     datePicker = flatpickr("#filterDateRange", { mode: "range", dateFormat: "Y-m-d", defaultDate: today, onChange: function() { applyFilters(); } });
 }
 
+// --- NEW: IN-APP MONEY SOUND ---
 const tradeSound = new Audio('/chaching.mp3');
 
 socket.on('trade_update', () => { 
     fetchTrades(); 
-    fetchChatNotifications(); 
-    fetchUserNotifications(); 
     
-    tradeSound.play().catch(e => {});
+    // Play the money sound when a trade updates and the app is open
+    // (Note: Browsers require the user to have clicked somewhere on the page first before audio can auto-play)
+    tradeSound.play().catch(e => {
+        console.log("Browser blocked auto-play sound until user interacts with the page.");
+    });
 });
 
 socket.on('force_logout', (data) => {
@@ -1116,16 +1117,8 @@ async function deleteSelected() {
     } catch (err) {}
 }
 
-// --- FIX: SAFE LOGOUT ---
 async function logout() {
-    try { 
-        await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); 
-    } catch (err) {
-        console.error(err);
-    }
-    sessionStorage.clear(); 
-    localStorage.clear(); 
-    window.location.href = '/home.html'; 
+    try { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); sessionStorage.clear(); localStorage.clear(); window.location.href = '/home.html'; } catch (err) {}
 }
 
 const filterSymbolEl = document.getElementById('filterSymbol');
@@ -1140,49 +1133,9 @@ if (filterTypeEl) filterTypeEl.addEventListener('change', () => applyFilters());
 const filterCategoryEl = document.getElementById('filterCategory');
 if (filterCategoryEl) filterCategoryEl.addEventListener('change', () => applyFilters());
 
-// ========================================================
-// USER NOTIFICATION TRAY (BELL LOGIC)
-// ========================================================
-async function fetchUserNotifications() {
-    const list = document.getElementById('userNotificationList');
-    if(!list) return;
-    
-    try {
-        const res = await fetch('/api/notifications', { credentials: 'same-origin' });
-        const json = await res.json();
-        if(json.success) {
-            const data = json.data;
-            if (data.length === 0) {
-                list.innerHTML = '<div class="text-center text-muted mt-3" style="font-size:12px;">No notifications yet.</div>';
-                return;
-            }
-
-            list.innerHTML = data.map(n => {
-                const dateObj = new Date(n.created_at);
-                const dateStr = dateObj.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }) + ' ' + dateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
-                
-                let borderColor = 'var(--blue)';
-                if (n.title.includes('SETUP')) borderColor = 'var(--green)';
-                if (n.title.includes('HIT') || n.title.includes('CLOSED')) borderColor = 'var(--red)';
-                if (n.title.includes('SIGNAL')) borderColor = '#f39c12';
-
-                return `
-                <div class="user-notif-card" style="border-left-color: ${borderColor}">
-                    <div class="user-notif-title">${n.title}</div>
-                    <div class="user-notif-body">${n.body}</div>
-                    ${n.url && n.url !== '/' ? `<a href="${n.url}" target="_blank" style="font-size:10px; display:block; margin-top:4px;">${n.url}</a>` : ''}
-                    <div class="user-notif-time">${dateStr}</div>
-                </div>`;
-            }).join('');
-        }
-    } catch (e) {
-        list.innerHTML = '<div class="text-center text-danger mt-3" style="font-size:12px;">Error loading.</div>';
-    }
-}
-
 
 // ========================================================
-// PUSH NOTIFICATION ADMIN CHAT UI LOGIC
+// PUSH NOTIFICATION CHAT UI LOGIC
 // ========================================================
 let chatNotifications = [];
 
