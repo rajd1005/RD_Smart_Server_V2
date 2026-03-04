@@ -108,7 +108,7 @@
         .admin-edit-btn { color: var(--blue); background: none; border: none; font-size: 14px; padding: 5px; }
         .admin-del-btn { color: var(--red); background: none; border: none; font-size: 14px; padding: 5px; }
 
-        /* --- NEW PUSH NOTIFICATION CHAT STYLES --- */
+        /* --- PUSH NOTIFICATION CHAT STYLES --- */
         .chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 12px; margin-bottom: 12px; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .chat-bubble.sent { background-color: #dcf8c6; margin-left: auto; border-bottom-right-radius: 0; }
         .chat-bubble.scheduled { background-color: #fff3cd; margin-left: auto; border-bottom-right-radius: 0; }
@@ -180,12 +180,15 @@
         </div>
 
         <div id="pushSection" style="display:none; flex-direction: column; height: calc(100vh - 110px);">
-            <div class="p-2 bg-white shadow-sm z-1 d-flex align-items-center">
-                <span class="material-icons-round text-primary me-2">campaign</span>
-                <div>
-                    <h6 class="mb-0 fw-bold" style="font-size:14px;">Push Broadcasts</h6>
-                    <div style="font-size:10px; color:var(--text-secondary);">Send updates to specific audiences</div>
+            <div class="p-2 bg-white shadow-sm z-1 d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <span class="material-icons-round text-primary me-2">campaign</span>
+                    <div>
+                        <h6 class="mb-0 fw-bold" style="font-size:14px;">Push Broadcasts</h6>
+                        <div style="font-size:10px; color:var(--text-secondary);">Send updates to specific audiences</div>
+                    </div>
                 </div>
+                <button class="btn btn-sm btn-outline-primary fw-bold" style="font-size: 10px;" data-bs-toggle="modal" data-bs-target="#scheduledPushModal">Manage Scheduled</button>
             </div>
             
             <div class="flex-grow-1 p-3" id="chatHistory" style="overflow-y: auto; background-color: #efeae2; display: flex; flex-direction: column;">
@@ -242,6 +245,63 @@
         <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" disablePictureInPicture controlsList="nodownload nofullscreen noremoteplayback" playsinline webkit-playsinline></video>
     </div>
 
+    <div class="modal fade" id="scheduledPushModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title mb-0" style="font-size:15px;"><span class="material-icons-round align-middle me-1" style="font-size:18px;">schedule</span>Scheduled & Recurring Pushes</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light p-2" id="scheduledPushList">
+                    <div class="text-center text-muted p-3" style="font-size: 12px;">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editPushModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title mb-0" style="font-size:15px;">Edit Scheduled Push</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <form id="formEditPush" class="d-flex flex-column gap-2 mb-0">
+                        <input type="hidden" id="editPushId">
+                        <label class="form-label fw-bold mb-0" style="font-size: 10px; color: var(--text-secondary);">Target Audience</label>
+                        <select id="editPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px;">
+                            <option value="both">🌍 Send to ALL Users (Login + Public)</option>
+                            <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
+                            <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
+                        </select>
+                        <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Title</label>
+                        <input type="text" id="editPushTitle" class="form-control bg-light" style="font-size:13px;" required>
+                        <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Body</label>
+                        <textarea id="editPushBody" class="form-control bg-light" rows="2" style="font-size:13px;" required></textarea>
+                        <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">URL Link</label>
+                        <input type="text" id="editPushUrl" class="form-control form-control-sm bg-light" style="font-size:12px;">
+                        
+                        <div class="row g-2 mt-1">
+                            <div class="col-7">
+                                <label class="form-label fw-bold mb-0" style="font-size: 10px; color: var(--text-secondary);">Schedule Time</label>
+                                <input type="datetime-local" id="editPushSchedule" class="form-control form-control-sm bg-light" style="font-size:12px;">
+                            </div>
+                            <div class="col-5">
+                                <label class="form-label fw-bold mb-0" style="font-size: 10px; color: var(--text-secondary);">Recurrence</label>
+                                <select id="editPushRecurrence" class="form-select form-select-sm bg-light" style="font-size:12px;">
+                                    <option value="none">Once</option>
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 mt-2 fw-bold" id="btnEditPushSubmit">Save Changes</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="modal fade" id="disclaimerModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 500px;">
             <div class="modal-content">
@@ -648,7 +708,7 @@
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <script src="app.js?v=3.0"></script>
+    <script src="app.js?v=4.0"></script>
     
     <script>
         setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-GB'); }, 1000);
