@@ -83,6 +83,41 @@ const initDb = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`;
 
+    // --- NEW CHAT TABLES ---
+    const queryChatModerators = `
+    CREATE TABLE IF NOT EXISTS chat_moderators (
+        email VARCHAR(255) PRIMARY KEY,
+        salt VARCHAR(255) NOT NULL,
+        hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`;
+
+    const queryChatChannels = `
+    CREATE TABLE IF NOT EXISTS chat_channels (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        required_level VARCHAR(50) NOT NULL, 
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`;
+
+    const queryChatMessages = `
+    CREATE TABLE IF NOT EXISTS chat_messages (
+        id SERIAL PRIMARY KEY,
+        channel_id INT REFERENCES chat_channels(id) ON DELETE CASCADE,
+        sender_name VARCHAR(255) DEFAULT 'Admin',
+        message_text TEXT NOT NULL,
+        image_path VARCHAR(255),
+        link_url VARCHAR(255),
+        reply_to_id INT,
+        is_pinned BOOLEAN DEFAULT FALSE,
+        scheduled_for TIMESTAMP,
+        recurrence VARCHAR(20) DEFAULT 'none',
+        status VARCHAR(20) DEFAULT 'sent',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`;
+
     const populateDefaultSettings = `
     INSERT INTO system_settings (setting_key, setting_value) VALUES 
     ('accordion_state', 'first'),
@@ -102,7 +137,8 @@ const initDb = async () => {
     ('cat_stock', ''),
     ('cat_index', ''),
     ('cat_mcx', ''),
-    ('push_trade_alerts', 'true')
+    ('push_trade_alerts', 'true'),
+    ('show_chat_tab', 'true')
     ON CONFLICT (setting_key) DO NOTHING;`;
 
     try {
@@ -116,6 +152,12 @@ const initDb = async () => {
         await pool.query(queryProgress);
         await pool.query(queryPushSubscriptions);
         await pool.query(queryScheduledNotifications);
+        
+        // --- NEW CHAT TABLES EXECUTION ---
+        await pool.query(queryChatModerators);
+        await pool.query(queryChatChannels);
+        await pool.query(queryChatMessages);
+
         await pool.query(populateDefaultSettings);
 
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS lock_notice TEXT;`); } catch(e){}
@@ -125,7 +167,7 @@ const initDb = async () => {
         try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS target_audience VARCHAR(50) DEFAULT 'both';`); } catch(e){}
         try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS recurrence VARCHAR(20) DEFAULT 'none';`); } catch(e){}
 
-        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push + Notifications)");
+        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push + Notifications + Chat)");
     } catch (err) {
         console.error("❌ Database Error:", err);
     }
