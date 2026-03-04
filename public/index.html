@@ -12,6 +12,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
 
     <style>
         :root {
@@ -110,12 +111,14 @@
         .admin-edit-btn { color: var(--blue); background: none; border: none; font-size: 14px; padding: 5px; }
         .admin-del-btn { color: var(--red); background: none; border: none; font-size: 14px; padding: 5px; }
 
-        /* --- PUSH NOTIFICATION & CHAT STYLES --- */
+        /* --- CHAT STYLES --- */
         .chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 12px; margin-bottom: 12px; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-break: break-word; transition: transform 0.2s; }
         .chat-bubble.sent { background-color: #dcf8c6; margin-left: auto; border-bottom-right-radius: 0; }
         .chat-bubble.scheduled { background-color: #fff3cd; margin-left: auto; border-bottom-right-radius: 0; }
         .chat-bubble.received { background-color: #ffffff; margin-right: auto; border-bottom-left-radius: 0; }
         
+        .chat-bubble.is-pinned { border: 1px solid var(--blue); box-shadow: 0 2px 6px rgba(0,122,255,0.3); }
+
         .chat-title { font-weight: bold; font-size: 14px; margin-bottom: 4px; color: #000; line-height: 1.2; }
         .chat-body { font-size: 13px; color: #222; margin-bottom: 6px; white-space: pre-wrap; line-height: 1.4; }
         .chat-body strong { font-weight: bold; }
@@ -124,15 +127,23 @@
         
         .chat-link { font-size: 12px; color: #0056b3; word-break: break-all; display: block; margin-bottom: 5px; text-decoration: underline; }
         .chat-meta { font-size: 10px; color: #666; text-align: right; display: flex; justify-content: flex-end; gap: 4px; align-items: center; margin-top: 5px; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 5px; }
-        .chat-del-btn { color: var(--red); cursor: pointer; padding: 2px; }
 
-        /* Reply Preview Block inside Chat Bubble */
+        /* Desktop Hover Menus */
+        .chat-hover-actions { position: absolute; top: -12px; right: 10px; background: #fff; border: 1px solid var(--border-color); border-radius: 12px; padding: 2px 6px; display: none; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 10; }
+        @media (hover: hover) {
+            .chat-bubble:hover .chat-hover-actions { display: flex; }
+        }
+        .chat-action-icon { cursor: pointer; font-size: 16px !important; color: #666; transition: color 0.2s; }
+        .chat-action-icon:hover { color: var(--blue); }
+        .chat-action-icon.text-danger:hover { color: var(--red); }
+
         .reply-block { background: rgba(0,0,0,0.05); border-left: 3px solid var(--blue); padding: 4px 8px; margin-bottom: 6px; border-radius: 4px; font-size: 11px; cursor: pointer; }
         
-        /* Chat Channel Cards */
-        .channel-card { background: #fff; padding: 12px 15px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid var(--border-color); }
+        .channel-card { background: #fff; padding: 12px 15px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid var(--border-color); position: relative; overflow: hidden; }
         .channel-card:active { background: #f8f9fa; }
         .channel-icon { width: 40px; height: 40px; border-radius: 50%; background: #e3f2fd; color: var(--blue); display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 20px; }
+        .channel-card.locked { opacity: 0.7; background: #fdfdfd; cursor: not-allowed; }
+        .channel-card.locked .channel-icon { background: #f0f0f0; color: #999; }
         
         .swipe-reply-icon { position: absolute; right: -30px; top: 50%; transform: translateY(-50%); background: var(--blue); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
 
@@ -233,25 +244,50 @@
                         </div>
                     </div>
                 </div>
+
+                <div id="pinnedMessageBanner" class="bg-white border-bottom shadow-sm px-3 py-2 d-none align-items-center cursor-pointer" onclick="scrollToPinned()">
+                    <span class="material-icons-round text-primary me-2" style="font-size:18px;">push_pin</span>
+                    <div class="flex-grow-1 overflow-hidden" style="white-space:nowrap; text-overflow:ellipsis; font-size:12px;">
+                        <strong class="text-primary" id="pinnedMessageSender">Sender</strong><br>
+                        <span class="text-muted" id="pinnedMessageText">Pinned message text...</span>
+                    </div>
+                    <button class="btn btn-sm btn-link text-muted p-0 ms-2" id="btnUnpinMessage" style="display:none;" onclick="event.stopPropagation(); unpinActiveMessage()"><span class="material-icons-round" style="font-size:16px;">close</span></button>
+                </div>
                 
                 <div class="flex-grow-1 p-3" id="chatMessageHistory" style="overflow-y: auto; display: flex; flex-direction: column;">
-                    </div>
+                </div>
                 
-                <div class="p-2 bg-white border-top shadow-lg" id="chatAdminInputContainer" style="display:none;">
+                <div class="p-2 bg-white border-top shadow-lg position-relative" id="chatAdminInputContainer" style="display:none;">
+                    
+                    <div id="emojiPickerContainer" class="shadow-lg rounded" style="display:none; position:absolute; bottom:100%; left:10px; z-index:1050; background: white;">
+                        <emoji-picker class="light"></emoji-picker>
+                    </div>
+
                     <div id="chatReplyPreview" class="d-none bg-light p-2 mb-2 rounded border border-info" style="font-size:11px; position:relative;">
                         <span class="fw-bold text-primary">Replying to:</span> <span id="chatReplyText" class="text-muted text-truncate d-inline-block" style="max-width:200px; vertical-align:bottom;">...</span>
                         <button class="btn btn-sm text-danger p-0 position-absolute top-0 end-0 m-1" onclick="cancelReply()"><span class="material-icons-round" style="font-size:14px;">close</span></button>
                     </div>
+                    
                     <form id="formChatMessage" class="d-flex flex-column gap-2 mb-0">
                         <input type="hidden" id="replyToMessageId" value="">
                         
                         <div class="d-flex justify-content-between align-items-center px-1">
                             <span class="text-muted" style="font-size:9px;">Supports: **bold**, *italic*, [link text](url)</span>
-                            <span class="material-icons-round text-secondary" style="font-size:14px; cursor:pointer;" onclick="insertEmoji('👍')">mood</span>
+                            <span class="material-icons-round text-secondary" style="font-size:16px; cursor:pointer;" onclick="toggleEmojiPicker()">mood</span>
                         </div>
                         
                         <textarea id="chatInputText" class="form-control bg-light" rows="1" placeholder="Type message..." style="font-size:13px; resize:none;" required></textarea>
                         
+                        <div class="d-flex gap-2 align-items-center bg-light p-1 rounded border">
+                            <span class="material-icons-round text-muted ms-1" style="font-size:16px;">schedule</span>
+                            <input type="datetime-local" id="chatInputSchedule" class="form-control form-control-sm bg-white" title="Schedule Time" style="font-size:11px; padding:2px 5px; height:24px; border:none; width: 130px;">
+                            <select id="chatInputRecurrence" class="form-select form-select-sm bg-white" style="font-size:11px; padding:2px 15px 2px 5px; height:24px; border:none; width:80px;">
+                                <option value="none">Once</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                            </select>
+                        </div>
+
                         <div class="d-flex gap-2 align-items-center">
                             <label class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center p-1 m-0" style="width:34px; height:34px; cursor:pointer;" title="Attach Image">
                                 <span class="material-icons-round" style="font-size:18px;">image</span>
@@ -350,7 +386,27 @@
     <div id="chatActionOverlay" onclick="closeChatActionMenu()">
         <div class="chat-action-menu" id="chatActionMenu" onclick="event.stopPropagation()">
             <button class="chat-action-btn" onclick="triggerReplyAction()"><span class="material-icons-round">reply</span> Reply</button>
+            <button class="chat-action-btn" onclick="triggerEditChatAction()"><span class="material-icons-round">edit</span> Edit Message</button>
+            <button class="chat-action-btn" onclick="triggerPinChatAction()"><span class="material-icons-round">push_pin</span> Pin/Unpin</button>
             <button class="chat-action-btn text-danger" onclick="triggerDeleteChatAction()"><span class="material-icons-round">delete</span> Delete Message</button>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editChatMessageModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title mb-0" style="font-size:15px;">Edit Message</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <form id="formEditChatMessage" class="d-flex flex-column gap-2 mb-0">
+                        <input type="hidden" id="editChatMsgId">
+                        <textarea id="editChatMsgText" class="form-control bg-light" rows="4" style="font-size:13px;" required></textarea>
+                        <button type="submit" class="btn btn-primary w-100 mt-2 fw-bold" id="btnEditChatMsgSubmit">Save Changes</button>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -899,7 +955,7 @@
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <script src="app.js?v=5.0"></script>
+    <script src="app.js?v=6.0"></script>
     
     <script>
         setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-GB'); }, 1000);
