@@ -173,7 +173,6 @@ async function getValidPushSubscribers(audienceType) {
     
     const subs = await pool.query(query);
     
-    // If targeting public only, we skip WordPress DB verification
     if (audienceType === 'non_logged_in') {
         const unique = [];
         const eps = new Set();
@@ -183,7 +182,6 @@ async function getValidPushSubscribers(audienceType) {
         return unique;
     }
 
-    // Isolate emails that require verification
     const emailsToCheck = [...new Set(subs.rows.filter(r => r.email !== 'public').map(r => r.email))];
     const actuallyValidEmails = new Set([ADMIN_EMAIL, ...DEMO_USERS.map(u => u.email), 'public']);
     const expiredEmails = new Set();
@@ -193,7 +191,6 @@ async function getValidPushSubscribers(audienceType) {
         try {
             const [wpRows] = await authPool.query(`SELECT student_email, student_expiry_date FROM wp_gf_student_registrations WHERE student_email IN (${placeholders})`, emailsToCheck);
             
-            // Calculate Current exact IST Date Object
             const d = new Date();
             const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
             const nowIST = new Date(utc + (3600000 * 5.5));
@@ -205,21 +202,19 @@ async function getValidPushSubscribers(audienceType) {
                 }
             });
 
-            // Tag expired or missing accounts
             emailsToCheck.forEach(email => {
                 if (!actuallyValidEmails.has(email)) expiredEmails.add(email);
             });
         } catch(e) {
-            console.error("Auth DB Error during push sync", e);
-            emailsToCheck.forEach(email => actuallyValidEmails.add(email)); // Failsafe
+            console.error("Auth DB Error during push sync (Failsafe activated)", e.message);
+            emailsToCheck.forEach(email => actuallyValidEmails.add(email)); 
         }
     }
 
-    // Downgrade expired users to Public in PostgreSQL so they lose Trade Alerts instantly
     if (expiredEmails.size > 0) {
         const expiredArray = Array.from(expiredEmails);
         await pool.query("UPDATE push_subscriptions SET email = 'public' WHERE email = ANY($1)", [expiredArray]).catch(()=>{});
-        console.log(`📉 Push Subs Downgraded (Expired as per IST): ${expiredArray.length} users`);
+        console.log(`📉 Push Subs Downgraded (Expired): ${expiredArray.length} users`);
     }
 
     const uniqueSubs = [];
@@ -245,8 +240,9 @@ async function getValidPushSubscribers(audienceType) {
 // System-Generated Automated Trade Pushes
 async function sendPushNotification(payload) {
     try {
-        // Automatically fetches ONLY verified, non-expired logged-in users
+        console.log(`🔔 PREPARING TRADE PUSH: ${payload.title}`);
         const uniqueSubs = await getValidPushSubscribers('logged_in');
+        console.log(`🔔 Sending to ${uniqueSubs.length} validated logged-in devices.`);
         
         uniqueSubs.forEach(sub => {
             webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
@@ -254,12 +250,11 @@ async function sendPushNotification(payload) {
             });
         });
 
-        // Add the Trade notification automatically to the Push Chat Manager for Admin
         await pool.query(
-            "INSERT INTO scheduled_notifications (title, body, url, status, target_audience) VALUES ($1, $2, $3, 'sent', 'logged_in')",
+            "INSERT INTO scheduled_notifications (title, body, url, status, target_audience, recurrence) VALUES ($1, $2, $3, 'sent', 'logged_in', 'none')",
             [payload.title, payload.body, payload.url || '/']
         );
-    } catch (err) { console.error("Error sending trade push", err); }
+    } catch (err) { console.error("❌ Error sending trade push", err); }
 }
 
 async function checkTradePushEnabled() {
@@ -287,9 +282,8 @@ app.get('/api/push/public_key', (req, res) => {
 app.post('/api/push/subscribe', async (req, res) => {
     const subscription = req.body;
     const endpoint = subscription.endpoint;
-    let email = 'public'; // Default for non-logged-in devices
+    let email = 'public'; 
 
-    // Extract email securely if they are logged in
     const token = req.cookies.authToken;
     if (token) {
         try {
@@ -841,7 +835,7 @@ const worker = new Worker('video-encoding', async job => {
     });
 }, { connection: redisConnection });
 
-// --- DEDUPLICATED & TARGETED PUSH WORKER ---
+// --- DEDUPLICATED, TARGETED & RECURRING PUSH WORKER ---
 const pushWorker = new Worker('push-notifications', async job => {
     const { notificationId } = job.data;
     const { rows } = await pool.query("SELECT * FROM scheduled_notifications WHERE id = $1 AND status = 'pending'", [notificationId]);
@@ -859,8 +853,21 @@ const pushWorker = new Worker('push-notifications', async job => {
                 });
             }
             
-            await pool.query("UPDATE scheduled_notifications SET status = 'sent' WHERE id = $1", [notificationId]);
-            console.log(`✅ Scheduled push notification sent: ${notification.title}`);
+            // Check for Recurrence Schedule
+            if (notification.recurrence && notification.recurrence !== 'none') {
+                let nextTime = new Date(notification.scheduled_for || new Date());
+                if (notification.recurrence === 'daily') nextTime.setDate(nextTime.getDate() + 1);
+                else if (notification.recurrence === 'weekly') nextTime.setDate(nextTime.getDate() + 7);
+                
+                await pool.query("UPDATE scheduled_notifications SET scheduled_for = $1 WHERE id = $2", [nextTime, notificationId]);
+                
+                const delay = nextTime.getTime() - Date.now();
+                await pushQueue.add('send-push', { notificationId }, { delay: Math.max(delay, 0), jobId: `push_${notificationId}_${nextTime.getTime()}` });
+                console.log(`🔁 Notification ${notificationId} sent and rescheduled for ${nextTime}`);
+            } else {
+                await pool.query("UPDATE scheduled_notifications SET status = 'sent' WHERE id = $1", [notificationId]);
+                console.log(`✅ Scheduled push notification sent: ${notification.title}`);
+            }
         } catch (e) {
             console.error("❌ Scheduled push failed:", e);
         }
@@ -919,7 +926,7 @@ app.post('/api/admin/lessons/reorder', authenticateToken, isAdmin, async (req, r
 });
 
 // ==========================================
-// PUSH NOTIFICATION ADMIN ROUTES (WITH TARGETING)
+// PUSH NOTIFICATION ADMIN ROUTES (WITH TARGETING & RECURRENCE)
 // ==========================================
 app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
     try {
@@ -929,7 +936,7 @@ app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res)
 });
 
 app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
-    const { title, body, url, schedule_time, target_audience } = req.body;
+    const { title, body, url, schedule_time, target_audience, recurrence } = req.body;
     try {
         let parsedScheduleTime = null;
         if (schedule_time) {
@@ -942,8 +949,8 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res
         }
 
         const result = await pool.query(
-            "INSERT INTO scheduled_notifications (title, body, url, scheduled_for, status, target_audience) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
-            [title, body, url || '/', parsedScheduleTime || null, parsedScheduleTime ? 'pending' : 'sent', target_audience || 'both']
+            "INSERT INTO scheduled_notifications (title, body, url, scheduled_for, status, target_audience, recurrence) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+            [title, body, url || '/', parsedScheduleTime || null, parsedScheduleTime ? 'pending' : 'sent', target_audience || 'both', recurrence || 'none']
         );
         const notificationId = result.rows[0].id;
 
@@ -959,7 +966,7 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res
             });
         } else {
             const delay = new Date(parsedScheduleTime).getTime() - Date.now();
-            await pushQueue.add('send-push', { notificationId }, { delay: Math.max(delay, 0), jobId: `push_${notificationId}` });
+            await pushQueue.add('send-push', { notificationId }, { delay: Math.max(delay, 0), jobId: `push_${notificationId}_${Date.now()}` });
         }
         res.json({ success: true, msg: "Notification saved!" });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
@@ -968,8 +975,13 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res
 app.delete('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, res) => {
     try {
         await pool.query("DELETE FROM scheduled_notifications WHERE id = $1", [req.params.id]);
-        const existingJob = await pushQueue.getJob(`push_${req.params.id}`);
-        if (existingJob) await existingJob.remove();
+        
+        // Kill any pending jobs for this notification (including repeating ones)
+        const jobs = await pushQueue.getDelayed();
+        for (let job of jobs) {
+            if (job.data.notificationId === parseInt(req.params.id)) await job.remove();
+        }
+
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
