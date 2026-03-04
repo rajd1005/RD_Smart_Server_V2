@@ -28,16 +28,15 @@ window.onload = function() {
     
     checkDisclaimer();
     registerServiceWorker(); 
+    fetchUserNotifications(); 
 };
 
-// --- NEW FALLBACK BACKGROUND POLLER TO GUARANTEE LIVE UPDATES ---
 setInterval(() => {
     const tradeSec = document.getElementById('tradeSection');
     if (tradeSec && tradeSec.style.display === 'block' && !isSelectionMode) {
         fetchTrades();
     }
 }, 5000); 
-// ---------------------------------------------------------------
 
 async function registerServiceWorker() {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -893,16 +892,16 @@ function initDatePicker() {
     datePicker = flatpickr("#filterDateRange", { mode: "range", dateFormat: "Y-m-d", defaultDate: today, onChange: function() { applyFilters(); } });
 }
 
-// --- NEW: IN-APP MONEY SOUND ---
 const tradeSound = new Audio('/chaching.mp3');
 
+// --- UPDATE: BIND BELL TRAY FETCH TO SOCKET EVENTS ---
 socket.on('trade_update', () => { 
     fetchTrades(); 
+    fetchChatNotifications(); // Update admin chat UI
+    fetchUserNotifications(); // Update student bell tray UI
     
-    // Play the money sound when a trade updates and the app is open
-    // (Note: Browsers require the user to have clicked somewhere on the page first before audio can auto-play)
     tradeSound.play().catch(e => {
-        console.log("Browser blocked auto-play sound until user interacts with the page.");
+        console.log("Browser blocked auto-play sound until user interacts.");
     });
 });
 
@@ -1133,9 +1132,49 @@ if (filterTypeEl) filterTypeEl.addEventListener('change', () => applyFilters());
 const filterCategoryEl = document.getElementById('filterCategory');
 if (filterCategoryEl) filterCategoryEl.addEventListener('change', () => applyFilters());
 
+// ========================================================
+// USER NOTIFICATION TRAY (BELL LOGIC)
+// ========================================================
+async function fetchUserNotifications() {
+    const list = document.getElementById('userNotificationList');
+    if(!list) return;
+    
+    try {
+        const res = await fetch('/api/notifications', { credentials: 'same-origin' });
+        const json = await res.json();
+        if(json.success) {
+            const data = json.data;
+            if (data.length === 0) {
+                list.innerHTML = '<div class="text-center text-muted mt-3" style="font-size:12px;">No notifications yet.</div>';
+                return;
+            }
+
+            list.innerHTML = data.map(n => {
+                const dateObj = new Date(n.created_at);
+                const dateStr = dateObj.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }) + ' ' + dateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
+                
+                let borderColor = 'var(--blue)';
+                if (n.title.includes('SETUP')) borderColor = 'var(--green)';
+                if (n.title.includes('HIT') || n.title.includes('CLOSED')) borderColor = 'var(--red)';
+                if (n.title.includes('SIGNAL')) borderColor = '#f39c12';
+
+                return `
+                <div class="user-notif-card" style="border-left-color: ${borderColor}">
+                    <div class="user-notif-title">${n.title}</div>
+                    <div class="user-notif-body">${n.body}</div>
+                    ${n.url && n.url !== '/' ? `<a href="${n.url}" target="_blank" style="font-size:10px; display:block; margin-top:4px;">${n.url}</a>` : ''}
+                    <div class="user-notif-time">${dateStr}</div>
+                </div>`;
+            }).join('');
+        }
+    } catch (e) {
+        list.innerHTML = '<div class="text-center text-danger mt-3" style="font-size:12px;">Error loading.</div>';
+    }
+}
+
 
 // ========================================================
-// PUSH NOTIFICATION CHAT UI LOGIC
+// PUSH NOTIFICATION ADMIN CHAT UI LOGIC
 // ========================================================
 let chatNotifications = [];
 
