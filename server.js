@@ -251,31 +251,29 @@ async function sendPushNotification(payload) {
         const uniqueSubs = await getValidPushSubscribers('logged_in');
         console.log(`🚀 Final Targeted Audience: ${uniqueSubs.length} Active Logged-in Devices`);
         
-        uniqueSubs.forEach(sub => {
-            webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
+        for (let sub of uniqueSubs) {
+            await webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
                 if (e.statusCode === 410) { pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{}); }
             });
-        });
+        }
 
         // Add the Trade notification automatically to the Push Chat Manager for Admin
         await pool.query(
             "INSERT INTO scheduled_notifications (title, body, url, status, target_audience, recurrence) VALUES ($1, $2, $3, 'sent', 'logged_in', 'none')",
             [payload.title, payload.body, payload.url || '/']
         );
-        console.log(`✅ Trade Push Saved to Dashboard History!\n`);
-    } catch (err) { console.error("❌ Error sending trade push", err); }
+        console.log(`✅ Trade Push Successfully Saved to Dashboard History!\n`);
+    } catch (err) { console.error("❌ Error sending trade push:", err); }
 }
 
 async function checkTradePushEnabled() {
     try {
-        const cachedSettings = await redisClient.get('system_settings').catch(()=>null);
-        if (cachedSettings) {
-            const settings = JSON.parse(cachedSettings);
-            if (settings.push_trade_alerts === 'false') return false;
-            return true;
-        }
         const res = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'push_trade_alerts'");
-        if (res.rows.length > 0 && res.rows[0].setting_value === 'false') return false;
+        if (res.rows.length > 0) {
+            const val = res.rows[0].setting_value;
+            // Explicitly evaluate string 'false' and boolean false
+            if (val === 'false' || val === false || val === '0') return false;
+        }
         return true;
     } catch(e) { return true; }
 }
@@ -858,7 +856,6 @@ const pushWorker = new Worker('push-notifications', async job => {
     if (rows.length > 0) {
         const notification = rows[0];
         try {
-            // Automatically fetch only active, verified, non-expired targets
             const uniqueSubs = await getValidPushSubscribers(notification.target_audience || 'both');
             const payload = { title: notification.title, body: notification.body, url: notification.url || '/' };
 
@@ -868,7 +865,6 @@ const pushWorker = new Worker('push-notifications', async job => {
                 });
             }
             
-            // Check for Recurrence Schedule
             if (notification.recurrence && notification.recurrence !== 'none') {
                 let nextTime = new Date(notification.scheduled_for || new Date());
                 if (notification.recurrence === 'daily') nextTime.setDate(nextTime.getDate() + 1);
@@ -941,7 +937,7 @@ app.post('/api/admin/lessons/reorder', authenticateToken, isAdmin, async (req, r
 });
 
 // ==========================================
-// PUSH NOTIFICATION ADMIN ROUTES (WITH TARGETING & RECURRENCE)
+// PUSH NOTIFICATION ADMIN ROUTES 
 // ==========================================
 app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
     try {
@@ -970,7 +966,6 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res
         const notificationId = result.rows[0].id;
 
         if (!parsedScheduleTime) {
-            // Automatically fetch only active, verified, non-expired targets
             const uniqueSubs = await getValidPushSubscribers(target_audience || 'both');
             const payload = { title, body, url: url || '/' };
             
@@ -991,7 +986,6 @@ app.delete('/api/admin/notifications/:id', authenticateToken, isAdmin, async (re
     try {
         await pool.query("DELETE FROM scheduled_notifications WHERE id = $1", [req.params.id]);
         
-        // Kill any pending jobs for this notification (including repeating ones)
         const jobs = await pushQueue.getDelayed();
         for (let job of jobs) {
             if (job.data.notificationId === parseInt(req.params.id)) await job.remove();
@@ -1009,35 +1003,67 @@ app.get('/api/trades', authenticateToken, async (req, res) => {
 app.post('/api/signal_detected', async (req, res) => {
     const { trade_id, symbol, type } = req.body;
     try {
-        const sentMsg = await bot.sendMessage(CHAT_ID, `🚨 *NEW SIGNAL DETECTED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n📊 *Type:* ${toMarkdown(type)}\n🕒 *Time:* ${toMarkdown(getISTTime())}`, { parse_mode: 'Markdown' });
-        await pool.query(`INSERT INTO trades (trade_id, symbol, type, telegram_msg_id, created_at, status) VALUES ($1, $2, $3, $4, $5, 'SIGNAL') ON CONFLICT (trade_id) DO NOTHING;`, [trade_id, symbol, type, sentMsg.message_id, getDBTime()]);
+        console.log(`\n➡️ TRADE WEBHOOK RECEIVED: SIGNAL (${symbol} ${type})`);
+        
+        // Isolate Telegram to prevent crashes from blocking Pushes
+        let sentMsgId = null;
+        try {
+            const sentMsg = await bot.sendMessage(CHAT_ID, `🚨 *NEW SIGNAL DETECTED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n📊 *Type:* ${toMarkdown(type)}\n🕒 *Time:* ${toMarkdown(getISTTime())}`, { parse_mode: 'Markdown' });
+            sentMsgId = sentMsg.message_id;
+        } catch (tgErr) { console.error("⚠️ Telegram Send Failed (Skipping TG):", tgErr.message); }
+
+        await pool.query(`INSERT INTO trades (trade_id, symbol, type, telegram_msg_id, created_at, status) VALUES ($1, $2, $3, $4, $5, 'SIGNAL') ON CONFLICT (trade_id) DO NOTHING;`, [trade_id, symbol, type, sentMsgId, getDBTime()]);
         await pool.query("DELETE FROM trades WHERE CAST(created_at AS TIMESTAMP) < NOW() - INTERVAL '30 days'");
         
         io.emit('trade_update'); 
-        if (await checkTradePushEnabled()) { sendPushNotification({ title: '🚨 NEW SIGNAL', body: `${symbol} - ${type}` }); }
+        
+        const isPushEnabled = await checkTradePushEnabled();
+        console.log(`⚙️ Trade Push Enabled in Settings? : ${isPushEnabled}`);
+        
+        if (isPushEnabled) { 
+            // AWAIT the push so Railway doesn't kill the thread early
+            await sendPushNotification({ title: '🚨 NEW SIGNAL', body: `${symbol} - ${type}` }); 
+        }
         
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        console.error("❌ SIGNAL ENDPOINT ERROR:", err);
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 app.post('/api/setup_confirmed', async (req, res) => {
     const { trade_id, symbol, type, entry, sl, tp1, tp2, tp3 } = req.body;
     try {
+        console.log(`\n➡️ TRADE WEBHOOK RECEIVED: SETUP CONFIRMED (${symbol})`);
+
         const oldTrades = await pool.query("SELECT * FROM trades WHERE symbol = $1 AND status IN ('SIGNAL', 'SETUP', 'ACTIVE') AND trade_id != $2", [symbol, trade_id]);
         for (const t of oldTrades.rows) {
             await pool.query("UPDATE trades SET status = 'CLOSED (Reversal)' WHERE trade_id = $1", [t.trade_id]);
-            if(t.telegram_msg_id) { bot.sendMessage(CHAT_ID, `🔄 *Trade Reversed*\n❌ Closed by new signal.`, { reply_to_message_id: t.telegram_msg_id, parse_mode: 'Markdown' }); }
+            if(t.telegram_msg_id) { bot.sendMessage(CHAT_ID, `🔄 *Trade Reversed*\n❌ Closed by new signal.`, { reply_to_message_id: t.telegram_msg_id, parse_mode: 'Markdown' }).catch(()=>{}); }
         }
         const check = await pool.query("SELECT telegram_msg_id FROM trades WHERE trade_id = $1", [trade_id]);
         await pool.query(`INSERT INTO trades (trade_id, symbol, type, entry_price, sl_price, tp1_price, tp2_price, tp3_price, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'SETUP', $9) ON CONFLICT (trade_id) DO UPDATE SET entry_price = EXCLUDED.entry_price, sl_price = EXCLUDED.sl_price, tp1_price = EXCLUDED.tp1_price, tp2_price = EXCLUDED.tp2_price, tp3_price = EXCLUDED.tp3_price, status = 'SETUP';`, [trade_id, symbol, type, entry, sl, tp1, tp2, tp3, getDBTime()]);
-        const opts = { parse_mode: 'Markdown' }; if (check.rows[0]?.telegram_msg_id) opts.reply_to_message_id = check.rows[0].telegram_msg_id;
-        await bot.sendMessage(CHAT_ID, `✅ *SETUP CONFIRMED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n🚀 *Type:* ${toMarkdown(type)}\n🚪 *Entry:* ${toMarkdown(entry)}\n🛑 *SL:* ${toMarkdown(sl)}\n\n🎯 *TP1:* ${toMarkdown(tp1)}\n🎯 *TP2:* ${toMarkdown(tp2)}\n🎯 *TP3:* ${toMarkdown(tp3)}`, opts);
         
+        try {
+            const opts = { parse_mode: 'Markdown' }; if (check.rows[0]?.telegram_msg_id) opts.reply_to_message_id = check.rows[0].telegram_msg_id;
+            await bot.sendMessage(CHAT_ID, `✅ *SETUP CONFIRMED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n🚀 *Type:* ${toMarkdown(type)}\n🚪 *Entry:* ${toMarkdown(entry)}\n🛑 *SL:* ${toMarkdown(sl)}\n\n🎯 *TP1:* ${toMarkdown(tp1)}\n🎯 *TP2:* ${toMarkdown(tp2)}\n🎯 *TP3:* ${toMarkdown(tp3)}`, opts);
+        } catch(tgErr) { console.error("⚠️ Telegram Send Failed (Skipping TG):", tgErr.message); }
+
         io.emit('trade_update'); 
-        if (await checkTradePushEnabled()) { sendPushNotification({ title: '✅ SETUP CONFIRMED', body: `${symbol} - Entry: ${entry}` }); }
+        
+        const isPushEnabled = await checkTradePushEnabled();
+        console.log(`⚙️ Trade Push Enabled in Settings? : ${isPushEnabled}`);
+        
+        if (isPushEnabled) { 
+            await sendPushNotification({ title: '✅ SETUP CONFIRMED', body: `${symbol} - Entry: ${entry}` }); 
+        }
         
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        console.error("❌ SETUP ENDPOINT ERROR:", err);
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 app.post('/api/price_update', async (req, res) => {
@@ -1052,6 +1078,8 @@ app.post('/api/price_update', async (req, res) => {
 app.post('/api/log_event', async (req, res) => {
     const { trade_id, new_status, price } = req.body;
     try {
+        console.log(`\n➡️ TRADE WEBHOOK RECEIVED: EVENT (${new_status})`);
+
         const result = await pool.query("SELECT * FROM trades WHERE trade_id = $1", [trade_id]);
         if (result.rows.length === 0) return res.json({ success: false, msg: "Trade not found" });
         const trade = result.rows[0];
@@ -1059,15 +1087,28 @@ app.post('/api/log_event', async (req, res) => {
         if (trade.status === 'TP3 HIT' && (new_status === 'TP2 HIT' || new_status === 'TP1 HIT')) return res.json({ success: true });
         if (trade.status === 'TP2 HIT' && new_status === 'TP1 HIT') return res.json({ success: true });
         if (trade.status === new_status) return res.json({ success: true }); 
+
         await pool.query("UPDATE trades SET status = $1, points_gained = $2 WHERE trade_id = $3", [new_status, calculatePoints(trade.type, trade.entry_price, price), trade_id]);
-        const opts = { parse_mode: 'Markdown' }; if (trade.telegram_msg_id) opts.reply_to_message_id = trade.telegram_msg_id;
-        await bot.sendMessage(CHAT_ID, `⚡ *UPDATE: ${toMarkdown(new_status)}*\n\n💎 *Symbol:* #${toMarkdown(trade.symbol)}\n📉 *Price:* ${toMarkdown(price)}`, opts);
+        
+        try {
+            const opts = { parse_mode: 'Markdown' }; if (trade.telegram_msg_id) opts.reply_to_message_id = trade.telegram_msg_id;
+            await bot.sendMessage(CHAT_ID, `⚡ *UPDATE: ${toMarkdown(new_status)}*\n\n💎 *Symbol:* #${toMarkdown(trade.symbol)}\n📉 *Price:* ${toMarkdown(price)}`, opts);
+        } catch(tgErr) { console.error("⚠️ Telegram Send Failed (Skipping TG):", tgErr.message); }
         
         io.emit('trade_update'); 
-        if (await checkTradePushEnabled()) { sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); }
+        
+        const isPushEnabled = await checkTradePushEnabled();
+        console.log(`⚙️ Trade Push Enabled in Settings? : ${isPushEnabled}`);
+
+        if (isPushEnabled) { 
+            await sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); 
+        }
         
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        console.error("❌ LOG EVENT ENDPOINT ERROR:", err);
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 app.post('/api/delete_trades', authenticateToken, async (req, res) => {
