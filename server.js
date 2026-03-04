@@ -152,6 +152,7 @@ app.use(async (req, res, next) => {
 });
 
 app.use(express.static(path.join(__dirname, 'public'))); 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*", credentials: true } });
@@ -853,7 +854,7 @@ const pushWorker = new Worker('push-notifications', async job => {
         const notification = rows[0];
         try {
             const uniqueSubs = await getValidPushSubscribers(notification.target_audience || 'both');
-            const payload = { title: notification.title, body: notification.body, url: notification.url || '/' };
+            const payload = { title: notification.title, body: notification.body, url: notification.url || '/', image: notification.image_path };
 
             for (let sub of uniqueSubs) {
                 await webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
@@ -875,6 +876,13 @@ const pushWorker = new Worker('push-notifications', async job => {
                 await pool.query("UPDATE scheduled_notifications SET status = 'sent' WHERE id = $1", [notificationId]);
                 io.emit('new_notification');
                 console.log(`✅ Scheduled push notification sent: ${notification.title}`);
+
+                // --- DELETE SCHEDULED IMAGE AFTER ONE-TIME SEND ---
+                if (notification.image_path) {
+                    const filePath = path.join(__dirname, notification.image_path);
+                    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                    await pool.query("UPDATE scheduled_notifications SET image_path = NULL WHERE id = $1", [notificationId]);
+                }
             }
         } catch (e) {
             console.error("❌ Scheduled push failed:", e);
@@ -961,8 +969,11 @@ app.get('/api/user/notifications', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
+app.post('/api/admin/notifications', authenticateToken, isAdmin, upload.single('push_image'), async (req, res) => {
     const { title, body, url, schedule_time, target_audience, recurrence } = req.body;
+    let imagePath = req.file ? `/uploads/${req.file.filename}` : null;
+    let absoluteImagePath = req.file ? req.file.path : null;
+
     try {
         let parsedScheduleTime = null;
         if (schedule_time) {
@@ -975,14 +986,14 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res
         }
 
         const result = await pool.query(
-            "INSERT INTO scheduled_notifications (title, body, url, scheduled_for, status, target_audience, recurrence) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-            [title, body, url || '/', parsedScheduleTime || null, parsedScheduleTime ? 'pending' : 'sent', target_audience || 'both', recurrence || 'none']
+            "INSERT INTO scheduled_notifications (title, body, url, scheduled_for, status, target_audience, recurrence, image_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+            [title, body, url || '/', parsedScheduleTime || null, parsedScheduleTime ? 'pending' : 'sent', target_audience || 'both', recurrence || 'none', imagePath]
         );
         const notificationId = result.rows[0].id;
 
         if (!parsedScheduleTime) {
             const uniqueSubs = await getValidPushSubscribers(target_audience || 'both');
-            const payload = { title, body, url: url || '/' };
+            const payload = { title, body, url: url || '/', image: imagePath };
             
             uniqueSubs.forEach(sub => { 
                 webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
@@ -990,6 +1001,13 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res
                 }); 
             });
             io.emit('new_notification');
+
+            // --- DELETE IMAGE IMMEDIATELY AFTER SENDING ---
+            if (absoluteImagePath && fs.existsSync(absoluteImagePath)) {
+                fs.unlinkSync(absoluteImagePath);
+                await pool.query("UPDATE scheduled_notifications SET image_path = NULL WHERE id = $1", [notificationId]);
+            }
+
         } else {
             const delay = new Date(parsedScheduleTime).getTime() - Date.now();
             await pushQueue.add('send-push', { notificationId }, { delay: Math.max(delay, 0), jobId: `push_${notificationId}_${Date.now()}` });
@@ -1026,7 +1044,11 @@ app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, 
             await pushQueue.add('send-push', { notificationId: parseInt(req.params.id) }, { delay: Math.max(delay, 0), jobId: `push_${req.params.id}_${Date.now()}` });
         } else {
             const uniqueSubs = await getValidPushSubscribers(target_audience || 'both');
-            const payload = { title, body, url: url || '/' };
+            // Re-fetch to get image_path if it exists (for immediate send update)
+            const { rows } = await pool.query("SELECT image_path FROM scheduled_notifications WHERE id = $1", [req.params.id]);
+            const imagePath = rows.length > 0 ? rows[0].image_path : null;
+
+            const payload = { title, body, url: url || '/', image: imagePath };
             uniqueSubs.forEach(sub => { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); });
             io.emit('new_notification');
         }
@@ -1037,6 +1059,13 @@ app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, 
 
 app.delete('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, res) => {
     try {
+        // Find if there is an image associated with this notification and delete it
+        const { rows } = await pool.query("SELECT image_path FROM scheduled_notifications WHERE id = $1", [req.params.id]);
+        if (rows.length > 0 && rows[0].image_path) {
+            const filePath = path.join(__dirname, rows[0].image_path);
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        }
+
         await pool.query("DELETE FROM scheduled_notifications WHERE id = $1", [req.params.id]);
         
         const jobs = await pushQueue.getDelayed();
