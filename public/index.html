@@ -197,10 +197,16 @@
             <div class="p-2 bg-white border-top shadow-lg">
                 <form id="formChatPush" class="d-flex flex-column gap-2 mb-0">
                     <select id="chatPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px; font-weight:bold; color:var(--blue);">
-                        <option value="both">🌍 Send to ALL Users (Login + Public)</option>
-                        <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
-                        <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
-                    </select>
+    <option value="both">🌍 Send to ALL Users (Login + Public)</option>
+    <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
+    <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
+    <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
+    <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
+    <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
+    <option value="login_with_level_2">🔒 Login User with Level 2</option>
+    <option value="login_with_level_3">🔒 Login User with Level 3</option>
+    <option value="login_with_level_4">🔒 Login User with Level 4</option>
+</select>
                     <input type="text" id="chatPushTitle" class="form-control bg-light" placeholder="Notification Title (e.g. 🚨 New Strategy)" style="font-size:13px; font-weight:bold;" required>
                     <textarea id="chatPushBody" class="form-control bg-light" rows="2" placeholder="Type your message description here..." style="font-size:13px;" required></textarea>
                     
@@ -274,10 +280,16 @@
                         <input type="hidden" id="editPushId">
                         <label class="form-label fw-bold mb-0" style="font-size: 10px; color: var(--text-secondary);">Target Audience</label>
                         <select id="editPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px;">
-                            <option value="both">🌍 Send to ALL Users (Login + Public)</option>
-                            <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
-                            <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
-                        </select>
+    <option value="both">🌍 Send to ALL Users (Login + Public)</option>
+    <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
+    <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
+    <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
+    <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
+    <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
+    <option value="login_with_level_2">🔒 Login User with Level 2</option>
+    <option value="login_with_level_3">🔒 Login User with Level 3</option>
+    <option value="login_with_level_4">🔒 Login User with Level 4</option>
+</select>
                         <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Title</label>
                         <input type="text" id="editPushTitle" class="form-control bg-light" style="font-size:13px;" required>
                         <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Body</label>
