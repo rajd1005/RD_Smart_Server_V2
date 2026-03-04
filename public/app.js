@@ -22,12 +22,22 @@ window.onload = function() {
     initDatePicker();
     fetchTrades(); 
     fetchCourses(); 
+    fetchUserNotifications(); // <-- Added to load notifications on app start
     applyRoleRestrictions(); 
     
     switchSection('learning'); 
     
     checkDisclaimer();
     registerServiceWorker(); 
+    
+    // <-- Added logic to hide the red badge when user opens the notification panel
+    const notifSheet = document.getElementById('notificationSheet');
+    if (notifSheet) {
+        notifSheet.addEventListener('show.bs.offcanvas', function () {
+            const badge = document.getElementById('notifBadge');
+            if (badge) badge.style.display = 'none';
+        });
+    }
 };
 
 // --- NEW FALLBACK BACKGROUND POLLER TO GUARANTEE LIVE UPDATES ---
@@ -906,6 +916,17 @@ socket.on('trade_update', () => {
     });
 });
 
+// --- NEW: LISTEN FOR NEW BROADCAST NOTIFICATIONS & ALERTS ---
+socket.on('new_notification', () => {
+    if (typeof fetchUserNotifications === 'function') fetchUserNotifications();
+    if (typeof fetchChatNotifications === 'function') fetchChatNotifications();
+    
+    const badge = document.getElementById('notifBadge');
+    if (badge) badge.style.display = 'block';
+    
+    tradeSound.play().catch(e => {});
+});
+
 socket.on('force_logout', (data) => {
     const currentEmail = localStorage.getItem('userEmail');
     const currentSessionId = localStorage.getItem('sessionId');
@@ -1244,3 +1265,40 @@ window.deleteChatPush = async function(id) {
         if(res.ok) fetchChatNotifications();
     } catch(e) { alert("Error deleting."); }
 };
+
+// --- NEW: FETCH AND RENDER LOGGED-IN USER NOTIFICATIONS / ALERTS ---
+async function fetchUserNotifications() {
+    const list = document.getElementById('userNotificationList');
+    if(!list) return;
+    
+    try {
+        const res = await fetch('/api/user/notifications', { credentials: 'same-origin' });
+        if (!res.ok) return;
+        const json = await res.json();
+        
+        if(json.success) {
+            const notifs = json.data;
+            if(notifs.length === 0) {
+                list.innerHTML = '<div class="text-center text-muted mt-3" style="font-size:12px;">No notifications yet.</div>';
+                return;
+            }
+            
+            list.innerHTML = notifs.map(n => {
+                const dateObj = n.scheduled_for ? new Date(n.scheduled_for) : new Date(n.created_at);
+                const dateStr = dateObj.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }) + ' ' + dateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
+                
+                return `
+                <div class="chat-bubble sent" style="max-width: 100%; margin-left:0; border-radius: 8px;">
+                    <div class="chat-title">${n.title}</div>
+                    <div class="chat-body">${n.body}</div>
+                    ${n.url && n.url !== '/' ? `<a href="${n.url}" target="_blank" class="chat-link">${n.url}</a>` : ''}
+                    <div class="chat-meta mt-1 pt-1">
+                        <span>${dateStr}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    } catch (e) {
+        list.innerHTML = '<div class="text-center text-danger mt-3" style="font-size:12px;">Error loading alerts.</div>';
+    }
+}
