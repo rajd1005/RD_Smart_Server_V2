@@ -1348,6 +1348,14 @@ window.openEditPushModal = function(n) {
     document.getElementById('editPushUrl').value = n.url !== '/' ? n.url : '';
     document.getElementById('editPushRecurrence').value = n.recurrence || 'none';
     
+    const imgInput = document.getElementById('editPushImage');
+    if(imgInput) imgInput.value = ''; // Reset file input
+    
+    const currentImgLabel = document.getElementById('editPushCurrentImgLabel');
+    if(currentImgLabel) {
+        currentImgLabel.style.display = n.image_path ? 'block' : 'none';
+    }
+
     if (n.scheduled_for) {
         // Convert ISO to datetime-local format (YYYY-MM-DDThh:mm) respecting timezone offset
         const d = new Date(n.scheduled_for);
@@ -1380,20 +1388,26 @@ if (formEditPush) {
         btn.disabled = true; btn.innerText = 'Saving...';
 
         const id = document.getElementById('editPushId').value;
-        const payload = {
-            target_audience: document.getElementById('editPushTarget').value,
-            title: document.getElementById('editPushTitle').value,
-            body: document.getElementById('editPushBody').value,
-            url: document.getElementById('editPushUrl').value,
-            schedule_time: document.getElementById('editPushSchedule').value || null,
-            recurrence: document.getElementById('editPushRecurrence').value || 'none'
-        };
+        const formData = new FormData();
+        formData.append('target_audience', document.getElementById('editPushTarget').value);
+        formData.append('title', document.getElementById('editPushTitle').value);
+        formData.append('body', document.getElementById('editPushBody').value);
+        formData.append('url', document.getElementById('editPushUrl').value);
+        
+        const scheduleTime = document.getElementById('editPushSchedule').value;
+        if(scheduleTime) formData.append('schedule_time', scheduleTime);
+        
+        formData.append('recurrence', document.getElementById('editPushRecurrence').value || 'none');
+        
+        const imageEl = document.getElementById('editPushImage');
+        if (imageEl && imageEl.files[0]) {
+            formData.append('push_image', imageEl.files[0]);
+        }
 
         try {
             const res = await fetch(`/api/admin/notifications/${id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: formData,
                 credentials: 'same-origin'
             });
             if (res.ok) {
