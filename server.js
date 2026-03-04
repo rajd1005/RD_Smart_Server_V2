@@ -120,6 +120,13 @@ const isAdmin = (req, res, next) => {
     next();
 };
 
+const isModOrAdmin = (req, res, next) => {
+    if (req.user.role !== 'admin' && req.user.role !== 'chat_moderator') { 
+        return res.status(403).json({ success: false, msg: "Chat Admin/Moderator access required." }); 
+    }
+    next();
+};
+
 app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -390,7 +397,7 @@ app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
         accordion_state, hide_trade_tab, show_gallery, show_call_widget, homepage_layout,
         show_sticky_footer, sticky_btn1_text, sticky_btn1_link, sticky_btn1_icon,
         sticky_btn2_text, sticky_btn2_link, sticky_btn2_icon,
-        show_disclaimer, register_link, push_trade_alerts
+        show_disclaimer, register_link, push_trade_alerts, show_chat_tab
     } = req.body;
     try {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state || 'first']);
@@ -398,6 +405,10 @@ app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_gallery', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_gallery || 'true']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_call_widget', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_call_widget || 'true']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('push_trade_alerts', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [push_trade_alerts || 'true']);
+        
+        if (show_chat_tab !== undefined) {
+            await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_chat_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_chat_tab]);
+        }
         
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_sticky_footer', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_sticky_footer || 'false']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('sticky_btn1_text', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [sticky_btn1_text || '']);
@@ -990,6 +1001,145 @@ app.post('/api/admin/lessons/reorder', authenticateToken, isAdmin, async (req, r
 });
 
 // ==========================================
+// CHAT ADMIN & MODERATOR API ROUTES (NEW)
+// ==========================================
+
+// --- CHAT MODERATOR ADMIN APIs ---
+app.get('/api/admin/moderators', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const result = await pool.query("SELECT email, created_at FROM chat_moderators ORDER BY created_at DESC");
+        res.json({ success: true, data: result.rows });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+app.post('/api/admin/moderators', authenticateToken, isAdmin, async (req, res) => {
+    const { email, password } = req.body;
+    try {
+        const salt = crypto.randomBytes(16).toString('hex');
+        const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+        await pool.query("INSERT INTO chat_moderators (email, salt, hash) VALUES ($1, $2, $3)", [email.trim().toLowerCase(), salt, hash]);
+        res.json({ success: true, msg: "Moderator added successfully" });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+app.delete('/api/admin/moderators/:email', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        await pool.query("DELETE FROM chat_moderators WHERE email = $1", [req.params.email]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// --- CHAT CHANNELS APIs ---
+app.get('/api/chat/channels', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM chat_channels ORDER BY created_at ASC");
+        let channels = result.rows;
+        if (req.user.role === 'student') {
+            channels = channels.filter(c => c.required_level === 'all' || req.user.accessLevels[c.required_level] === 'Yes');
+        }
+        res.json({ success: true, data: channels });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+app.post('/api/chat/channels', authenticateToken, isModOrAdmin, async (req, res) => {
+    const { name, description, required_level } = req.body;
+    try {
+        await pool.query("INSERT INTO chat_channels (name, description, required_level) VALUES ($1, $2, $3)", [name, description || '', required_level || 'all']);
+        io.emit('chat_channels_updated');
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+app.put('/api/chat/channels/:id', authenticateToken, isModOrAdmin, async (req, res) => {
+    const { name, description, required_level } = req.body;
+    try {
+        await pool.query("UPDATE chat_channels SET name = $1, description = $2, required_level = $3 WHERE id = $4", [name, description || '', required_level || 'all', req.params.id]);
+        io.emit('chat_channels_updated');
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+app.delete('/api/chat/channels/:id', authenticateToken, isModOrAdmin, async (req, res) => {
+    try {
+        await pool.query("DELETE FROM chat_channels WHERE id = $1", [req.params.id]);
+        io.emit('chat_channels_updated');
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// --- CHAT MESSAGES APIs ---
+app.get('/api/chat/channels/:channelId/messages', authenticateToken, async (req, res) => {
+    try {
+        const channelId = req.params.channelId;
+        if (req.user.role === 'student') {
+            const ch = await pool.query("SELECT required_level FROM chat_channels WHERE id = $1", [channelId]);
+            if (ch.rows.length === 0) return res.status(404).json({ success: false, msg: "Channel not found" });
+            const reqLevel = ch.rows[0].required_level;
+            if (reqLevel !== 'all' && req.user.accessLevels[reqLevel] !== 'Yes') {
+                return res.status(403).json({ success: false, msg: "Access Denied" });
+            }
+        }
+        const result = await pool.query("SELECT * FROM chat_messages WHERE channel_id = $1 AND status = 'sent' ORDER BY created_at ASC", [channelId]);
+        res.json({ success: true, data: result.rows });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+app.post('/api/chat/messages', authenticateToken, isModOrAdmin, upload.single('chat_image'), async (req, res) => {
+    const { channel_id, message_text, link_url, reply_to_id } = req.body;
+    let imagePath = req.file ? `/uploads/${req.file.filename}` : null;
+    try {
+        const result = await pool.query(
+            "INSERT INTO chat_messages (channel_id, sender_name, message_text, image_path, link_url, reply_to_id, status) VALUES ($1, $2, $3, $4, $5, $6, 'sent') RETURNING *",
+            [channel_id, req.user.role === 'admin' ? 'Admin' : 'Moderator', message_text || '', imagePath, link_url || null, reply_to_id || null]
+        );
+        
+        const newMsg = result.rows[0];
+        io.emit('new_chat_message', newMsg);
+        
+        const ch = await pool.query("SELECT name, required_level FROM chat_channels WHERE id = $1", [channel_id]);
+        if (ch.rows.length > 0) {
+            const reqLevel = ch.rows[0].required_level;
+            let audience = 'logged_in';
+            if (reqLevel === 'level_2_status') audience = 'login_with_level_2';
+            if (reqLevel === 'level_3_status') audience = 'login_with_level_3';
+            if (reqLevel === 'level_4_status') audience = 'login_with_level_4';
+            
+            const uniqueSubs = await getValidPushSubscribers(audience);
+            const payload = { 
+                title: `New Message in ${ch.rows[0].name}`, 
+                body: (message_text || 'Image/Link Attachment').substring(0, 100), 
+                url: '/', 
+                image: imagePath 
+            };
+            
+            uniqueSubs.forEach(sub => { 
+                webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
+                    if(e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
+                }); 
+            });
+        }
+        
+        res.json({ success: true, data: newMsg });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+app.delete('/api/chat/messages/:id', authenticateToken, isModOrAdmin, async (req, res) => {
+    try {
+        const msg = await pool.query("SELECT channel_id FROM chat_messages WHERE id = $1", [req.params.id]);
+        if(msg.rows.length > 0) {
+            const { rows } = await pool.query("SELECT image_path FROM chat_messages WHERE id = $1", [req.params.id]);
+            if (rows.length > 0 && rows[0].image_path) {
+                const filePath = path.join(__dirname, rows[0].image_path);
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            }
+            await pool.query("DELETE FROM chat_messages WHERE id = $1", [req.params.id]);
+            io.emit('delete_chat_message', { id: req.params.id, channel_id: msg.rows[0].channel_id });
+        }
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// ==========================================
 // PUSH NOTIFICATION ADMIN ROUTES 
 // ==========================================
 app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
@@ -1206,8 +1356,6 @@ app.post('/api/signal_detected', async (req, res) => {
         
         io.emit('trade_update'); 
         
-        // Removed Push Notification trigger from here to reduce spam.
-
         res.json({ success: true });
     } catch (err) { 
         console.error("❌ SIGNAL ENDPOINT ERROR:", err);
@@ -1298,7 +1446,6 @@ app.post('/api/log_event', async (req, res) => {
         
         const isPushEnabled = await checkTradePushEnabled();
         
-        // SL HIT Notifications are Muted
         if (isPushEnabled && new_status !== 'SL HIT') { 
             await sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); 
         } else if (new_status === 'SL HIT') {
@@ -1325,7 +1472,6 @@ app.post('/api/delete_trades', authenticateToken, async (req, res) => {
 cron.schedule('30 6 * * *', async () => {
     try {
         await pool.query("DELETE FROM login_logs");
-        // Ensure we only delete sent, NON-recurring notifications
         await pool.query("DELETE FROM scheduled_notifications WHERE created_at < NOW() - INTERVAL '30 days' AND (recurrence = 'none' OR recurrence IS NULL) AND status = 'sent'");
         console.log("✅ Daily Reset: All user sessions cleared and non-recurring notifications older than 30 days deleted at 6:30 AM.");
     } catch (err) {
@@ -1370,7 +1516,6 @@ initDb().then(async () => {
             vapidPrivateKey.trim()
         );
         
-        // Save globally so the frontend API can fetch it
         app.locals.vapidPublicKey = vapidPublicKey.trim();
         console.log("✅ Web Push VAPID configured successfully.");
 
