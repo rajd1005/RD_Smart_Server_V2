@@ -945,6 +945,13 @@ app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res)
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+app.get('/api/admin/notifications/scheduled', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM scheduled_notifications WHERE status = 'pending' OR recurrence != 'none' ORDER BY created_at DESC");
+        res.json({ success: true, data: result.rows });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
 app.get('/api/user/notifications', authenticateToken, async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 15;
@@ -988,6 +995,43 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res
             await pushQueue.add('send-push', { notificationId }, { delay: Math.max(delay, 0), jobId: `push_${notificationId}_${Date.now()}` });
         }
         res.json({ success: true, msg: "Notification saved!" });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, res) => {
+    const { title, body, url, schedule_time, target_audience, recurrence } = req.body;
+    try {
+        let parsedScheduleTime = null;
+        if (schedule_time) {
+            if (!schedule_time.includes('+') && !schedule_time.endsWith('Z')) {
+                const istString = schedule_time.length === 16 ? schedule_time + ":00+05:30" : schedule_time + "+05:30";
+                parsedScheduleTime = new Date(istString).toISOString(); 
+            } else {
+                parsedScheduleTime = new Date(schedule_time).toISOString();
+            }
+        }
+
+        await pool.query(
+            "UPDATE scheduled_notifications SET title = $1, body = $2, url = $3, scheduled_for = $4, target_audience = $5, recurrence = $6, status = $7 WHERE id = $8",
+            [title, body, url || '/', parsedScheduleTime || null, target_audience || 'both', recurrence || 'none', parsedScheduleTime ? 'pending' : 'sent', req.params.id]
+        );
+
+        const jobs = await pushQueue.getDelayed();
+        for (let job of jobs) {
+            if (job.data.notificationId === parseInt(req.params.id)) await job.remove();
+        }
+
+        if (parsedScheduleTime) {
+            const delay = new Date(parsedScheduleTime).getTime() - Date.now();
+            await pushQueue.add('send-push', { notificationId: parseInt(req.params.id) }, { delay: Math.max(delay, 0), jobId: `push_${req.params.id}_${Date.now()}` });
+        } else {
+            const uniqueSubs = await getValidPushSubscribers(target_audience || 'both');
+            const payload = { title, body, url: url || '/' };
+            uniqueSubs.forEach(sub => { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); });
+            io.emit('new_notification');
+        }
+
+        res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
@@ -1155,8 +1199,9 @@ app.post('/api/delete_trades', authenticateToken, async (req, res) => {
 cron.schedule('30 6 * * *', async () => {
     try {
         await pool.query("DELETE FROM login_logs");
-        await pool.query("DELETE FROM scheduled_notifications WHERE created_at < NOW() - INTERVAL '30 days'");
-        console.log("✅ Daily Reset: All user sessions cleared and notifications older than 30 days deleted at 6:30 AM.");
+        // Ensure we only delete sent, NON-recurring notifications
+        await pool.query("DELETE FROM scheduled_notifications WHERE created_at < NOW() - INTERVAL '30 days' AND (recurrence = 'none' OR recurrence IS NULL) AND status = 'sent'");
+        console.log("✅ Daily Reset: All user sessions cleared and non-recurring notifications older than 30 days deleted at 6:30 AM.");
     } catch (err) {
         console.error("❌ Error clearing daily sessions/notifications:", err);
     }
