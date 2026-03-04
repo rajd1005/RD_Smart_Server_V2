@@ -63,10 +63,10 @@ const upload = multer({ dest: 'uploads/' });
 
 const DELETE_PASSWORD = (process.env.DELETE_PASSWORD || "admin123").trim(); 
 const JWT_SECRET = (process.env.JWT_SECRET || "super_secret_key_123").trim();
-const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@rdalgo.in").trim();
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@rdalgo.in").trim().toLowerCase();
 const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || "admin123").trim();
 const DEMO_USERS = [
-    { email: (process.env.DEMO_EMAIL || "demo@rdalgo.in").trim(), password: (process.env.DEMO_PASSWORD || "demo123").trim() },
+    { email: (process.env.DEMO_EMAIL || "demo@rdalgo.in").trim().toLowerCase(), password: (process.env.DEMO_PASSWORD || "demo123").trim() },
     { email: "demo2@rdalgo.in", password: "demo123" },
     { email: "demo3@rdalgo.in", password: "demo123" },
     { email: "demo4@rdalgo.in", password: "demo123" },
@@ -164,7 +164,7 @@ function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPric
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
 // ========================================================
-// PUSH TARGETING & EXPIRATION SYNC LOGIC (IST AWARE)
+// PUSH TARGETING & EXPIRATION SYNC LOGIC (IMMUNIZED)
 // ========================================================
 async function getValidPushSubscribers(audienceType) {
     let query = "SELECT id, email, sub_data FROM push_subscriptions";
@@ -182,7 +182,8 @@ async function getValidPushSubscribers(audienceType) {
         return unique;
     }
 
-    const emailsToCheck = [...new Set(subs.rows.filter(r => r.email !== 'public').map(r => r.email))];
+    // Force rigorous lowercase email matching to prevent mismatched expiries
+    const emailsToCheck = [...new Set(subs.rows.filter(r => r.email !== 'public').map(r => String(r.email).toLowerCase().trim()))];
     const actuallyValidEmails = new Set([ADMIN_EMAIL, ...DEMO_USERS.map(u => u.email), 'public']);
     const expiredEmails = new Set();
 
@@ -196,9 +197,10 @@ async function getValidPushSubscribers(audienceType) {
             const nowIST = new Date(utc + (3600000 * 5.5));
 
             wpRows.forEach(row => {
+                // BUG FIX: Parse date safely. If invalid, bypass it rather than expiring them.
                 const expiry = new Date(row.student_expiry_date);
-                if (expiry >= nowIST) {
-                    actuallyValidEmails.add(row.student_email);
+                if (isNaN(expiry.getTime()) || expiry >= nowIST) {
+                    if (row.student_email) actuallyValidEmails.add(String(row.student_email).toLowerCase().trim());
                 }
             });
 
@@ -211,21 +213,24 @@ async function getValidPushSubscribers(audienceType) {
         }
     }
 
+    // Downgrade truly expired users
     if (expiredEmails.size > 0) {
         const expiredArray = Array.from(expiredEmails);
-        await pool.query("UPDATE push_subscriptions SET email = 'public' WHERE email = ANY($1)", [expiredArray]).catch(()=>{});
-        console.log(`📉 Push Subs Downgraded (Expired): ${expiredArray.length} users`);
+        await pool.query("UPDATE push_subscriptions SET email = 'public' WHERE LOWER(email) = ANY($1)", [expiredArray]).catch(()=>{});
+        console.log(`📉 Push Subs Downgraded to Public (Expired): ${expiredArray.length} users`);
     }
 
     const uniqueSubs = [];
     const endpoints = new Set();
 
     for (let row of subs.rows) {
+        let rowEmail = String(row.email).toLowerCase().trim();
         let isValidAudience = false;
+        
         if (audienceType === 'both') {
-            if (row.email === 'public' || actuallyValidEmails.has(row.email)) isValidAudience = true;
+            if (rowEmail === 'public' || actuallyValidEmails.has(rowEmail)) isValidAudience = true;
         } else if (audienceType === 'logged_in') {
-            if (row.email !== 'public' && actuallyValidEmails.has(row.email)) isValidAudience = true;
+            if (rowEmail !== 'public' && actuallyValidEmails.has(rowEmail)) isValidAudience = true;
         }
 
         if (isValidAudience && !endpoints.has(row.sub_data.endpoint)) {
@@ -240,9 +245,11 @@ async function getValidPushSubscribers(audienceType) {
 // System-Generated Automated Trade Pushes
 async function sendPushNotification(payload) {
     try {
-        console.log(`🔔 PREPARING TRADE PUSH: ${payload.title}`);
+        console.log(`\n🔔 --- PREPARING TRADE PUSH ---`);
+        console.log(`📝 Title: ${payload.title}`);
+        
         const uniqueSubs = await getValidPushSubscribers('logged_in');
-        console.log(`🔔 Sending to ${uniqueSubs.length} validated logged-in devices.`);
+        console.log(`🚀 Final Targeted Audience: ${uniqueSubs.length} Active Logged-in Devices`);
         
         uniqueSubs.forEach(sub => {
             webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
@@ -250,10 +257,12 @@ async function sendPushNotification(payload) {
             });
         });
 
+        // Add the Trade notification automatically to the Push Chat Manager for Admin
         await pool.query(
             "INSERT INTO scheduled_notifications (title, body, url, status, target_audience, recurrence) VALUES ($1, $2, $3, 'sent', 'logged_in', 'none')",
             [payload.title, payload.body, payload.url || '/']
         );
+        console.log(`✅ Trade Push Saved to Dashboard History!\n`);
     } catch (err) { console.error("❌ Error sending trade push", err); }
 }
 
@@ -288,7 +297,7 @@ app.post('/api/push/subscribe', async (req, res) => {
     if (token) {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            email = decoded.email;
+            email = String(decoded.email).toLowerCase().trim();
         } catch(e) {}
     }
 
@@ -432,7 +441,7 @@ app.get('/api/public/lesson/:id', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
     const { password, rememberMe } = req.body;
-    const email = req.body.email.trim();
+    const email = req.body.email.trim().toLowerCase();
     const clientIp = getClientIp(req);
     
     try {
@@ -467,10 +476,15 @@ app.post('/api/login', async (req, res) => {
                 const setupToken = jwt.sign({ email: rows[0].student_email, phone: rows[0].student_phone }, JWT_SECRET, { expiresIn: '15m' });
                 return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
             }
+            
             const expiryDate = new Date(studentRecord.student_expiry_date);
-            const getISTDate = () => { const d = new Date(); const utc = d.getTime() + (d.getTimezoneOffset() * 60000); return new Date(utc + (3600000 * +5.5)); };
-            if (expiryDate < getISTDate()) { return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." }); }
-            userEmail = studentRecord.student_email; userPhone = studentRecord.student_phone; 
+            const getISTDate = () => { const d = new Date(); const utc = d.getTime() + (d.getTimezoneOffset() * 60000); return new Date(utc + (3600000 * 5.5)); };
+            if (!isNaN(expiryDate.getTime()) && expiryDate < getISTDate()) { 
+                return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." }); 
+            }
+            
+            userEmail = String(studentRecord.student_email).toLowerCase().trim();
+            userPhone = studentRecord.student_phone; 
             accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
         }
 
@@ -493,13 +507,13 @@ app.post('/api/set_password', async (req, res) => {
         const decoded = jwt.verify(setupToken, JWT_SECRET);
         const salt = crypto.randomBytes(16).toString('hex');
         const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
-        await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [decoded.email, salt, hash]);
+        await pool.query("INSERT INTO user_credentials (email, salt, hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash", [String(decoded.email).toLowerCase(), salt, hash]);
         res.json({ success: true, email: decoded.email }); 
     } catch (err) { res.status(401).json({ success: false, msg: "Setup session expired. Please log in again." }); }
 });
 
 app.post('/api/forgot_password', async (req, res) => {
-    const { email } = req.body;
+    const email = req.body.email.trim().toLowerCase();
     try {
         const isDemoEmail = DEMO_USERS.some(user => user.email === email);
         if (email === ADMIN_EMAIL || isDemoEmail) return res.status(400).json({ success: false, msg: "This account password cannot be reset here." });
@@ -525,7 +539,8 @@ app.post('/api/forgot_password', async (req, res) => {
 });
 
 app.post('/api/reset_password', async (req, res) => {
-    const { email, otp, newPassword } = req.body;
+    const { otp, newPassword } = req.body;
+    const email = req.body.email.trim().toLowerCase();
     try {
         const result = await pool.query("SELECT * FROM password_resets WHERE email = $1 AND otp = $2 AND expires_at > NOW()", [email, otp]);
         if (result.rows.length === 0) return res.status(400).json({ success: false, msg: "Invalid or expired OTP." });
@@ -999,7 +1014,7 @@ app.post('/api/signal_detected', async (req, res) => {
         await pool.query("DELETE FROM trades WHERE CAST(created_at AS TIMESTAMP) < NOW() - INTERVAL '30 days'");
         
         io.emit('trade_update'); 
-        if (await checkTradePushEnabled()) sendPushNotification({ title: '🚨 NEW SIGNAL', body: `${symbol} - ${type}` }); 
+        if (await checkTradePushEnabled()) { sendPushNotification({ title: '🚨 NEW SIGNAL', body: `${symbol} - ${type}` }); }
         
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1019,7 +1034,7 @@ app.post('/api/setup_confirmed', async (req, res) => {
         await bot.sendMessage(CHAT_ID, `✅ *SETUP CONFIRMED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n🚀 *Type:* ${toMarkdown(type)}\n🚪 *Entry:* ${toMarkdown(entry)}\n🛑 *SL:* ${toMarkdown(sl)}\n\n🎯 *TP1:* ${toMarkdown(tp1)}\n🎯 *TP2:* ${toMarkdown(tp2)}\n🎯 *TP3:* ${toMarkdown(tp3)}`, opts);
         
         io.emit('trade_update'); 
-        if (await checkTradePushEnabled()) sendPushNotification({ title: '✅ SETUP CONFIRMED', body: `${symbol} - Entry: ${entry}` }); 
+        if (await checkTradePushEnabled()) { sendPushNotification({ title: '✅ SETUP CONFIRMED', body: `${symbol} - Entry: ${entry}` }); }
         
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1049,7 +1064,7 @@ app.post('/api/log_event', async (req, res) => {
         await bot.sendMessage(CHAT_ID, `⚡ *UPDATE: ${toMarkdown(new_status)}*\n\n💎 *Symbol:* #${toMarkdown(trade.symbol)}\n📉 *Price:* ${toMarkdown(price)}`, opts);
         
         io.emit('trade_update'); 
-        if (await checkTradePushEnabled()) sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); 
+        if (await checkTradePushEnabled()) { sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); }
         
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
