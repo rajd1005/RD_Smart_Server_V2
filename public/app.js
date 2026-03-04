@@ -893,7 +893,18 @@ function initDatePicker() {
     datePicker = flatpickr("#filterDateRange", { mode: "range", dateFormat: "Y-m-d", defaultDate: today, onChange: function() { applyFilters(); } });
 }
 
-socket.on('trade_update', () => { fetchTrades(); });
+// --- NEW: IN-APP MONEY SOUND ---
+const tradeSound = new Audio('/chaching.mp3');
+
+socket.on('trade_update', () => { 
+    fetchTrades(); 
+    
+    // Play the money sound when a trade updates and the app is open
+    // (Note: Browsers require the user to have clicked somewhere on the page first before audio can auto-play)
+    tradeSound.play().catch(e => {
+        console.log("Browser blocked auto-play sound until user interacts with the page.");
+    });
+});
 
 socket.on('force_logout', (data) => {
     const currentEmail = localStorage.getItem('userEmail');
