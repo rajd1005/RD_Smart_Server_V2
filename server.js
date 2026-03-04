@@ -997,8 +997,8 @@ app.get('/api/trades', authenticateToken, async (req, res) => {
     try { res.json((await pool.query(`SELECT * FROM trades WHERE CAST(created_at AS TIMESTAMP) >= NOW() - INTERVAL '30 days' ORDER BY id DESC`)).rows); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// --- NEW SIGNAL: PUSH REMOVED ENTIRELY TO STOP SPAM ---
 app.post('/api/signal_detected', async (req, res) => {
-    // We now accept entry, sl, tp1, tp2, tp3 directly at the signal phase if available
     const { trade_id, symbol, type, entry, sl, tp1, tp2, tp3 } = req.body;
     try {
         console.log(`\n➡️ TRADE WEBHOOK RECEIVED: SIGNAL (${symbol} ${type})`);
@@ -1013,7 +1013,6 @@ app.post('/api/signal_detected', async (req, res) => {
             sentMsgId = sentMsg.message_id;
         } catch (tgErr) { console.error("⚠️ Telegram Send Failed (Skipping TG):", tgErr.message); }
 
-        // We also save the entry/sl/tp data into the DB immediately so it updates on the frontend instantly
         await pool.query(
             `INSERT INTO trades (trade_id, symbol, type, entry_price, sl_price, tp1_price, tp2_price, tp3_price, telegram_msg_id, created_at, status) 
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SIGNAL') ON CONFLICT (trade_id) DO NOTHING;`, 
@@ -1023,20 +1022,8 @@ app.post('/api/signal_detected', async (req, res) => {
         
         io.emit('trade_update'); 
         
-        const isPushEnabled = await checkTradePushEnabled();
-        console.log(`⚙️ Trade Push Enabled in Settings? : ${isPushEnabled}`);
-        
-        if (isPushEnabled) { 
-            // --- UPDATED NEW SIGNAL BODY FORMAT ---
-            let pushBody = `${symbol} ${type}`;
-            if (entry || sl || tp1) {
-                pushBody += ` | Entry: ${entry || '-'}\nSL: ${sl || '-'} | TPs: ${tp1 || '-'}, ${tp2 || '-'}, ${tp3 || '-'}`;
-            } else {
-                pushBody += ` | Entry: TBA\nSL: TBA | TPs: TBA`;
-            }
-            await sendPushNotification({ title: '🚨 NEW SIGNAL', body: pushBody }); 
-        }
-        
+        // Removed Push Notification trigger from here to reduce spam.
+
         res.json({ success: true });
     } catch (err) { 
         console.error("❌ SIGNAL ENDPOINT ERROR:", err);
@@ -1044,14 +1031,13 @@ app.post('/api/signal_detected', async (req, res) => {
     }
 });
 
+// --- SETUP CONFIRMED: NOW SHOWS BUY/SELL AND FULL TARGETS ---
 app.post('/api/setup_confirmed', async (req, res) => {
     const { trade_id, symbol, type, entry, sl, tp1, tp2, tp3 } = req.body;
     try {
         console.log(`\n➡️ TRADE WEBHOOK RECEIVED: SETUP CONFIRMED (${symbol})`);
 
         const isPushEnabled = await checkTradePushEnabled();
-        console.log(`⚙️ Trade Push Enabled in Settings? : ${isPushEnabled}`);
-
         const oldTrades = await pool.query("SELECT * FROM trades WHERE symbol = $1 AND status IN ('SIGNAL', 'SETUP', 'ACTIVE') AND trade_id != $2", [symbol, trade_id]);
         for (const t of oldTrades.rows) {
             await pool.query("UPDATE trades SET status = 'CLOSED (Reversal)' WHERE trade_id = $1", [t.trade_id]);
@@ -1076,9 +1062,10 @@ app.post('/api/setup_confirmed', async (req, res) => {
         io.emit('trade_update'); 
         
         if (isPushEnabled) { 
+            // Type (BUY/SELL) successfully added to the Body
             await sendPushNotification({ 
                 title: '✅ SETUP CONFIRMED', 
-                body: `${symbol} | Entry: ${entry}\nSL: ${sl} | TPs: ${tp1}, ${tp2}, ${tp3}` 
+                body: `${symbol} - ${type}\nEntry: ${entry} | SL: ${sl}\nTargets: ${tp1}, ${tp2}, ${tp3}` 
             }); 
         }
         
@@ -1122,8 +1109,8 @@ app.post('/api/log_event', async (req, res) => {
         io.emit('trade_update'); 
         
         const isPushEnabled = await checkTradePushEnabled();
-        console.log(`⚙️ Trade Push Enabled in Settings? : ${isPushEnabled}`);
-
+        
+        // SL HIT Notifications are Muted
         if (isPushEnabled && new_status !== 'SL HIT') { 
             await sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); 
         } else if (new_status === 'SL HIT') {
