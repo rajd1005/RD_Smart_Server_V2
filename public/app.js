@@ -5,6 +5,7 @@ const API_URL_LESSON = '/api/lesson/';
 let allTrades = []; 
 let globalModules = []; 
 let isSelectionMode = false;
+let isChatSelectionMode = false; // New for chat selection
 const socket = io(); 
 let datePicker;
 let videoPlayer = null; 
@@ -30,6 +31,12 @@ let currentChatMessages = [];
 let replyToMessageId = null;
 let longPressTimer;
 let selectedChatMsgId = null;
+
+// Track read receipts locally
+let chatReadTimestamps = {};
+try {
+    chatReadTimestamps = JSON.parse(localStorage.getItem('chatReadTimestamps')) || {};
+} catch(e) {}
 
 window.onload = function() {
     initDatePicker();
@@ -79,6 +86,22 @@ window.onload = function() {
             if (picker) picker.style.display = 'none';
         }
     });
+
+    // Auto-resize chat input text area
+    const chatInput = document.getElementById('chatInputText');
+    if (chatInput) {
+        chatInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            let newHeight = this.scrollHeight;
+            if (newHeight > 150) {
+                newHeight = 150;
+                this.style.overflowY = 'auto';
+            } else {
+                this.style.overflowY = 'hidden';
+            }
+            this.style.height = newHeight + 'px';
+        });
+    }
 };
 
 setInterval(() => {
@@ -505,7 +528,6 @@ async function fetchCourses() {
     } catch (err) { container.innerHTML = `<div class="p-3 text-danger text-center">❌ Error loading courses.</div>`; }
 }
 
-
 document.getElementById('videoPlayerContainer').addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
 async function openSecureVideo(lessonId) {
@@ -601,7 +623,6 @@ function moveWatermark() {
     wmEl.style.left = Math.floor(Math.random() * (maxX - minX + 1)) + minX + 'px';
     wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
 }
-
 
 const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
@@ -1136,13 +1157,11 @@ function toggleSelectionMode() {
     else { navDefault.style.display = 'flex'; navSelection.style.display = 'none'; checkboxes.forEach(cb => cb.checked = false); }
     checkboxes.forEach(cb => cb.style.display = isSelectionMode ? 'block' : 'none');
 }
-
 function selectAllTrades() {
     const checkboxes = document.querySelectorAll('.trade-checkbox');
     const allChecked = Array.from(checkboxes).every(cb => cb.checked);
     checkboxes.forEach(cb => cb.checked = !allChecked);
 }
-
 function getCheckedIds() { return Array.from(document.querySelectorAll('.trade-checkbox:checked')).map(cb => cb.value); }
 
 async function deleteSelected() {
@@ -1191,7 +1210,7 @@ function toggleEmojiPicker() {
     }
 }
 
-// 1. Fetching & Rendering Channels (With Lock Icon Support)
+// 1. Fetching & Rendering Channels (With Lock & Unread Dots)
 async function fetchChatChannels() {
     const container = document.getElementById('chatChannelContainer');
     if (!container) return;
@@ -1220,6 +1239,16 @@ async function fetchChatChannels() {
                 const iconHtml = isLocked ? `<span class="material-icons-round">lock</span>` : `#`;
                 const onClickHtml = isLocked ? `onclick="alert('🔒 This channel requires ${getChannelLevelText(ch.required_level)}. Please upgrade your access.')"` : `onclick="openChatRoom(${ch.id}, '${ch.name.replace(/'/g, "\\'")}', '${(ch.description || '').replace(/'/g, "\\'")}')"`;
                 
+                // Check Unread Status
+                let unreadDot = '';
+                if (!isLocked && ch.last_message_at) {
+                    const lastMsgTime = new Date(ch.last_message_at).getTime();
+                    const readTime = chatReadTimestamps[ch.id] || 0;
+                    if (lastMsgTime > readTime) {
+                        unreadDot = `<span class="bg-danger rounded-circle position-absolute" style="width:8px; height:8px; top:50%; right:35px; transform:translateY(-50%);"></span>`;
+                    }
+                }
+
                 html += `
                 <div class="channel-card ${lockClass}" ${onClickHtml}>
                     <div class="d-flex align-items-center w-100">
@@ -1229,6 +1258,7 @@ async function fetchChatChannels() {
                             <div class="text-truncate" style="font-size:11px; color:var(--text-secondary);">${ch.description || ''}</div>
                         </div>
                     </div>
+                    ${unreadDot}
                     ${isLocked ? '' : '<span class="material-icons-round text-muted" style="font-size:16px;">chevron_right</span>'}
                 </div>`;
             });
@@ -1248,20 +1278,35 @@ function openChatRoom(channelId, name, desc) {
     document.getElementById('chatChannelListView').style.display = 'none';
     document.getElementById('chatRoomView').style.display = 'flex';
     
+    // Update read timestamp
+    chatReadTimestamps[channelId] = Date.now();
+    localStorage.setItem('chatReadTimestamps', JSON.stringify(chatReadTimestamps));
+
     const adminInput = document.getElementById('chatAdminInputContainer');
+    const adminMenu = document.getElementById('chatRoomAdminMenu');
     if (userData.role === 'admin' || userData.role === 'chat_moderator') {
         adminInput.style.display = 'block';
+        adminMenu.style.display = 'block';
     } else {
         adminInput.style.display = 'none';
+        adminMenu.style.display = 'none';
     }
     
     fetchChatMessages();
 }
 
 function closeChatRoom() {
+    // Update read timestamp one more time when leaving
+    if(currentChatChannelId) {
+        chatReadTimestamps[currentChatChannelId] = Date.now();
+        localStorage.setItem('chatReadTimestamps', JSON.stringify(chatReadTimestamps));
+    }
     currentChatChannelId = null;
+    isChatSelectionMode = false;
+    document.getElementById('navChatSelection').style.display = 'none';
     document.getElementById('chatRoomView').style.display = 'none';
     document.getElementById('chatChannelListView').style.display = 'flex';
+    fetchChatChannels(); // refresh list to clear dots
 }
 
 // 3. Fetching & Rendering Messages
@@ -1337,31 +1382,37 @@ function renderMessages() {
                 <span class="material-icons-round chat-action-icon text-danger" onclick="selectedChatMsgId=${msg.id}; triggerDeleteChatAction()" title="Delete">delete</span>
             </div>
         ` : '';
+
+        const checkDisplay = isChatSelectionMode ? 'block' : 'none';
         
         html += `
-        <div class="chat-bubble ${bubbleClass}" id="msg-${msg.id}" 
-             data-msg-id="${msg.id}" 
-             data-msg-text="${(msg.message_text || '').replace(/"/g, '&quot;')}"
-             ontouchstart="handleTouchStart(event, ${msg.id})" 
-             ontouchmove="handleTouchMove(event)" 
-             ontouchend="handleTouchEnd(event)">
-             
-            ${isAdminOrMod ? `<div class="swipe-reply-icon"><span class="material-icons-round" style="font-size:14px;">reply</span></div>` : ''}
-            ${hoverMenu}
-            
-            <div class="chat-title" style="color:var(--blue); font-size:12px;">${msg.sender_name} ${msg.is_pinned ? '<span class="material-icons-round text-primary align-middle ms-1" style="font-size:12px;">push_pin</span>' : ''}</div>
-            ${replyHtml}
-            ${imgHtml}
-            <div class="chat-body">${parseMarkdown(msg.message_text)}</div>
-            ${linkHtml}
-            <div class="chat-meta">
-                <span>${timeStr}</span>
+        <div class="d-flex align-items-center mb-2 w-100 position-relative">
+            <input type="checkbox" class="custom-check chat-checkbox flex-shrink-0 ms-2 me-2" value="${msg.id}" style="display:${checkDisplay};">
+            <div class="chat-bubble ${bubbleClass} flex-grow-1" id="msg-${msg.id}" 
+                 data-msg-id="${msg.id}" 
+                 data-msg-text="${(msg.message_text || '').replace(/"/g, '&quot;')}"
+                 ontouchstart="handleTouchStart(event, ${msg.id})" 
+                 ontouchmove="handleTouchMove(event)" 
+                 ontouchend="handleTouchEnd(event)"
+                 style="margin-bottom:0;">
+                 
+                ${isAdminOrMod ? `<div class="swipe-reply-icon"><span class="material-icons-round" style="font-size:14px;">reply</span></div>` : ''}
+                ${hoverMenu}
+                
+                <div class="chat-title" style="color:var(--blue); font-size:12px;">${msg.sender_name} ${msg.is_pinned ? '<span class="material-icons-round text-primary align-middle ms-1" style="font-size:12px;">push_pin</span>' : ''}</div>
+                ${replyHtml}
+                ${imgHtml}
+                <div class="chat-body">${parseMarkdown(msg.message_text)}</div>
+                ${linkHtml}
+                <div class="chat-meta">
+                    <span>${timeStr}</span>
+                </div>
             </div>
         </div>`;
     });
     
     container.innerHTML = html;
-    container.scrollTop = container.scrollHeight;
+    if(!isChatSelectionMode) container.scrollTop = container.scrollHeight;
 
     const banner = document.getElementById('pinnedMessageBanner');
     if (banner) {
@@ -1370,7 +1421,6 @@ function renderMessages() {
             document.getElementById('pinnedMessageText').innerText = (activePinnedMsg.message_text || 'Attachment').substring(0, 50) + '...';
             banner.classList.remove('d-none');
             banner.classList.add('d-flex');
-            banner.setAttribute('onclick', `scrollToMsg(${activePinnedMsg.id})`);
             
             if (isAdminOrMod) {
                 document.getElementById('btnUnpinMessage').style.display = 'block';
@@ -1404,9 +1454,10 @@ if (formChatMessage) {
         const btn = document.getElementById('btnChatMessageSubmit');
         btn.disabled = true;
         
+        const chatInput = document.getElementById('chatInputText');
         const formData = new FormData();
         formData.append('channel_id', currentChatChannelId);
-        formData.append('message_text', document.getElementById('chatInputText').value);
+        formData.append('message_text', chatInput.value);
         
         const linkVal = document.getElementById('chatInputLink').value;
         if(linkVal) formData.append('link_url', linkVal);
@@ -1432,7 +1483,8 @@ if (formChatMessage) {
             });
 
             if (res.ok) {
-                document.getElementById('chatInputText').value = '';
+                chatInput.value = '';
+                chatInput.style.height = 'auto'; // Reset size
                 document.getElementById('chatInputLink').value = '';
                 if(scheduleEl) scheduleEl.value = '';
                 if(recurEl) recurEl.value = 'none';
@@ -1450,7 +1502,9 @@ if (formChatMessage) {
 
 // 6. Socket Listeners for Real-time Chat
 socket.on('chat_channels_updated', () => {
-    fetchChatChannels();
+    if(document.getElementById('chatChannelListView').style.display !== 'none') {
+        fetchChatChannels();
+    }
     if(userData.role === 'admin') fetchAdminChannels();
 });
 
@@ -1458,6 +1512,15 @@ socket.on('new_chat_message', (msg) => {
     if (currentChatChannelId === msg.channel_id) {
         currentChatMessages.push(msg);
         renderMessages();
+        
+        // Auto mark as read if currently in room
+        chatReadTimestamps[msg.channel_id] = Date.now();
+        localStorage.setItem('chatReadTimestamps', JSON.stringify(chatReadTimestamps));
+    } else {
+        // Update dots for other channels
+        if(document.getElementById('chatChannelListView').style.display !== 'none') {
+            fetchChatChannels(); 
+        }
     }
     tradeSound.play().catch(e => {});
 });
@@ -1466,6 +1529,12 @@ socket.on('delete_chat_message', (data) => {
     if (currentChatChannelId === data.channel_id) {
         currentChatMessages = currentChatMessages.filter(m => m.id !== parseInt(data.id));
         renderMessages();
+    }
+});
+
+socket.on('bulk_delete_chat_messages', (data) => {
+    if (currentChatChannelId === parseInt(data.channel_id)) {
+        fetchChatMessages();
     }
 });
 
@@ -1494,6 +1563,7 @@ let isSwiping = false;
 
 function handleTouchStart(e, msgId) {
     if (userData.role !== 'admin' && userData.role !== 'chat_moderator') return;
+    if (isChatSelectionMode) return; // Disable swipe when selecting
     touchStartX = e.touches[0].clientX;
     swipingMsgId = msgId;
     isSwiping = false;
@@ -1506,7 +1576,7 @@ function handleTouchStart(e, msgId) {
 
 function handleTouchMove(e) {
     if (userData.role !== 'admin' && userData.role !== 'chat_moderator') return;
-    if (!swipingMsgId) return;
+    if (!swipingMsgId || isChatSelectionMode) return;
     
     touchCurrentX = e.touches[0].clientX;
     const diffX = touchCurrentX - touchStartX;
@@ -1528,7 +1598,7 @@ function handleTouchEnd(e) {
     if (userData.role !== 'admin' && userData.role !== 'chat_moderator') return;
     clearTimeout(longPressTimer);
     
-    if (!swipingMsgId) return;
+    if (!swipingMsgId || isChatSelectionMode) return;
     const bubble = document.getElementById(`msg-${swipingMsgId}`);
     const icon = bubble.querySelector('.swipe-reply-icon');
     
@@ -1654,14 +1724,62 @@ function scrollToMsg(id) {
     const el = document.getElementById(`msg-${id}`);
     if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.style.backgroundColor = '#ffffcc';
-        setTimeout(() => { el.style.backgroundColor = ''; }, 1500);
+        el.querySelector('.chat-bubble').style.backgroundColor = '#ffffcc';
+        setTimeout(() => { 
+            const isSelf = el.querySelector('.chat-bubble').classList.contains('sent');
+            el.querySelector('.chat-bubble').style.backgroundColor = isSelf ? '#dcf8c6' : '#ffffff'; 
+        }, 1500);
     }
 }
 
 function scrollToPinned() {
     const pinnedMsg = currentChatMessages.find(m => m.is_pinned);
     if(pinnedMsg) scrollToMsg(pinnedMsg.id);
+}
+
+// 9. Bulk Deletion Logic
+function toggleChatSelectionMode() {
+    isChatSelectionMode = !isChatSelectionMode;
+    const navSelection = document.getElementById('navChatSelection');
+    if(isChatSelectionMode) { 
+        navSelection.style.display = 'flex'; 
+    } else { 
+        navSelection.style.display = 'none'; 
+    }
+    renderMessages(); // Re-render to show/hide checkboxes
+}
+
+function selectAllChatMessages() {
+    const checkboxes = document.querySelectorAll('.chat-checkbox');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    checkboxes.forEach(cb => cb.checked = !allChecked);
+}
+
+async function deleteSelectedChatMessages() {
+    const ids = Array.from(document.querySelectorAll('.chat-checkbox:checked')).map(cb => parseInt(cb.value));
+    if (ids.length === 0) return;
+    if (!confirm(`Delete ${ids.length} selected messages?`)) return;
+    
+    try {
+        const res = await fetch(`/api/chat/channels/${currentChatChannelId}/messages`, { 
+            method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin', body: JSON.stringify({ message_ids: ids }) 
+        });
+        if(res.ok) {
+            toggleChatSelectionMode();
+        }
+    } catch(e) { alert("Error deleting."); }
+}
+
+async function clearAllChatMessages() {
+    if (!confirm(`Are you sure you want to completely WIPE all history in this channel? This cannot be undone.`)) return;
+    
+    try {
+        await fetch(`/api/chat/channels/${currentChatChannelId}/messages`, { 
+            method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin', body: JSON.stringify({ all: true }) 
+        });
+    } catch(e) { alert("Error clearing channel."); }
 }
 
 
