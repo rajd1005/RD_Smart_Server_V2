@@ -22,7 +22,7 @@ window.onload = function() {
     initDatePicker();
     fetchTrades(); 
     fetchCourses(); 
-    fetchUserNotifications(); // <-- Added to load notifications on app start
+    fetchUserNotifications(false); // Load initial page
     applyRoleRestrictions(); 
     
     switchSection('learning'); 
@@ -30,7 +30,6 @@ window.onload = function() {
     checkDisclaimer();
     registerServiceWorker(); 
     
-    // <-- Added logic to hide the red badge when user opens the notification panel
     const notifSheet = document.getElementById('notificationSheet');
     if (notifSheet) {
         notifSheet.addEventListener('show.bs.offcanvas', function () {
@@ -40,7 +39,7 @@ window.onload = function() {
     }
 };
 
-// --- NEW FALLBACK BACKGROUND POLLER TO GUARANTEE LIVE UPDATES ---
+// --- FALLBACK BACKGROUND POLLER TO GUARANTEE LIVE UPDATES ---
 setInterval(() => {
     const tradeSec = document.getElementById('tradeSection');
     if (tradeSec && tradeSec.style.display === 'block' && !isSelectionMode) {
@@ -174,7 +173,7 @@ function switchSection(section) {
     } else if (section === 'push') {
         if(pushSec) pushSec.style.display = 'flex';
         if(navPushBtn) navPushBtn.classList.add('b-active');
-        fetchChatNotifications(); 
+        fetchChatNotifications(false); // Load initial page
     } else {
         document.getElementById('learningSection').style.display = 'block';
         document.getElementById('navLearnBtn').classList.add('b-active');
@@ -903,23 +902,18 @@ function initDatePicker() {
     datePicker = flatpickr("#filterDateRange", { mode: "range", dateFormat: "Y-m-d", defaultDate: today, onChange: function() { applyFilters(); } });
 }
 
-// --- NEW: IN-APP MONEY SOUND ---
+// --- SOUND ALERT ---
 const tradeSound = new Audio('/chaching.mp3');
 
 socket.on('trade_update', () => { 
     fetchTrades(); 
-    
-    // Play the money sound when a trade updates and the app is open
-    // (Note: Browsers require the user to have clicked somewhere on the page first before audio can auto-play)
-    tradeSound.play().catch(e => {
-        console.log("Browser blocked auto-play sound until user interacts with the page.");
-    });
+    tradeSound.play().catch(e => { console.log("Browser blocked auto-play sound."); });
 });
 
-// --- NEW: LISTEN FOR NEW BROADCAST NOTIFICATIONS & ALERTS ---
+// --- LISTEN FOR NOTIFICATIONS ---
 socket.on('new_notification', () => {
-    if (typeof fetchUserNotifications === 'function') fetchUserNotifications();
-    if (typeof fetchChatNotifications === 'function') fetchChatNotifications();
+    if (typeof fetchUserNotifications === 'function') fetchUserNotifications(false);
+    if (typeof fetchChatNotifications === 'function') fetchChatNotifications(false);
     
     const badge = document.getElementById('notifBadge');
     if (badge) badge.style.display = 'block';
@@ -1156,27 +1150,50 @@ if (filterCategoryEl) filterCategoryEl.addEventListener('change', () => applyFil
 
 
 // ========================================================
-// PUSH NOTIFICATION CHAT UI LOGIC
+// PAGINATED PUSH NOTIFICATION CHAT UI LOGIC
 // ========================================================
 let chatNotifications = [];
+let adminNotifOffset = 0;
+const NOTIF_LIMIT = 15; // Limit chunks roughly equivalent to a day of notifications
 
-async function fetchChatNotifications() {
+async function fetchChatNotifications(loadMore = false) {
     const history = document.getElementById('chatHistory');
     if(!history) return;
     
+    if (loadMore) {
+        adminNotifOffset += NOTIF_LIMIT;
+        const btn = document.getElementById('btnLoadMoreAdmin');
+        if(btn) btn.innerText = 'Loading...';
+    } else {
+        adminNotifOffset = 0;
+        chatNotifications = [];
+    }
+
     try {
-        const res = await fetch('/api/admin/notifications', { credentials: 'same-origin' });
+        const res = await fetch(`/api/admin/notifications?limit=${NOTIF_LIMIT}&offset=${adminNotifOffset}`, { credentials: 'same-origin' });
         const json = await res.json();
+        
         if(json.success) {
-            chatNotifications = json.data;
-            const sorted = [...chatNotifications].reverse();
+            const fetched = json.data;
             
-            if (sorted.length === 0) {
+            if (!loadMore) chatNotifications = fetched;
+            else chatNotifications = [...chatNotifications, ...fetched];
+            
+            if (chatNotifications.length === 0) {
                 history.innerHTML = '<div class="text-center text-muted mt-3" style="font-size:12px;">No broadcasts sent yet.</div>';
                 return;
             }
 
-            history.innerHTML = sorted.map(n => {
+            // chatNotifications has newest first (DESC). We want newest at bottom, so we reverse it.
+            const sortedForDisplay = [...chatNotifications].reverse();
+            
+            let html = '';
+            // "Show More" button goes at the TOP because oldest messages are at the top
+            if (fetched.length === NOTIF_LIMIT) {
+                html += `<div class="text-center my-2"><button id="btnLoadMoreAdmin" class="btn btn-sm btn-outline-secondary shadow-sm" style="font-size: 11px; border-radius: 12px; padding: 4px 12px; background: #fff;" onclick="fetchChatNotifications(true)">Show More Old Broadcasts</button></div>`;
+            }
+
+            html += sortedForDisplay.map(n => {
                 const dateObj = n.scheduled_for ? new Date(n.scheduled_for) : new Date(n.created_at);
                 const dateStr = dateObj.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }) + ' ' + dateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
                 
@@ -1208,10 +1225,15 @@ async function fetchChatNotifications() {
                 </div>`;
             }).join('');
             
-            history.scrollTop = history.scrollHeight;
+            const oldScrollHeight = history.scrollHeight;
+            history.innerHTML = html;
+
+            // Maintain scroll position when loading history
+            if (!loadMore) history.scrollTop = history.scrollHeight;
+            else history.scrollTop = history.scrollHeight - oldScrollHeight;
         }
     } catch (e) {
-        history.innerHTML = '<div class="text-center text-danger mt-3" style="font-size:12px;">Error loading messages.</div>';
+        if(!loadMore) history.innerHTML = '<div class="text-center text-danger mt-3" style="font-size:12px;">Error loading messages.</div>';
     }
 }
 
@@ -1246,7 +1268,7 @@ if (formChatPush) {
                 document.getElementById('chatPushUrl').value = '';
                 document.getElementById('chatPushSchedule').value = '';
                 document.getElementById('chatPushRecurrence').value = 'none';
-                fetchChatNotifications();
+                fetchChatNotifications(false); // Reset and load newest
             } else {
                 alert("Error sending notification.");
             }
@@ -1262,28 +1284,45 @@ window.deleteChatPush = async function(id) {
     if(!confirm("Are you sure you want to delete this notification?")) return;
     try {
         const res = await fetch(`/api/admin/notifications/${id}`, { method: 'DELETE', credentials: 'same-origin' });
-        if(res.ok) fetchChatNotifications();
+        if(res.ok) fetchChatNotifications(false);
     } catch(e) { alert("Error deleting."); }
 };
 
-// --- NEW: FETCH AND RENDER LOGGED-IN USER NOTIFICATIONS / ALERTS ---
-async function fetchUserNotifications() {
+// --- PAGINATED USER NOTIFICATIONS LOGIC ---
+let userNotifications = [];
+let userNotifOffset = 0;
+
+async function fetchUserNotifications(loadMore = false) {
     const list = document.getElementById('userNotificationList');
     if(!list) return;
     
+    if (loadMore) {
+        userNotifOffset += NOTIF_LIMIT;
+        const btn = document.getElementById('btnLoadMoreUser');
+        if(btn) btn.innerText = 'Loading...';
+    } else {
+        userNotifOffset = 0;
+        userNotifications = [];
+    }
+    
     try {
-        const res = await fetch('/api/user/notifications', { credentials: 'same-origin' });
+        const res = await fetch(`/api/user/notifications?limit=${NOTIF_LIMIT}&offset=${userNotifOffset}`, { credentials: 'same-origin' });
         if (!res.ok) return;
         const json = await res.json();
         
         if(json.success) {
-            const notifs = json.data;
-            if(notifs.length === 0) {
+            const fetched = json.data;
+            
+            if (!loadMore) userNotifications = fetched;
+            else userNotifications = [...userNotifications, ...fetched];
+            
+            if(userNotifications.length === 0) {
                 list.innerHTML = '<div class="text-center text-muted mt-3" style="font-size:12px;">No notifications yet.</div>';
                 return;
             }
             
-            list.innerHTML = notifs.map(n => {
+            // User List puts newest at the top
+            let html = userNotifications.map(n => {
                 const dateObj = n.scheduled_for ? new Date(n.scheduled_for) : new Date(n.created_at);
                 const dateStr = dateObj.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }) + ' ' + dateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
                 
@@ -1297,8 +1336,15 @@ async function fetchUserNotifications() {
                     </div>
                 </div>`;
             }).join('');
+            
+            // "Show More" goes at the BOTTOM of the user notification panel
+            if (fetched.length === NOTIF_LIMIT) {
+                html += `<div class="text-center my-3"><button id="btnLoadMoreUser" class="btn btn-sm btn-outline-secondary w-100 fw-bold" style="font-size: 12px; border-radius: 8px; background: #fff;" onclick="fetchUserNotifications(true)">Show More History</button></div>`;
+            }
+
+            list.innerHTML = html;
         }
     } catch (e) {
-        list.innerHTML = '<div class="text-center text-danger mt-3" style="font-size:12px;">Error loading alerts.</div>';
+        if(!loadMore) list.innerHTML = '<div class="text-center text-danger mt-3" style="font-size:12px;">Error loading alerts.</div>';
     }
 }
