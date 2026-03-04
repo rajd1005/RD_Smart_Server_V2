@@ -21,16 +21,19 @@ const userData = {
 window.onload = function() {
     initDatePicker();
     fetchTrades(); 
+    
+    // We load courses and settings safely side-by-side
+    loadAdminSettings();
     fetchCourses(); 
+    
     applyRoleRestrictions(); 
-    
     switchSection('learning'); 
-    
     checkDisclaimer();
     registerServiceWorker(); 
     fetchUserNotifications(); 
 };
 
+// Guarantee Live Updates
 setInterval(() => {
     const tradeSec = document.getElementById('tradeSection');
     if (tradeSec && tradeSec.style.display === 'block' && !isSelectionMode) {
@@ -38,16 +41,93 @@ setInterval(() => {
     }
 }, 5000); 
 
+async function loadAdminSettings() {
+    try {
+        const settingsRes = await fetch('/api/settings');
+        const settings = await settingsRes.json();
+        
+        const defaultState = settings.accordion_state || 'first';
+        setTimeout(() => { toggleAccordions(defaultState); }, 100);
+        
+        const adminSettingDropdown = document.getElementById('adminAccordionState');
+        if (adminSettingDropdown) adminSettingDropdown.value = defaultState;
+
+        const hideTradeTab = settings.hide_trade_tab === 'true';
+        const adminHideCheck = document.getElementById('adminHideTradeTab');
+        if (adminHideCheck) adminHideCheck.checked = hideTradeTab;
+
+        const pushTradeAlerts = settings.push_trade_alerts !== 'false';
+        const adminPushTradeCheck = document.getElementById('adminPushTradeAlerts');
+        if (adminPushTradeCheck) adminPushTradeCheck.checked = pushTradeAlerts;
+
+        const showGallery = settings.show_gallery !== 'false';
+        const adminGalleryCheck = document.getElementById('adminShowGallery');
+        if (adminGalleryCheck) adminGalleryCheck.checked = showGallery;
+
+        const showCallWidget = settings.show_call_widget !== 'false';
+        const adminCallWidgetCheck = document.getElementById('adminShowCallWidget');
+        if (adminCallWidgetCheck) adminCallWidgetCheck.checked = showCallWidget;
+
+        const showStickyFooter = settings.show_sticky_footer !== 'false';
+        const adminStickyCheck = document.getElementById('adminShowStickyFooter');
+        if (adminStickyCheck) adminStickyCheck.checked = showStickyFooter;
+
+        const safeSetVal = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val || ''; };
+        safeSetVal('adminBtn1Text', settings.sticky_btn1_text);
+        safeSetVal('adminBtn1Icon', settings.sticky_btn1_icon);
+        safeSetVal('adminBtn1Link', settings.sticky_btn1_link);
+        safeSetVal('adminBtn2Text', settings.sticky_btn2_text);
+        safeSetVal('adminBtn2Icon', settings.sticky_btn2_icon);
+        safeSetVal('adminBtn2Link', settings.sticky_btn2_link);
+        
+        const showDisclaimer = settings.show_disclaimer !== 'false';
+        const adminDisclaimerCheck = document.getElementById('adminShowDisclaimer');
+        if (adminDisclaimerCheck) adminDisclaimerCheck.checked = showDisclaimer;
+        safeSetVal('adminRegisterLink', settings.register_link);
+
+        const catForex = settings.cat_forex_crypto || '';
+        const catStock = settings.cat_stock || '';
+        const catIndex = settings.cat_index || '';
+        const catMcx = settings.cat_mcx || '';
+        
+        symbolCategories['Forex/Crypto'] = catForex.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
+        symbolCategories['Stock'] = catStock.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
+        symbolCategories['Index'] = catIndex.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
+        symbolCategories['Mcx'] = catMcx.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
+
+        safeSetVal('adminCatForex', catForex);
+        safeSetVal('adminCatStock', catStock);
+        safeSetVal('adminCatIndex', catIndex);
+        safeSetVal('adminCatMcx', catMcx);
+
+        if (allTrades && allTrades.length > 0) applyFilters(); 
+
+        if (settings.homepage_layout && userData.role === 'admin') {
+            const layoutOrder = JSON.parse(settings.homepage_layout);
+            const layoutUl = document.getElementById('homepageLayoutDraggable');
+            if (layoutUl) {
+                layoutOrder.forEach(id => {
+                    const li = layoutUl.querySelector(`[data-id="${id}"]`);
+                    if(li) layoutUl.appendChild(li);
+                });
+            }
+        }
+
+        const navTradeBtn = document.getElementById('navTradeBtn');
+        if (navTradeBtn) {
+            if (hideTradeTab && userData.role !== 'admin') navTradeBtn.style.display = 'none';
+            else navTradeBtn.style.display = 'flex';
+        }
+    } catch(e) {}
+}
+
 async function registerServiceWorker() {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
         try {
             const keyRes = await fetch('/api/push/public_key');
             const keyData = await keyRes.json();
             
-            if (!keyData.success) {
-                console.log("Push keys not ready yet.");
-                return;
-            }
+            if (!keyData.success) return;
 
             const registration = await navigator.serviceWorker.register('/sw.js');
             const subscription = await registration.pushManager.subscribe({
@@ -61,9 +141,7 @@ async function registerServiceWorker() {
                 headers: { 'content-type': 'application/json' },
                 credentials: 'same-origin'
             });
-        } catch (error) {
-            console.log('Service Worker or Push Notification registration failed:', error);
-        }
+        } catch (error) {}
     }
 }
 
@@ -100,7 +178,7 @@ async function checkDisclaimer() {
                     bootstrap.Modal.getOrCreateInstance(modalEl).show();
                 }
             }
-        } catch (err) { console.error("Error loading disclaimer config"); }
+        } catch (err) {}
     }
 }
 
@@ -118,7 +196,7 @@ window.acceptDisclaimer = async function() {
         const modal = bootstrap.Modal.getInstance(modalEl);
         if (modal) modal.hide();
     } catch (err) {
-        alert("Error recording agreement. Please try again or check your connection.");
+        alert("Error recording agreement.");
         btn.innerText = originalText;
         btn.disabled = false;
     }
@@ -210,6 +288,12 @@ async function fetchCourses() {
         if (response.status === 401 || response.status === 403) { window.location.href = '/home.html'; return; }
         
         globalModules = await response.json();
+        
+        if (!Array.isArray(globalModules)) {
+            container.innerHTML = `<div class="p-3 text-danger text-center">❌ Error loading courses. Please re-login.</div>`;
+            return;
+        }
+
         let accessLevels = {};
         try { accessLevels = JSON.parse(localStorage.getItem('accessLevels')) || {}; } catch(e) {}
 
@@ -369,87 +453,6 @@ async function fetchCourses() {
                 });
             }
         }
-        
-        try {
-            const settingsRes = await fetch('/api/settings');
-            const settings = await settingsRes.json();
-            
-            const defaultState = settings.accordion_state || 'first';
-            setTimeout(() => { toggleAccordions(defaultState); }, 100);
-            const adminSettingDropdown = document.getElementById('adminAccordionState');
-            if (adminSettingDropdown) adminSettingDropdown.value = defaultState;
-
-            const hideTradeTab = settings.hide_trade_tab === 'true';
-            const adminHideCheck = document.getElementById('adminHideTradeTab');
-            if (adminHideCheck) adminHideCheck.checked = hideTradeTab;
-
-            const pushTradeAlerts = settings.push_trade_alerts !== 'false';
-            const adminPushTradeCheck = document.getElementById('adminPushTradeAlerts');
-            if (adminPushTradeCheck) adminPushTradeCheck.checked = pushTradeAlerts;
-
-            const showGallery = settings.show_gallery !== 'false';
-            const adminGalleryCheck = document.getElementById('adminShowGallery');
-            if (adminGalleryCheck) adminGalleryCheck.checked = showGallery;
-
-            const showCallWidget = settings.show_call_widget !== 'false';
-            const adminCallWidgetCheck = document.getElementById('adminShowCallWidget');
-            if (adminCallWidgetCheck) adminCallWidgetCheck.checked = showCallWidget;
-
-            const showStickyFooter = settings.show_sticky_footer !== 'false';
-            const adminStickyCheck = document.getElementById('adminShowStickyFooter');
-            if (adminStickyCheck) adminStickyCheck.checked = showStickyFooter;
-
-            const safeSetVal = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val || ''; };
-            safeSetVal('adminBtn1Text', settings.sticky_btn1_text);
-            safeSetVal('adminBtn1Icon', settings.sticky_btn1_icon);
-            safeSetVal('adminBtn1Link', settings.sticky_btn1_link);
-            safeSetVal('adminBtn2Text', settings.sticky_btn2_text);
-            safeSetVal('adminBtn2Icon', settings.sticky_btn2_icon);
-            safeSetVal('adminBtn2Link', settings.sticky_btn2_link);
-            
-            const showDisclaimer = settings.show_disclaimer !== 'false';
-            const adminDisclaimerCheck = document.getElementById('adminShowDisclaimer');
-            if (adminDisclaimerCheck) adminDisclaimerCheck.checked = showDisclaimer;
-            safeSetVal('adminRegisterLink', settings.register_link);
-
-            const catForex = settings.cat_forex_crypto || '';
-            const catStock = settings.cat_stock || '';
-            const catIndex = settings.cat_index || '';
-            const catMcx = settings.cat_mcx || '';
-            
-            symbolCategories['Forex/Crypto'] = catForex.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
-            symbolCategories['Stock'] = catStock.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
-            symbolCategories['Index'] = catIndex.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
-            symbolCategories['Mcx'] = catMcx.split(',').map(s=>s.trim().toUpperCase()).filter(s=>s);
-
-            safeSetVal('adminCatForex', catForex);
-            safeSetVal('adminCatStock', catStock);
-            safeSetVal('adminCatIndex', catIndex);
-            safeSetVal('adminCatMcx', catMcx);
-
-            if (allTrades && allTrades.length > 0) applyFilters(); 
-
-            if (settings.homepage_layout && userData.role === 'admin') {
-                const layoutOrder = JSON.parse(settings.homepage_layout);
-                const layoutUl = document.getElementById('homepageLayoutDraggable');
-                if (layoutUl) {
-                    layoutOrder.forEach(id => {
-                        const li = layoutUl.querySelector(`[data-id="${id}"]`);
-                        if(li) layoutUl.appendChild(li);
-                    });
-                }
-            }
-
-            const navTradeBtn = document.getElementById('navTradeBtn');
-            if (navTradeBtn) {
-                if (hideTradeTab && userData.role !== 'admin') navTradeBtn.style.display = 'none';
-                else navTradeBtn.style.display = 'flex';
-            }
-
-        } catch (e) {
-            setTimeout(() => { toggleAccordions('first'); }, 100);
-        }
-
     } catch (err) { container.innerHTML = `<div class="p-3 text-danger text-center">❌ Error loading courses.</div>`; }
 }
 
@@ -471,9 +474,7 @@ async function openSecureVideo(lessonId) {
                     } else { 
                         await screen.orientation.lock("portrait"); 
                     } 
-                } catch (e) {
-                    console.log("Orientation lock failed", e);
-                }
+                } catch (e) {}
             } else {
                 if (vw > vh && window.innerHeight > window.innerWidth) {
                     alert("For the best experience, please rotate your device horizontally.");
@@ -894,15 +895,12 @@ function initDatePicker() {
 
 const tradeSound = new Audio('/chaching.mp3');
 
-// --- UPDATE: BIND BELL TRAY FETCH TO SOCKET EVENTS ---
 socket.on('trade_update', () => { 
     fetchTrades(); 
-    fetchChatNotifications(); // Update admin chat UI
-    fetchUserNotifications(); // Update student bell tray UI
+    fetchChatNotifications(); 
+    fetchUserNotifications(); 
     
-    tradeSound.play().catch(e => {
-        console.log("Browser blocked auto-play sound until user interacts.");
-    });
+    tradeSound.play().catch(e => {});
 });
 
 socket.on('force_logout', (data) => {
