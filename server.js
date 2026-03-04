@@ -42,7 +42,6 @@ const redisConnection = {
 };
 const videoQueue = new Queue('video-encoding', { connection: redisConnection });
 const pushQueue = new Queue('push-notifications', { connection: redisConnection });
-const chatQueue = new Queue('chat-messages', { connection: redisConnection }); // NEW CHAT QUEUE
 
 // === INITIALIZE EXPRESS APP FIRST ===
 const app = express();
@@ -121,13 +120,6 @@ const isAdmin = (req, res, next) => {
     next();
 };
 
-const isModOrAdmin = (req, res, next) => {
-    if (req.user.role !== 'admin' && req.user.role !== 'chat_moderator') { 
-        return res.status(403).json({ success: false, msg: "Chat Admin/Moderator access required." }); 
-    }
-    next();
-};
-
 app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -173,19 +165,23 @@ function calculatePoints(type, entry, currentPrice) { if (!entry || !currentPric
 function toMarkdown(text) { if (text === undefined || text === null) return ""; return String(text).replace(/_/g, "\\_").replace(/\*/g, "\\*").replace(/\[/g, "\\[").replace(/`/g, "\\`"); }
 
 // ========================================================
-// PUSH TARGETING & EXPIRATION SYNC LOGIC
+// PUSH TARGETING & EXPIRATION SYNC LOGIC (IMMUNIZED)
 // ========================================================
 async function getValidPushSubscribers(audienceType) {
     let query = "SELECT id, email, sub_data FROM push_subscriptions";
     
+    // Public non-login targeting
     if (audienceType === 'non_logged_in') {
         query += " WHERE email = 'public'";
-    } else if (audienceType !== 'both') {
+    } 
+    // Any kind of logged-in user targeting
+    else if (audienceType !== 'both') {
         query += " WHERE email != 'public'";
     }
     
     const subs = await pool.query(query);
     
+    // Quick exit for purely public notifications
     if (audienceType === 'non_logged_in') {
         const unique = [];
         const eps = new Set();
@@ -198,14 +194,16 @@ async function getValidPushSubscribers(audienceType) {
     const emailsToCheck = [...new Set(subs.rows.filter(r => r.email !== 'public').map(r => String(r.email).toLowerCase().trim()))];
     const actuallyValidEmails = new Set([ADMIN_EMAIL, ...DEMO_USERS.map(u => u.email), 'public']);
     const expiredEmails = new Set();
-    const userLevels = new Map(); 
+    const userLevels = new Map(); // Store level access per email
 
+    // Admin and Demo users default to having all levels
     userLevels.set(ADMIN_EMAIL, { level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' });
     DEMO_USERS.forEach(u => userLevels.set(u.email, { level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' }));
 
     if (emailsToCheck.length > 0) {
         const placeholders = emailsToCheck.map(() => '?').join(',');
         try {
+            // Updated Query to also pull level statuses
             const [wpRows] = await authPool.query(`SELECT student_email, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email IN (${placeholders})`, emailsToCheck);
             
             const d = new Date();
@@ -218,6 +216,7 @@ async function getValidPushSubscribers(audienceType) {
                     if (row.student_email) {
                         const email = String(row.student_email).toLowerCase().trim();
                         actuallyValidEmails.add(email);
+                        // Save their level statuses
                         userLevels.set(email, {
                             level_2_status: row.level_2_status || 'No',
                             level_3_status: row.level_3_status || 'No',
@@ -236,6 +235,7 @@ async function getValidPushSubscribers(audienceType) {
         }
     }
 
+    // Downgrade expired subscriptions to public
     if (expiredEmails.size > 0) {
         const expiredArray = Array.from(expiredEmails);
         await pool.query("UPDATE push_subscriptions SET email = 'public' WHERE LOWER(email) = ANY($1)", [expiredArray]).catch(()=>{});
@@ -254,6 +254,7 @@ async function getValidPushSubscribers(audienceType) {
         } else if (audienceType === 'logged_in') {
             if (rowEmail !== 'public' && actuallyValidEmails.has(rowEmail)) isValidAudience = true;
         } else {
+            // Handle the new specific level-based rules
             if (rowEmail !== 'public' && actuallyValidEmails.has(rowEmail)) {
                 const levels = userLevels.get(rowEmail) || { level_2_status: 'No', level_3_status: 'No', level_4_status: 'No' };
                 
@@ -389,7 +390,7 @@ app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
         accordion_state, hide_trade_tab, show_gallery, show_call_widget, homepage_layout,
         show_sticky_footer, sticky_btn1_text, sticky_btn1_link, sticky_btn1_icon,
         sticky_btn2_text, sticky_btn2_link, sticky_btn2_icon,
-        show_disclaimer, register_link, push_trade_alerts, show_chat_tab
+        show_disclaimer, register_link, push_trade_alerts
     } = req.body;
     try {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state || 'first']);
@@ -397,10 +398,6 @@ app.put('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_gallery', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_gallery || 'true']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_call_widget', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_call_widget || 'true']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('push_trade_alerts', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [push_trade_alerts || 'true']);
-        
-        if (show_chat_tab !== undefined) {
-            await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_chat_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_chat_tab]);
-        }
         
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_sticky_footer', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_sticky_footer || 'false']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('sticky_btn1_text', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [sticky_btn1_text || '']);
@@ -496,42 +493,30 @@ app.post('/api/login', async (req, res) => {
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
             
         } else {
-            const modCreds = await pool.query("SELECT * FROM chat_moderators WHERE email = $1", [email]);
-            if (modCreds.rows.length > 0) {
-                const { salt, hash } = modCreds.rows[0];
+            const localCreds = await pool.query("SELECT * FROM user_credentials WHERE email = $1", [email]);
+            if (localCreds.rows.length > 0) {
+                const { salt, hash } = localCreds.rows[0];
                 const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
                 if (verifyHash !== hash) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
-                
-                userEmail = email; 
-                userRole = "chat_moderator"; 
-                userPhone = "Moderator";
-                accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' }; 
+                const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
+                if (rows.length === 0) return res.status(401).json({ success: false, msg: "Account not found in registry." });
+                studentRecord = rows[0];
             } else {
-                const localCreds = await pool.query("SELECT * FROM user_credentials WHERE email = $1", [email]);
-                if (localCreds.rows.length > 0) {
-                    const { salt, hash } = localCreds.rows[0];
-                    const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-                    if (verifyHash !== hash) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
-                    const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
-                    if (rows.length === 0) return res.status(401).json({ success: false, msg: "Account not found in registry." });
-                    studentRecord = rows[0];
-                } else {
-                    const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?", [email, password]);
-                    if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
-                    const setupToken = jwt.sign({ email: rows[0].student_email, phone: rows[0].student_phone }, JWT_SECRET, { expiresIn: '15m' });
-                    return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
-                }
-                
-                const expiryDate = new Date(studentRecord.student_expiry_date);
-                const getISTDate = () => { const d = new Date(); const utc = d.getTime() + (d.getTimezoneOffset() * 60000); return new Date(utc + (3600000 * 5.5)); };
-                if (!isNaN(expiryDate.getTime()) && expiryDate < getISTDate()) { 
-                    return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." }); 
-                }
-                
-                userEmail = String(studentRecord.student_email).toLowerCase().trim();
-                userPhone = studentRecord.student_phone; 
-                accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
+                const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?", [email, password]);
+                if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
+                const setupToken = jwt.sign({ email: rows[0].student_email, phone: rows[0].student_phone }, JWT_SECRET, { expiresIn: '15m' });
+                return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
             }
+            
+            const expiryDate = new Date(studentRecord.student_expiry_date);
+            const getISTDate = () => { const d = new Date(); const utc = d.getTime() + (d.getTimezoneOffset() * 60000); return new Date(utc + (3600000 * 5.5)); };
+            if (!isNaN(expiryDate.getTime()) && expiryDate < getISTDate()) { 
+                return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." }); 
+            }
+            
+            userEmail = String(studentRecord.student_email).toLowerCase().trim();
+            userPhone = studentRecord.student_phone; 
+            accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
         }
 
         const sessionId = crypto.randomUUID();
@@ -601,210 +586,255 @@ app.post('/api/reset_password', async (req, res) => {
 
 app.post('/api/logout', (req, res) => { res.clearCookie('authToken', { path: '/' }); res.json({ success: true }); });
 
-// ==========================================
-// CHAT ADMIN & MODERATOR API ROUTES
-// ==========================================
+app.post('/api/accept_terms', authenticateToken, async (req, res) => {
+    try {
+        const userEmail = req.user.email;
+        const clientIp = getClientIp(req);
+        const istTime = getISTTime();
 
-app.get('/api/admin/moderators', authenticateToken, isAdmin, async (req, res) => {
-    try { const result = await pool.query("SELECT email, created_at FROM chat_moderators ORDER BY created_at DESC"); res.json({ success: true, data: result.rows }); } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+        const mailOptions = {
+            from: `"RD Algo Compliance" <${process.env.SMTP_USER}>`,
+            to: userEmail,
+            cc: ADMIN_EMAIL, 
+            subject: `Legal Disclaimer Accepted - ${userEmail}`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                    <h2 style="color: #0056b3; border-bottom: 2px solid #e9ecef; padding-bottom: 10px;">Official Agreement Record</h2>
+                    <p>Dear User,</p>
+                    <p>This email serves as a digital signature and official record that you have explicitly read, understood, and agreed to the RD Algo Mandatory Legal Disclaimer to access the platform.</p>
+                    
+                    <div style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba; margin: 20px 0;">
+                        <h4 style="margin-top: 0; color: #856404;">⚠️ CRITICAL WARNING: NO REAL MONEY TRADING</h4>
+                        <p style="margin-bottom: 0;">Do not trade with real money. All indicators, strategies, and signals provided by RD Algo are strictly for paper trading, educational evaluation, and forward-testing only. You are strictly advised to practice on virtual/paper trading platforms.</p>
+                    </div>
+
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #ddd;">
+                        <h4 style="margin-top: 0;">Agreed Terms & Conditions:</h4>
+                        <ul style="padding-left: 20px; font-size: 13px; color: #555;">
+                            <li style="margin-bottom: 8px;"><strong>Educational Purposes Only:</strong> All content, indicators, signals, and strategies provided by RD Algo are strictly for educational and informational purposes. They do not constitute financial, investment, or trading advice.</li>
+                            <li style="margin-bottom: 8px;"><strong>No SEBI Registration:</strong> RD Algo, its founders, and its team members are <strong>NOT registered with SEBI</strong> (Securities and Exchange Board of India) as financial advisors or research analysts.</li>
+                            <li style="margin-bottom: 8px;"><strong>High Risk Warning:</strong> Trading in financial markets involves a high degree of risk. You may lose some or all of your initial capital.</li>
+                            <li style="margin-bottom: 8px;"><strong>Your Sole Responsibility:</strong> You are 100% responsible for your own trading decisions. RD Algo will not be held liable for any financial losses, damages, or consequences resulting from the use of our platform.</li>
+                            <li style="margin-bottom: 0;"><strong>Past Performance:</strong> Past performance, whether actual or indicated by historical backtests, is no guarantee of future results.</li>
+                        </ul>
+                    </div>
+
+                    <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #007aff;">
+                        <h4 style="margin-top: 0; color: #0056b3;">Digital Footprint & Signature:</h4>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 5px;"><strong>User Account:</strong> ${userEmail}</li>
+                            <li style="margin-bottom: 5px;"><strong>Date & Time (IST):</strong> ${istTime}</li>
+                            <li style="margin-bottom: 0;"><strong>IP Address:</strong> ${clientIp}</li>
+                        </ul>
+                    </div>
+                    
+                    <p style="font-size: 12px; color: #888; text-align: center; margin-top: 30px;">This is an automated legal compliance email generated by the RD Algo System.</p>
+                </div>
+            `
+        };
+        
+        await transporter.sendMail(mailOptions);
+        res.json({ success: true });
+    } catch (err) { 
+        console.error("Mail Error:", err);
+        res.json({ success: true, msg: "Agreement recorded locally, but email failed to send." }); 
+    }
 });
 
-app.post('/api/admin/moderators', authenticateToken, isAdmin, async (req, res) => {
-    const { email, password } = req.body;
-    try { const salt = crypto.randomBytes(16).toString('hex'); const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex'); await pool.query("INSERT INTO chat_moderators (email, salt, hash) VALUES ($1, $2, $3)", [email.trim().toLowerCase(), salt, hash]); res.json({ success: true, msg: "Moderator added successfully" }); } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+app.get('/api/hls-key/:lessonId/enc.key', async (req, res) => {
+    try {
+        const lessonId = req.params.lessonId;
+        const result = await pool.query("SELECT lm.required_level FROM lesson_videos lv JOIN learning_modules lm ON lv.module_id = lm.id WHERE lv.hls_manifest_url LIKE $1 LIMIT 1", [`%${lessonId}%`]);
+        const isDemo = result.rows.length > 0 && result.rows[0].required_level === 'demo';
+
+        if (!isDemo) {
+            const token = req.cookies.authToken;
+            if (!token) return res.status(401).send('Auth Required');
+            jwt.verify(token, JWT_SECRET); 
+        }
+
+        const keyPath = path.join(__dirname, 'public', 'hls', lessonId, 'enc.key');
+        if (fs.existsSync(keyPath)) { res.sendFile(keyPath); } else { res.status(404).send('Key not found'); }
+    } catch (err) { res.status(403).send('Forbidden'); }
 });
 
-app.delete('/api/admin/moderators/:email', authenticateToken, isAdmin, async (req, res) => {
-    try { await pool.query("DELETE FROM chat_moderators WHERE email = $1", [req.params.email]); res.json({ success: true }); } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+app.get('/api/courses', authenticateToken, async (req, res) => {
+    try {
+        const modulesResult = await pool.query("SELECT * FROM learning_modules ORDER BY display_order ASC");
+        const lessonsResult = await pool.query("SELECT id, module_id, title, description, display_order, thumbnail_url, hls_manifest_url FROM lesson_videos ORDER BY display_order ASC");
+        
+        const coursesStructure = modulesResult.rows.map(mod => { 
+            const isLocked = req.user.role !== 'admin' && mod.required_level !== 'demo' && req.user.accessLevels[mod.required_level] !== 'Yes';
+            const safeLessons = lessonsResult.rows.filter(l => l.module_id === mod.id).map(l => {
+                if (isLocked) {
+                    const hasVideo = l.hls_manifest_url && l.hls_manifest_url.length > 5;
+                    return { 
+                        ...l, 
+                        hls_manifest_url: hasVideo ? 'locked_video_link' : null, 
+                        description: hasVideo ? '' : '🔒 This text content is restricted to your access level.' 
+                    };
+                }
+                return l;
+            });
+            return { ...mod, lessons: safeLessons }; 
+        });
+        res.json(coursesStructure);
+    } catch (err) { res.status(500).json({ error: "Server Error fetching courses." }); }
 });
 
-// --- CHAT CHANNELS APIs ---
-app.get('/api/chat/channels', authenticateToken, async (req, res) => {
+app.get('/api/lesson/:id', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query("SELECT lv.*, lm.required_level FROM lesson_videos lv JOIN learning_modules lm ON lv.module_id = lm.id WHERE lv.id = $1", [req.params.id]);
+        if (result.rows.length === 0) return res.status(404).json({ success: false, msg: "Lesson not found." });
+        const lesson = result.rows[0];
+        if (req.user.role !== 'admin' && lesson.required_level !== 'demo' && req.user.accessLevels[lesson.required_level] !== 'Yes') {
+            return res.status(403).json({ success: false, msg: "🔒 ACCESS DENIED" });
+        }
+        res.json({ success: true, title: lesson.title, hlsUrl: lesson.hls_manifest_url });
+    } catch (err) { res.status(500).json({ error: "Server Error fetching stream." }); }
+});
+
+app.post('/api/video/progress', authenticateToken, async (req, res) => {
+    const { lessonId, currentTime } = req.body;
+    try {
+        await pool.query(
+            "INSERT INTO video_progress (email, lesson_id, watched_seconds, last_watched) VALUES ($1, $2, $3, NOW()) ON CONFLICT (email, lesson_id) DO UPDATE SET watched_seconds = GREATEST(video_progress.watched_seconds, EXCLUDED.watched_seconds), last_watched = NOW()",
+            [req.user.email, lessonId, Math.floor(currentTime)]
+        );
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/video/progress', authenticateToken, isAdmin, async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT c.*, MAX(m.created_at) as last_message_at 
-            FROM chat_channels c 
-            LEFT JOIN chat_messages m ON c.id = m.channel_id AND m.status = 'sent'
-            GROUP BY c.id 
-            ORDER BY c.created_at ASC
+            SELECT vp.email, vp.watched_seconds, vp.last_watched, lv.title 
+            FROM video_progress vp 
+            JOIN lesson_videos lv ON vp.lesson_id = lv.id 
+            ORDER BY vp.last_watched DESC LIMIT 100
         `);
-        res.json({ success: true, data: result.rows });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+        res.json(result.rows);
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/chat/channels', authenticateToken, isModOrAdmin, async (req, res) => {
-    const { name, description, required_level } = req.body;
-    try { await pool.query("INSERT INTO chat_channels (name, description, required_level) VALUES ($1, $2, $3)", [name, description || '', required_level || 'all']); io.emit('chat_channels_updated'); res.json({ success: true }); } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
-app.put('/api/chat/channels/:id', authenticateToken, isModOrAdmin, async (req, res) => {
-    const { name, description, required_level } = req.body;
-    try { await pool.query("UPDATE chat_channels SET name = $1, description = $2, required_level = $3 WHERE id = $4", [name, description || '', required_level || 'all', req.params.id]); io.emit('chat_channels_updated'); res.json({ success: true }); } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
-app.delete('/api/chat/channels/:id', authenticateToken, isModOrAdmin, async (req, res) => {
-    try { await pool.query("DELETE FROM chat_channels WHERE id = $1", [req.params.id]); io.emit('chat_channels_updated'); res.json({ success: true }); } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
-// --- CHAT MESSAGES APIs ---
-app.get('/api/chat/channels/:channelId/messages', authenticateToken, async (req, res) => {
+app.post('/api/admin/modules', authenticateToken, isAdmin, async (req, res) => {
+    const { title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility } = req.body;
     try {
-        const channelId = req.params.channelId;
-        if (req.user.role === 'student') {
-            const ch = await pool.query("SELECT required_level FROM chat_channels WHERE id = $1", [channelId]);
-            if (ch.rows.length === 0) return res.status(404).json({ success: false, msg: "Channel not found" });
-            const reqLevel = ch.rows[0].required_level;
-            if (reqLevel !== 'all' && req.user.accessLevels[reqLevel] !== 'Yes') { return res.status(403).json({ success: false, msg: "Access Denied" }); }
-        }
-        const result = await pool.query("SELECT * FROM chat_messages WHERE channel_id = $1 AND status = 'sent' ORDER BY is_pinned DESC, created_at ASC", [channelId]);
-        res.json({ success: true, data: result.rows });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
-app.post('/api/chat/messages', authenticateToken, isModOrAdmin, upload.single('chat_image'), async (req, res) => {
-    const { channel_id, message_text, link_url, reply_to_id, schedule_time, recurrence } = req.body;
-    let imagePath = req.file ? `/uploads/${req.file.filename}` : null;
-    
-    try {
-        let parsedScheduleTime = null;
-        if (schedule_time) {
-            if (!schedule_time.includes('+') && !schedule_time.endsWith('Z')) {
-                const istString = schedule_time.length === 16 ? schedule_time + ":00+05:30" : schedule_time + "+05:30";
-                parsedScheduleTime = new Date(istString).toISOString(); 
-            } else {
-                parsedScheduleTime = new Date(schedule_time).toISOString();
-            }
-        }
-
-        const result = await pool.query(
-            "INSERT INTO chat_messages (channel_id, sender_name, message_text, image_path, link_url, reply_to_id, status, scheduled_for, recurrence) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
-            [channel_id, req.user.role === 'admin' ? 'Admin' : 'Moderator', message_text || '', imagePath, link_url || null, reply_to_id || null, parsedScheduleTime ? 'pending' : 'sent', parsedScheduleTime || null, recurrence || 'none']
+        await pool.query(
+            "INSERT INTO learning_modules (title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
+            [title, description, required_level, display_order || 0, lock_notice || '', show_on_home, dashboard_visibility || 'all']
         );
-        
-        const newMsg = result.rows[0];
-
-        if (!parsedScheduleTime) {
-            io.emit('new_chat_message', newMsg);
-            const ch = await pool.query("SELECT name, required_level FROM chat_channels WHERE id = $1", [channel_id]);
-            if (ch.rows.length > 0) {
-                const reqLevel = ch.rows[0].required_level;
-                let audience = 'logged_in';
-                if (reqLevel === 'level_2_status') audience = 'login_with_level_2';
-                if (reqLevel === 'level_3_status') audience = 'login_with_level_3';
-                if (reqLevel === 'level_4_status') audience = 'login_with_level_4';
-                
-                const uniqueSubs = await getValidPushSubscribers(audience);
-                const payload = { title: `New Message in ${ch.rows[0].name}`, body: (message_text || 'Image/Link Attachment').substring(0, 100), url: '/', image: imagePath };
-                
-                uniqueSubs.forEach(sub => { 
-                    webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
-                        if(e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
-                    }); 
-                });
-            }
-        } else {
-            const delay = new Date(parsedScheduleTime).getTime() - Date.now();
-            await chatQueue.add('send-chat', { messageId: newMsg.id }, { delay: Math.max(delay, 0), jobId: `chat_${newMsg.id}_${Date.now()}` });
-        }
-        res.json({ success: true, data: newMsg, msg: parsedScheduleTime ? "Message Scheduled!" : "Message Sent" });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
-app.put('/api/chat/messages/:id', authenticateToken, isModOrAdmin, async (req, res) => {
-    const { message_text } = req.body;
-    try {
-        await pool.query("UPDATE chat_messages SET message_text = $1, updated_at = NOW() WHERE id = $2 RETURNING *", [message_text, req.params.id]);
-        io.emit('update_chat_message', { id: req.params.id, message_text });
+        await redisClient.del('public_courses').catch(()=>{});
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-app.put('/api/chat/messages/:id/pin', authenticateToken, isModOrAdmin, async (req, res) => {
-    const { is_pinned, channel_id } = req.body;
+app.put('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
+    const { title, description, required_level, lock_notice, display_order, show_on_home, dashboard_visibility } = req.body;
     try {
-        if (is_pinned) { await pool.query("UPDATE chat_messages SET is_pinned = FALSE WHERE channel_id = $1", [channel_id]); }
-        await pool.query("UPDATE chat_messages SET is_pinned = $1 WHERE id = $2", [is_pinned, req.params.id]);
-        io.emit('pin_chat_message', { id: req.params.id, channel_id, is_pinned });
+        await pool.query(
+            "UPDATE learning_modules SET title = $1, description = $2, required_level = $3, lock_notice = $4, display_order = $5, show_on_home = $6, dashboard_visibility = $7 WHERE id = $8", 
+            [title, description, required_level, lock_notice || '', display_order || 0, show_on_home, dashboard_visibility || 'all', req.params.id]
+        );
+        await redisClient.del('public_courses').catch(()=>{});
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-app.delete('/api/chat/messages/:id', authenticateToken, isModOrAdmin, async (req, res) => {
-    try {
-        const msg = await pool.query("SELECT channel_id FROM chat_messages WHERE id = $1", [req.params.id]);
-        if(msg.rows.length > 0) {
-            const { rows } = await pool.query("SELECT image_path FROM chat_messages WHERE id = $1", [req.params.id]);
-            if (rows.length > 0 && rows[0].image_path) {
-                const filePath = path.join(__dirname, rows[0].image_path);
-                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-            }
-            await pool.query("DELETE FROM chat_messages WHERE id = $1", [req.params.id]);
-            io.emit('delete_chat_message', { id: req.params.id, channel_id: msg.rows[0].channel_id });
-            const jobs = await chatQueue.getDelayed();
-            for (let job of jobs) { if (job.data.messageId === parseInt(req.params.id)) await job.remove(); }
-        }
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
-app.delete('/api/chat/channels/:channelId/messages', authenticateToken, isModOrAdmin, async (req, res) => {
-    const { all, message_ids } = req.body;
-    try {
-        if (all) {
-            await pool.query("DELETE FROM chat_messages WHERE channel_id = $1", [req.params.channelId]);
-        } else if (message_ids && message_ids.length > 0) {
-            await pool.query("DELETE FROM chat_messages WHERE channel_id = $1 AND id = ANY($2)", [req.params.channelId, message_ids]);
-        }
-        io.emit('bulk_delete_chat_messages', { channel_id: req.params.channelId });
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
-// --- BULLMQ: CHAT QUEUE WORKER ---
-const chatWorker = new Worker('chat-messages', async job => {
-    const { messageId } = job.data;
-    const { rows } = await pool.query("SELECT * FROM chat_messages WHERE id = $1 AND status = 'pending'", [messageId]);
+app.delete('/api/admin/modules/:id', authenticateToken, isAdmin, async (req, res) => {
+    const { password } = req.body;
+    if (password !== DELETE_PASSWORD) { return res.status(401).json({ success: false, msg: "❌ Incorrect Password!" }); }
     
-    if (rows.length > 0) {
-        const msg = rows[0];
-        try {
-            const ch = await pool.query("SELECT name, required_level FROM chat_channels WHERE id = $1", [msg.channel_id]);
-            if (ch.rows.length > 0) {
-                const reqLevel = ch.rows[0].required_level;
-                let audience = 'logged_in';
-                if (reqLevel === 'level_2_status') audience = 'login_with_level_2';
-                if (reqLevel === 'level_3_status') audience = 'login_with_level_3';
-                if (reqLevel === 'level_4_status') audience = 'login_with_level_4';
-                
-                const uniqueSubs = await getValidPushSubscribers(audience);
-                const payload = { title: `New Message in ${ch.rows[0].name}`, body: (msg.message_text || 'Image/Link Attachment').substring(0, 100), url: '/', image: msg.image_path };
-                
-                for (let sub of uniqueSubs) {
-                    await webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
-                        if (e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
-                    });
+    try { 
+        const videos = await pool.query("SELECT hls_manifest_url FROM lesson_videos WHERE module_id = $1", [req.params.id]);
+        videos.rows.forEach(row => {
+            if (row.hls_manifest_url && row.hls_manifest_url !== 'PROCESSING') {
+                const parts = row.hls_manifest_url.split('/');
+                if (parts.length >= 3) {
+                    const folderPath = path.join(hlsDir, parts[2]);
+                    if (fs.existsSync(folderPath)) { fs.rmSync(folderPath, { recursive: true, force: true }); }
                 }
             }
+        });
+        await pool.query("DELETE FROM learning_modules WHERE id = $1", [req.params.id]); 
+        await redisClient.del('public_courses').catch(()=>{});
+        res.json({ success: true }); 
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
 
-            if (msg.recurrence && msg.recurrence !== 'none') {
-                let nextTime = new Date(msg.scheduled_for || new Date());
-                if (msg.recurrence === 'daily') nextTime.setDate(nextTime.getDate() + 1);
-                else if (msg.recurrence === 'weekly') nextTime.setDate(nextTime.getDate() + 7);
-                
-                await pool.query("UPDATE chat_messages SET scheduled_for = $1 WHERE id = $2", [nextTime, messageId]);
-                const delay = nextTime.getTime() - Date.now();
-                await chatQueue.add('send-chat', { messageId }, { delay: Math.max(delay, 0), jobId: `chat_${messageId}_${nextTime.getTime()}` });
-                
-                const newMsgRes = await pool.query("INSERT INTO chat_messages (channel_id, sender_name, message_text, image_path, link_url, status) VALUES ($1, $2, $3, $4, $5, 'sent') RETURNING *", [msg.channel_id, msg.sender_name, msg.message_text, msg.image_path, msg.link_url]);
-                io.emit('new_chat_message', newMsgRes.rows[0]);
-
-            } else {
-                await pool.query("UPDATE chat_messages SET status = 'sent' WHERE id = $1", [messageId]);
-                io.emit('new_chat_message', msg);
+app.post('/api/admin/modules/reorder', authenticateToken, isAdmin, async (req, res) => {
+    const { orderedIds } = req.body;
+    try {
+        if (orderedIds && Array.isArray(orderedIds)) {
+            for (let i = 0; i < orderedIds.length; i++) {
+                await pool.query("UPDATE learning_modules SET display_order = $1 WHERE id = $2", [i, orderedIds[i]]);
             }
-        } catch (e) { console.error("❌ Scheduled chat failed:", e); }
+        }
+        await redisClient.del('public_courses').catch(()=>{});
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+app.post('/api/admin/lessons', authenticateToken, isAdmin, upload.fields([{ name: 'video_file', maxCount: 1 }, { name: 'thumbnail_file', maxCount: 1 }]), async (req, res) => {
+    const { module_id, title, description, display_order } = req.body;
+    
+    if (!req.files || !req.files['video_file']) {
+        try {
+            await pool.query(
+                "INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6)", 
+                [module_id, title, description || '', '', display_order || 0, '']
+            );
+            await redisClient.del('public_courses').catch(()=>{});
+            return res.json({ success: true, msg: "Text Document Lesson Added Successfully." });
+        } catch(e) {
+            return res.status(500).json({ success: false, msg: e.message });
+        }
     }
-}, { connection: redisConnection });
+
+    const videoFile = req.files['video_file'][0];
+    let thumbUrl = '';
+    
+    if (req.files['thumbnail_file']) {
+        const thumbFile = req.files['thumbnail_file'][0];
+        const ext = path.extname(thumbFile.originalname) || '.jpg';
+        const thumbName = crypto.randomUUID() + ext;
+        const destPath = path.join(thumbDir, thumbName);
+        fs.copyFileSync(thumbFile.path, destPath);
+        fs.unlinkSync(thumbFile.path); 
+        thumbUrl = '/hls/thumbnails/' + thumbName;
+    } else {
+        const thumbName = crypto.randomUUID() + '.jpg';
+        try {
+            await new Promise((resolve, reject) => {
+                ffmpeg(videoFile.path)
+                    .screenshots({ timestamps: ['00:00:01.000'], filename: thumbName, folder: thumbDir })
+                    .on('end', resolve).on('error', reject);
+            });
+            thumbUrl = '/hls/thumbnails/' + thumbName;
+        } catch (err) { console.error("Auto-thumbnail failed, skipping."); }
+    }
+
+    try {
+        const dbResult = await pool.query(
+            "INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id", 
+            [module_id, title, description || '', 'PROCESSING', display_order || 0, thumbUrl]
+        );
+        const newLessonId = dbResult.rows[0].id;
+        await redisClient.del('public_courses').catch(()=>{});
+
+        // Queue for Background Worker
+        await videoQueue.add('encode', {
+            lessonDbId: newLessonId,
+            videoPath: videoFile.path,
+            hlsDirStr: hlsDir
+        });
+
+        res.json({ success: true, msg: "Video Uploaded. System is now converting it in the background. It will be available shortly." });
+    } catch (e) {
+        if (fs.existsSync(videoFile.path)) fs.unlinkSync(videoFile.path);
+        res.status(500).json({ success: false, msg: e.message });
+    }
+});
 
 // --- BULLMQ BACKGROUND WORKER DEFINITION ---
 const worker = new Worker('video-encoding', async job => {
@@ -971,18 +1001,29 @@ app.get('/api/user/notifications', authenticateToken, async (req, res) => {
         const limit = parseInt(req.query.limit) || 15;
         const offset = parseInt(req.query.offset) || 0;
         
+        // 1. Base audiences everyone logged in can see
         let allowedAudiences = ['both', 'logged_in'];
+        
+        // 2. Dynamically add audiences based on this specific user's levels
         if (req.user && req.user.accessLevels) {
             const levels = req.user.accessLevels;
-            if (levels.level_2_status === 'Yes') allowedAudiences.push('login_with_level_2'); else allowedAudiences.push('login_no_level_2');
-            if (levels.level_3_status === 'Yes') allowedAudiences.push('login_with_level_3'); else allowedAudiences.push('login_no_level_3');
-            if (levels.level_4_status === 'Yes') allowedAudiences.push('login_with_level_4'); else allowedAudiences.push('login_no_level_4');
+            
+            if (levels.level_2_status === 'Yes') allowedAudiences.push('login_with_level_2');
+            else allowedAudiences.push('login_no_level_2');
+            
+            if (levels.level_3_status === 'Yes') allowedAudiences.push('login_with_level_3');
+            else allowedAudiences.push('login_no_level_3');
+            
+            if (levels.level_4_status === 'Yes') allowedAudiences.push('login_with_level_4');
+            else allowedAudiences.push('login_no_level_4');
         }
 
+        // 3. Query using ANY($1) array matching
         const result = await pool.query(
             "SELECT * FROM scheduled_notifications WHERE status = 'sent' AND target_audience = ANY($1) ORDER BY COALESCE(scheduled_for, created_at) DESC LIMIT $2 OFFSET $3", 
             [allowedAudiences, limit, offset]
         );
+        
         res.json({ success: true, data: result.rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -1012,6 +1053,7 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, upload.single('
         if (!parsedScheduleTime) {
             const uniqueSubs = await getValidPushSubscribers(target_audience || 'both');
             const payload = { title, body, url: url || '/', image: imagePath };
+            
             uniqueSubs.forEach(sub => { 
                 webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
                     if(e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
@@ -1019,10 +1061,12 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, upload.single('
             });
             io.emit('new_notification');
 
+            // --- DELETE IMAGE IMMEDIATELY AFTER SENDING ---
             if (absoluteImagePath && fs.existsSync(absoluteImagePath)) {
                 fs.unlinkSync(absoluteImagePath);
                 await pool.query("UPDATE scheduled_notifications SET image_path = NULL WHERE id = $1", [notificationId]);
             }
+
         } else {
             const delay = new Date(parsedScheduleTime).getTime() - Date.now();
             await pushQueue.add('send-push', { notificationId }, { delay: Math.max(delay, 0), jobId: `push_${notificationId}_${Date.now()}` });
@@ -1046,17 +1090,21 @@ app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, upload.singl
             }
         }
 
+        // --- NEW IMAGE REPLACEMENT LOGIC ---
         if (newImagePath) {
+            // Delete old image if exists
             const { rows } = await pool.query("SELECT image_path FROM scheduled_notifications WHERE id = $1", [req.params.id]);
             if (rows.length > 0 && rows[0].image_path) {
                 const oldPath = path.join(__dirname, rows[0].image_path);
                 if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
             }
+
             await pool.query(
                 "UPDATE scheduled_notifications SET title = $1, body = $2, url = $3, scheduled_for = $4, target_audience = $5, recurrence = $6, status = $7, image_path = $8 WHERE id = $9",
                 [title, body, url || '/', parsedScheduleTime || null, target_audience || 'both', recurrence || 'none', parsedScheduleTime ? 'pending' : 'sent', newImagePath, req.params.id]
             );
         } else {
+            // Just update text content without modifying image
             await pool.query(
                 "UPDATE scheduled_notifications SET title = $1, body = $2, url = $3, scheduled_for = $4, target_audience = $5, recurrence = $6, status = $7 WHERE id = $8",
                 [title, body, url || '/', parsedScheduleTime || null, target_audience || 'both', recurrence || 'none', parsedScheduleTime ? 'pending' : 'sent', req.params.id]
@@ -1073,6 +1121,8 @@ app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, upload.singl
             await pushQueue.add('send-push', { notificationId: parseInt(req.params.id) }, { delay: Math.max(delay, 0), jobId: `push_${req.params.id}_${Date.now()}` });
         } else {
             const uniqueSubs = await getValidPushSubscribers(target_audience || 'both');
+            
+            // Re-fetch to get image_path if it exists (for immediate send update)
             const { rows } = await pool.query("SELECT image_path FROM scheduled_notifications WHERE id = $1", [req.params.id]);
             const currentImagePath = rows.length > 0 ? rows[0].image_path : null;
 
@@ -1080,18 +1130,21 @@ app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, upload.singl
             uniqueSubs.forEach(sub => { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); });
             io.emit('new_notification');
             
+            // --- DELETE IMMEDIATE PUSH IMAGE FROM FS ---
             if (currentImagePath) {
                 const filePath = path.join(__dirname, currentImagePath);
                 if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
                 await pool.query("UPDATE scheduled_notifications SET image_path = NULL WHERE id = $1", [req.params.id]);
             }
         }
+
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 app.delete('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, res) => {
     try {
+        // Find if there is an image associated with this notification and delete it
         const { rows } = await pool.query("SELECT image_path FROM scheduled_notifications WHERE id = $1", [req.params.id]);
         if (rows.length > 0 && rows[0].image_path) {
             const filePath = path.join(__dirname, rows[0].image_path);
@@ -1116,9 +1169,12 @@ app.get('/api/trades', authenticateToken, async (req, res) => {
     try { res.json((await pool.query(`SELECT * FROM trades WHERE CAST(created_at AS TIMESTAMP) >= NOW() - INTERVAL '30 days' ORDER BY id DESC`)).rows); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// --- NEW SIGNAL: PUSH REMOVED ENTIRELY TO STOP SPAM ---
 app.post('/api/signal_detected', async (req, res) => {
     const { trade_id, symbol, type, entry, sl, tp1, tp2, tp3 } = req.body;
     try {
+        console.log(`\n➡️ TRADE WEBHOOK RECEIVED: SIGNAL (${symbol} ${type})`);
+        
         let sentMsgId = null;
         try {
             let tgMsg = `🚨 *NEW SIGNAL DETECTED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n📊 *Type:* ${toMarkdown(type)}\n🕒 *Time:* ${toMarkdown(getISTTime())}`;
@@ -1127,7 +1183,7 @@ app.post('/api/signal_detected', async (req, res) => {
             }
             const sentMsg = await bot.sendMessage(CHAT_ID, tgMsg, { parse_mode: 'Markdown' });
             sentMsgId = sentMsg.message_id;
-        } catch (tgErr) { console.error("⚠️ Telegram Send Failed"); }
+        } catch (tgErr) { console.error("⚠️ Telegram Send Failed (Skipping TG):", tgErr.message); }
 
         await pool.query(
             `INSERT INTO trades (trade_id, symbol, type, entry_price, sl_price, tp1_price, tp2_price, tp3_price, telegram_msg_id, created_at, status) 
@@ -1137,22 +1193,33 @@ app.post('/api/signal_detected', async (req, res) => {
         await pool.query("DELETE FROM trades WHERE CAST(created_at AS TIMESTAMP) < NOW() - INTERVAL '30 days'");
         
         io.emit('trade_update'); 
+        
+        // Removed Push Notification trigger from here to reduce spam.
+
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        console.error("❌ SIGNAL ENDPOINT ERROR:", err);
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
+// --- SETUP CONFIRMED: NOW SHOWS BUY/SELL AND FULL TARGETS ---
 app.post('/api/setup_confirmed', async (req, res) => {
     const { trade_id, symbol, type, entry, sl, tp1, tp2, tp3 } = req.body;
     try {
+        console.log(`\n➡️ TRADE WEBHOOK RECEIVED: SETUP CONFIRMED (${symbol})`);
+
         const isPushEnabled = await checkTradePushEnabled();
         const oldTrades = await pool.query("SELECT * FROM trades WHERE symbol = $1 AND status IN ('SIGNAL', 'SETUP', 'ACTIVE') AND trade_id != $2", [symbol, trade_id]);
         
         let reversalSymbols = [];
         for (const t of oldTrades.rows) {
             await pool.query("UPDATE trades SET status = 'CLOSED (Reversal)' WHERE trade_id = $1", [t.trade_id]);
+            
             try {
                 if(t.telegram_msg_id) { await bot.sendMessage(CHAT_ID, `🔄 *Trade Reversed*\n❌ Closed by new signal.`, { reply_to_message_id: t.telegram_msg_id, parse_mode: 'Markdown' }); }
-            } catch(tgErr) {}
+            } catch(tgErr) { console.error("⚠️ Telegram Reversal Send Failed (Skipping TG):", tgErr.message); }
+            
             reversalSymbols.push(t.symbol);
         }
         
@@ -1162,17 +1229,27 @@ app.post('/api/setup_confirmed', async (req, res) => {
         try {
             const opts = { parse_mode: 'Markdown' }; if (check.rows[0]?.telegram_msg_id) opts.reply_to_message_id = check.rows[0].telegram_msg_id;
             await bot.sendMessage(CHAT_ID, `✅ *SETUP CONFIRMED*\n\n💎 *Symbol:* #${toMarkdown(symbol)}\n🚀 *Type:* ${toMarkdown(type)}\n🚪 *Entry:* ${toMarkdown(entry)}\n🛑 *SL:* ${toMarkdown(sl)}\n\n🎯 *TP1:* ${toMarkdown(tp1)}\n🎯 *TP2:* ${toMarkdown(tp2)}\n🎯 *TP3:* ${toMarkdown(tp3)}`, opts);
-        } catch(tgErr) {}
+        } catch(tgErr) { console.error("⚠️ Telegram Send Failed (Skipping TG):", tgErr.message); }
 
         io.emit('trade_update'); 
         
         if (isPushEnabled) { 
             let bodyStr = `${symbol} - ${type}\nEntry: ${entry} | SL: ${sl}\nTargets: ${tp1}, ${tp2}, ${tp3}`;
-            if (reversalSymbols.length > 0) { bodyStr = `🔄 CLOSED: ${reversalSymbols.join(', ')} (Reversal)\n\n${bodyStr}`; }
-            await sendPushNotification({ title: '✅ SETUP CONFIRMED', body: bodyStr }); 
+            if (reversalSymbols.length > 0) {
+                bodyStr = `🔄 CLOSED: ${reversalSymbols.join(', ')} (Reversal)\n\n${bodyStr}`;
+            }
+            
+            await sendPushNotification({ 
+                title: '✅ SETUP CONFIRMED', 
+                body: bodyStr 
+            }); 
         }
+        
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        console.error("❌ SETUP ENDPOINT ERROR:", err);
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 app.post('/api/price_update', async (req, res) => {
@@ -1187,6 +1264,8 @@ app.post('/api/price_update', async (req, res) => {
 app.post('/api/log_event', async (req, res) => {
     const { trade_id, new_status, price } = req.body;
     try {
+        console.log(`\n➡️ TRADE WEBHOOK RECEIVED: EVENT (${new_status})`);
+
         const result = await pool.query("SELECT * FROM trades WHERE trade_id = $1", [trade_id]);
         if (result.rows.length === 0) return res.json({ success: false, msg: "Trade not found" });
         const trade = result.rows[0];
@@ -1201,14 +1280,24 @@ app.post('/api/log_event', async (req, res) => {
         try {
             const opts = { parse_mode: 'Markdown' }; if (trade.telegram_msg_id) opts.reply_to_message_id = trade.telegram_msg_id;
             await bot.sendMessage(CHAT_ID, `⚡ *UPDATE: ${toMarkdown(new_status)}*\n\n💎 *Symbol:* #${toMarkdown(trade.symbol)}\n📉 *Price:* ${toMarkdown(price)}`, opts);
-        } catch(tgErr) {}
+        } catch(tgErr) { console.error("⚠️ Telegram Send Failed (Skipping TG):", tgErr.message); }
         
         io.emit('trade_update'); 
+        
         const isPushEnabled = await checkTradePushEnabled();
-        if (isPushEnabled && new_status !== 'SL HIT') { await sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); }
+        
+        // SL HIT Notifications are Muted
+        if (isPushEnabled && new_status !== 'SL HIT') { 
+            await sendPushNotification({ title: `⚡ ${new_status}`, body: `${trade.symbol} @ ${price}` }); 
+        } else if (new_status === 'SL HIT') {
+            console.log(`🔇 Skipping push notification for SL HIT as per rules.`);
+        }
         
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        console.error("❌ LOG EVENT ENDPOINT ERROR:", err);
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 app.post('/api/delete_trades', authenticateToken, async (req, res) => {
@@ -1224,15 +1313,25 @@ app.post('/api/delete_trades', authenticateToken, async (req, res) => {
 cron.schedule('30 6 * * *', async () => {
     try {
         await pool.query("DELETE FROM login_logs");
+        // Ensure we only delete sent, NON-recurring notifications
         await pool.query("DELETE FROM scheduled_notifications WHERE created_at < NOW() - INTERVAL '30 days' AND (recurrence = 'none' OR recurrence IS NULL) AND status = 'sent'");
-    } catch (err) {}
-}, { scheduled: true, timezone: "Asia/Kolkata" });
+        console.log("✅ Daily Reset: All user sessions cleared and non-recurring notifications older than 30 days deleted at 6:30 AM.");
+    } catch (err) {
+        console.error("❌ Error clearing daily sessions/notifications:", err);
+    }
+}, {
+    scheduled: true,
+    timezone: "Asia/Kolkata"
+});
 
 const PORT = process.env.PORT || 3000;
 
+// === SERVER INITIALIZATION & AUTO-GENERATE VAPID KEYS ===
 initDb().then(async () => { 
+    
     let vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
     let vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+
     try {
         if (!vapidPublicKey || !vapidPrivateKey) {
             const pubRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'vapid_public'");
@@ -1242,15 +1341,30 @@ initDb().then(async () => {
                 vapidPublicKey = pubRes.rows[0].setting_value;
                 vapidPrivateKey = privRes.rows[0].setting_value;
             } else {
+                console.log("⚠️ No VAPID keys found in env or DB. Generating new ones automatically...");
                 const vapidKeys = webpush.generateVAPIDKeys();
                 vapidPublicKey = vapidKeys.publicKey;
                 vapidPrivateKey = vapidKeys.privateKey;
+                
                 await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('vapid_public', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [vapidPublicKey]);
                 await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('vapid_private', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [vapidPrivateKey]);
+                console.log("✅ New VAPID keys generated and saved to PostgreSQL.");
             }
         }
-        webpush.setVapidDetails('mailto:' + (process.env.ADMIN_EMAIL || 'admin@rdalgo.in'), vapidPublicKey.trim(), vapidPrivateKey.trim());
+
+        webpush.setVapidDetails(
+            'mailto:' + (process.env.ADMIN_EMAIL || 'admin@rdalgo.in'),
+            vapidPublicKey.trim(),
+            vapidPrivateKey.trim()
+        );
+        
+        // Save globally so the frontend API can fetch it
         app.locals.vapidPublicKey = vapidPublicKey.trim();
-    } catch (e) {}
+        console.log("✅ Web Push VAPID configured successfully.");
+
+    } catch (e) {
+        console.error("❌ Failed to setup VAPID keys:", e.message);
+    }
+
     server.listen(PORT, () => console.log(`🚀 RD Broker Server running on ${PORT}`)); 
 });

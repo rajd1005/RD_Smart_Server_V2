@@ -5,7 +5,6 @@ const API_URL_LESSON = '/api/lesson/';
 let allTrades = []; 
 let globalModules = []; 
 let isSelectionMode = false;
-let isChatSelectionMode = false; // New for chat selection
 const socket = io(); 
 let datePicker;
 let videoPlayer = null; 
@@ -16,40 +15,17 @@ let symbolCategories = { 'Forex/Crypto': [], 'Stock': [], 'Index': [], 'Mcx': []
 const userData = {
     email: localStorage.getItem('userEmail'),
     phone: localStorage.getItem('userPhone'),
-    role: localStorage.getItem('userRole'),
-    accessLevels: {}
+    role: localStorage.getItem('userRole')
 };
-
-try { 
-    userData.accessLevels = JSON.parse(localStorage.getItem('accessLevels')) || {}; 
-} catch(e) {}
-
-// --- CHAT SYSTEM STATE ---
-let chatChannels = [];
-let currentChatChannelId = null;
-let currentChatMessages = [];
-let replyToMessageId = null;
-let longPressTimer;
-let selectedChatMsgId = null;
-
-// Track read receipts locally
-let chatReadTimestamps = {};
-try {
-    chatReadTimestamps = JSON.parse(localStorage.getItem('chatReadTimestamps')) || {};
-} catch(e) {}
 
 window.onload = function() {
     initDatePicker();
     fetchTrades(); 
     fetchCourses(); 
-    fetchUserNotifications(false); 
+    fetchUserNotifications(false); // Load initial page
     applyRoleRestrictions(); 
     
-    if (userData.role === 'chat_moderator') {
-        switchSection('chat');
-    } else {
-        switchSection('learning'); 
-    }
+    switchSection('learning'); 
     
     checkDisclaimer();
     registerServiceWorker(); 
@@ -68,48 +44,16 @@ window.onload = function() {
             fetchScheduledPushes();
         });
     }
-
-    // Initialize Emoji Picker clicks
-    const emojiPickerEl = document.querySelector('emoji-picker');
-    if (emojiPickerEl) {
-        emojiPickerEl.addEventListener('emoji-click', event => {
-            const input = document.getElementById('chatInputText');
-            input.value += event.detail.unicode;
-            input.focus();
-        });
-    }
-
-    // Hide Emoji Picker on outside click
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('#emojiPickerContainer') && !e.target.closest('.material-icons-round[onclick="toggleEmojiPicker()"]')) {
-            const picker = document.getElementById('emojiPickerContainer');
-            if (picker) picker.style.display = 'none';
-        }
-    });
-
-    // Auto-resize chat input text area
-    const chatInput = document.getElementById('chatInputText');
-    if (chatInput) {
-        chatInput.addEventListener('input', function() {
-            this.style.height = 'auto';
-            let newHeight = this.scrollHeight;
-            if (newHeight > 150) {
-                newHeight = 150;
-                this.style.overflowY = 'auto';
-            } else {
-                this.style.overflowY = 'hidden';
-            }
-            this.style.height = newHeight + 'px';
-        });
-    }
 };
 
+// --- FALLBACK BACKGROUND POLLER TO GUARANTEE LIVE UPDATES ---
 setInterval(() => {
     const tradeSec = document.getElementById('tradeSection');
     if (tradeSec && tradeSec.style.display === 'block' && !isSelectionMode) {
         fetchTrades();
     }
 }, 5000); 
+// ---------------------------------------------------------------
 
 async function registerServiceWorker() {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -117,7 +61,10 @@ async function registerServiceWorker() {
             const keyRes = await fetch('/api/push/public_key');
             const keyData = await keyRes.json();
             
-            if (!keyData.success) { return; }
+            if (!keyData.success) {
+                console.log("Push keys not ready yet.");
+                return;
+            }
 
             const registration = await navigator.serviceWorker.register('/sw.js');
             const subscription = await registration.pushManager.subscribe({
@@ -131,7 +78,9 @@ async function registerServiceWorker() {
                 headers: { 'content-type': 'application/json' },
                 credentials: 'same-origin'
             });
-        } catch (error) {}
+        } catch (error) {
+            console.log('Service Worker or Push Notification registration failed:', error);
+        }
     }
 }
 
@@ -168,7 +117,7 @@ async function checkDisclaimer() {
                     bootstrap.Modal.getOrCreateInstance(modalEl).show();
                 }
             }
-        } catch (err) {}
+        } catch (err) { console.error("Error loading disclaimer config"); }
     }
 }
 
@@ -211,15 +160,11 @@ function switchSection(section) {
     document.getElementById('learningSection').style.display = 'none';
     const pushSec = document.getElementById('pushSection');
     if(pushSec) pushSec.style.display = 'none';
-    const chatSec = document.getElementById('chatSection');
-    if(chatSec) chatSec.style.display = 'none';
     
     document.getElementById('navTradeBtn').classList.remove('b-active');
     document.getElementById('navLearnBtn').classList.remove('b-active');
     const navPushBtn = document.getElementById('navPushBtn');
     if(navPushBtn) navPushBtn.classList.remove('b-active');
-    const navChatBtn = document.getElementById('navChatBtn');
-    if(navChatBtn) navChatBtn.classList.remove('b-active');
 
     document.getElementById('btnRefresh').style.display = 'none';
     document.getElementById('btnFilter').style.display = 'none';
@@ -235,13 +180,7 @@ function switchSection(section) {
     } else if (section === 'push') {
         if(pushSec) pushSec.style.display = 'flex';
         if(navPushBtn) navPushBtn.classList.add('b-active');
-        fetchChatNotifications(false); 
-    } else if (section === 'chat') {
-        if(chatSec) chatSec.style.display = 'flex';
-        if(navChatBtn) navChatBtn.classList.add('b-active');
-        document.getElementById('chatChannelListView').style.display = 'flex';
-        document.getElementById('chatRoomView').style.display = 'none';
-        fetchChatChannels();
+        fetchChatNotifications(false); // Load initial page
     } else {
         document.getElementById('learningSection').style.display = 'block';
         document.getElementById('navLearnBtn').classList.add('b-active');
@@ -288,8 +227,11 @@ async function fetchCourses() {
         if (response.status === 401 || response.status === 403) { window.location.href = '/home.html'; return; }
         
         globalModules = await response.json();
+        let accessLevels = {};
+        try { accessLevels = JSON.parse(localStorage.getItem('accessLevels')) || {}; } catch(e) {}
 
         let htmlContent = '';
+        
         if (userData.role === 'admin') {
             const selectEl = document.getElementById('lessonModuleId');
             if (selectEl) {
@@ -299,7 +241,8 @@ async function fetchCourses() {
         }
 
         globalModules.forEach((mod) => {
-            const isLocked = userData.role !== 'admin' && mod.required_level !== 'demo' && userData.accessLevels[mod.required_level] !== 'Yes';
+            const isLocked = userData.role !== 'admin' && mod.required_level !== 'demo' && accessLevels[mod.required_level] !== 'Yes';
+            
             if (userData.role !== 'admin') {
                 if (mod.dashboard_visibility === 'hidden') return;
                 if (mod.dashboard_visibility === 'accessible' && isLocked) return;
@@ -325,9 +268,11 @@ async function fetchCourses() {
             let lessonHtml = '';
             if (mod.lessons && mod.lessons.length > 0) {
                 lessonHtml += `<div class="accordion w-100 lesson-container-sortable" id="accLsn${mod.id}">`;
+                
                 mod.lessons.forEach(l => {
                     const safeLT = (l.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
                     const safeLD = (l.description || '').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+                    
                     const adminBtnsLess = userData.role === 'admin' ? `
                         <div class="d-flex flex-column align-items-center ms-2 border-start ps-2">
                             <button class="admin-edit-btn" onclick="openEditLesson(event, ${l.id}, '${safeLT}', '${safeLD}', ${l.display_order || 0})"><span class="material-icons-round" style="font-size: 16px;">edit</span></button>
@@ -353,8 +298,10 @@ async function fetchCourses() {
                         const thumbnailImg = l.thumbnail_url 
                             ? `<div class="thumb-wrapper-full"><img src="${l.thumbnail_url}" loading="lazy"><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${thumbIconColor};">${overlayIcon}</span></div></div>` 
                             : `<div class="thumb-wrapper-full"><div class="w-100 h-100 bg-dark d-flex align-items-center justify-content-center" style="min-height: 250px;"><span class="material-icons-round" style="font-size:48px; color:#444;">${overlayIcon}</span></div><div class="thumb-play-overlay-full"><span class="material-icons-round" style="color: ${thumbIconColor};">${overlayIcon}</span></div></div>`;
+
                         mediaHtml = `<div class="w-100" style="cursor: ${pointerEv};" ${onClickAction}>${thumbnailImg}</div>`;
                     }
+
                     const finalHeaderIcon = hasVideo ? overlayIcon : documentIcon;
 
                     lessonHtml += `
@@ -380,6 +327,7 @@ async function fetchCourses() {
                             </div>
                         </div>`;
                 });
+                
                 lessonHtml += `</div>`;
             } else {
                 lessonHtml += '<div class="text-muted p-3 text-center" style="font-size:12px;">No videos yet.</div>';
@@ -410,24 +358,33 @@ async function fetchCourses() {
             const courseContainer = document.getElementById('courseModuleContainer');
             if (courseContainer) {
                 new Sortable(courseContainer, {
-                    animation: 150, handle: '.accordion-header',
+                    animation: 150,
+                    handle: '.accordion-header',
                     onEnd: async function (evt) {
                         const orderedIds = Array.from(courseContainer.querySelectorAll('.course-module')).map(el => el.getAttribute('data-mod-id'));
                         try { await fetch('/api/admin/modules/reorder', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({ orderedIds }) }); } catch(e){}
                     }
                 });
             }
+
             document.querySelectorAll('.lesson-container-sortable').forEach(container => {
                 new Sortable(container, {
-                    animation: 150, handle: '.lesson-accordion-item', 
+                    animation: 150,
+                    handle: '.lesson-accordion-item', 
                     onEnd: async function (evt) {
                         const orderedIds = Array.from(container.querySelectorAll('.lesson-accordion-item')).map(el => el.getAttribute('data-lesson-id'));
                         try { await fetch('/api/admin/lessons/reorder', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({ orderedIds }) }); } catch(e){}
                     }
                 });
             });
+
             const layoutDraggable = document.getElementById('homepageLayoutDraggable');
-            if (layoutDraggable) new Sortable(layoutDraggable, { animation: 150, ghostClass: 'bg-light' });
+            if (layoutDraggable) {
+                new Sortable(layoutDraggable, {
+                    animation: 150,
+                    ghostClass: 'bg-light'
+                });
+            }
         }
         
         try {
@@ -438,15 +395,6 @@ async function fetchCourses() {
             setTimeout(() => { toggleAccordions(defaultState); }, 100);
             const adminSettingDropdown = document.getElementById('adminAccordionState');
             if (adminSettingDropdown) adminSettingDropdown.value = defaultState;
-
-            const showChatTab = settings.show_chat_tab !== 'false';
-            const navChatBtn = document.getElementById('navChatBtn');
-            if (navChatBtn) {
-                if (showChatTab || userData.role === 'admin' || userData.role === 'chat_moderator') navChatBtn.style.display = 'flex';
-                else navChatBtn.style.display = 'none';
-            }
-            const adminChatTabCheck = document.getElementById('adminShowChatTab');
-            if (adminChatTabCheck) adminChatTabCheck.checked = showChatTab;
 
             const hideTradeTab = settings.hide_trade_tab === 'true';
             const adminHideCheck = document.getElementById('adminHideTradeTab');
@@ -510,23 +458,18 @@ async function fetchCourses() {
             }
 
             const navTradeBtn = document.getElementById('navTradeBtn');
-            const navLearnBtn = document.getElementById('navLearnBtn');
-
-            if (userData.role === 'chat_moderator') {
-                if (navTradeBtn) navTradeBtn.style.display = 'none';
-                if (navLearnBtn) navLearnBtn.style.display = 'none';
-                if (navChatBtn) navChatBtn.style.display = 'flex';
-            } else {
-                if (navTradeBtn) {
-                    if (hideTradeTab && userData.role !== 'admin') navTradeBtn.style.display = 'none';
-                    else navTradeBtn.style.display = 'flex';
-                }
-                if (navLearnBtn) navLearnBtn.style.display = 'flex';
+            if (navTradeBtn) {
+                if (hideTradeTab && userData.role !== 'admin') navTradeBtn.style.display = 'none';
+                else navTradeBtn.style.display = 'flex';
             }
 
-        } catch (e) { setTimeout(() => { toggleAccordions('first'); }, 100); }
+        } catch (e) {
+            setTimeout(() => { toggleAccordions('first'); }, 100);
+        }
+
     } catch (err) { container.innerHTML = `<div class="p-3 text-danger text-center">❌ Error loading courses.</div>`; }
 }
+
 
 document.getElementById('videoPlayerContainer').addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
@@ -535,11 +478,23 @@ async function openSecureVideo(lessonId) {
         videoPlayer = videojs('my-video', { hls: { overrideNative: true }, html5: { vhs: { overrideNative: true } }, controlBar: { fullscreenToggle: false, pictureInPictureToggle: false } });
         videoPlayer.el().addEventListener('contextmenu', function(e) { e.preventDefault(); });
         videoPlayer.on('loadedmetadata', async function() {
-            const vw = videoPlayer.videoWidth(); const vh = videoPlayer.videoHeight();
+            const vw = videoPlayer.videoWidth();
+            const vh = videoPlayer.videoHeight();
+            
             if (screen.orientation && screen.orientation.lock) {
-                try { if (vw > vh) { await screen.orientation.lock("landscape"); } else { await screen.orientation.lock("portrait"); } } catch (e) {}
+                try { 
+                    if (vw > vh) { 
+                        await screen.orientation.lock("landscape"); 
+                    } else { 
+                        await screen.orientation.lock("portrait"); 
+                    } 
+                } catch (e) {
+                    console.log("Orientation lock failed", e);
+                }
             } else {
-                if (vw > vh && window.innerHeight > window.innerWidth) alert("For the best experience, please rotate your device horizontally.");
+                if (vw > vh && window.innerHeight > window.innerWidth) {
+                    alert("For the best experience, please rotate your device horizontally.");
+                }
             }
         });
     }
@@ -564,11 +519,14 @@ async function openSecureVideo(lessonId) {
         progressInterval = setInterval(() => {
             if (!videoPlayer.paused()) {
                 fetch('/api/video/progress', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
                     body: JSON.stringify({ lessonId: lessonId, currentTime: videoPlayer.currentTime() })
                 }).catch(e => {});
             }
         }, 10000);
+
     } catch(err) { alert("🚨 Error loading video stream."); }
 }
 
@@ -624,14 +582,14 @@ function moveWatermark() {
     wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
 }
 
+
 const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
     formAdminSettings.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
-
+        
         const state = document.getElementById('adminAccordionState')?.value || 'first';
-        const showChatTab = document.getElementById('adminShowChatTab')?.checked ? 'true' : 'false';
         const hideTrade = document.getElementById('adminHideTradeTab')?.checked ? 'true' : 'false';
         const push_trade_alerts = document.getElementById('adminPushTradeAlerts')?.checked ? 'true' : 'false';
         const showGallery = document.getElementById('adminShowGallery')?.checked ? 'true' : 'false';
@@ -644,24 +602,23 @@ if (formAdminSettings) {
         const sticky_btn2_text = document.getElementById('adminBtn2Text')?.value || '';
         const sticky_btn2_icon = document.getElementById('adminBtn2Icon')?.value || '';
         const sticky_btn2_link = document.getElementById('adminBtn2Link')?.value || '';
-
+        
         const showDisclaimer = document.getElementById('adminShowDisclaimer')?.checked ? 'true' : 'false';
         const register_link = document.getElementById('adminRegisterLink')?.value || '';
-
+        
         let homepage_layout = undefined;
         const layoutList = document.querySelectorAll('#homepageLayoutDraggable li');
         if (layoutList.length > 0) {
             const layoutArray = Array.from(layoutList).map(li => li.getAttribute('data-id'));
             homepage_layout = JSON.stringify(layoutArray);
         }
-
+        
         try {
-            const bodyData = {
-                accordion_state: state,
-                show_chat_tab: showChatTab,
-                hide_trade_tab: hideTrade,
+            const bodyData = { 
+                accordion_state: state, 
+                hide_trade_tab: hideTrade, 
                 push_trade_alerts: push_trade_alerts,
-                show_gallery: showGallery,
+                show_gallery: showGallery, 
                 show_call_widget: showCallWidget,
                 show_sticky_footer: showStickyFooter,
                 sticky_btn1_text: sticky_btn1_text,
@@ -675,17 +632,17 @@ if (formAdminSettings) {
             };
             if (homepage_layout) bodyData.homepage_layout = homepage_layout;
 
-            const res = await fetch('/api/admin/settings', {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                credentials: 'same-origin',
-                body: JSON.stringify(bodyData)
+            const res = await fetch('/api/admin/settings', { 
+                method: 'PUT', 
+                headers: {'Content-Type': 'application/json'}, 
+                credentials: 'same-origin', 
+                body: JSON.stringify(bodyData) 
             });
-            if(res.ok) {
+            if(res.ok) { 
                 const m = bootstrap.Modal.getInstance(document.getElementById('adminCourseModal'));
                 if(m) m.hide();
-                fetchCourses();
-            } else {
+                fetchCourses(); 
+            } else { 
                 const errData = await res.json().catch(()=>({}));
                 alert("Error saving settings: " + (errData.msg || "Unknown"));
             }
@@ -699,26 +656,26 @@ if (formAdminSymbols) {
     formAdminSymbols.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
-
+        
         try {
-            const bodyData = {
+            const bodyData = { 
                 cat_forex_crypto: document.getElementById('adminCatForex')?.value || '',
                 cat_stock: document.getElementById('adminCatStock')?.value || '',
                 cat_index: document.getElementById('adminCatIndex')?.value || '',
                 cat_mcx: document.getElementById('adminCatMcx')?.value || ''
             };
 
-            const res = await fetch('/api/admin/settings/symbols', {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                credentials: 'same-origin',
-                body: JSON.stringify(bodyData)
+            const res = await fetch('/api/admin/settings/symbols', { 
+                method: 'PUT', 
+                headers: {'Content-Type': 'application/json'}, 
+                credentials: 'same-origin', 
+                body: JSON.stringify(bodyData) 
             });
-
-            if(res.ok) {
+            
+            if(res.ok) { 
                 alert("Symbol Categories saved successfully!");
-                fetchCourses();
-            } else {
+                fetchCourses(); 
+            } else { 
                 const errData = await res.json().catch(()=>({}));
                 alert("Error saving symbols: " + (errData.msg || "Unknown"));
             }
@@ -923,7 +880,7 @@ async function deleteModule(e, id) {
 }
 
 function applyRoleRestrictions() {
-    const role = userData.role;
+    const role = localStorage.getItem('userRole');
     const statPoints = document.getElementById('statPoints');
     const statWinRate = document.getElementById('statWinRate');
 
@@ -940,6 +897,7 @@ function applyRoleRestrictions() {
 
         const navPushBtn = document.getElementById('navPushBtn');
         if (navPushBtn) navPushBtn.style.display = 'flex';
+
     } else {
         if (statPoints) statPoints.style.display = 'none';
         if (statWinRate) statWinRate.style.display = 'none';
@@ -959,6 +917,7 @@ socket.on('trade_update', () => {
     tradeSound.play().catch(e => { console.log("Browser blocked auto-play sound."); });
 });
 
+// --- LISTEN FOR NOTIFICATIONS ---
 socket.on('new_notification', () => {
     if (typeof fetchUserNotifications === 'function') fetchUserNotifications(false);
     if (typeof fetchChatNotifications === 'function') fetchChatNotifications(false);
@@ -1145,6 +1104,7 @@ function calculateStats(trades) {
         pipsEl.innerText = totalPoints.toFixed(2);
         pipsEl.className = totalPoints >= 0 ? 'stat-val val-green' : 'stat-val val-red';
     }
+    
     if(document.getElementById('activeTrades')) document.getElementById('activeTrades').innerText = active;
 }
 
@@ -1157,11 +1117,13 @@ function toggleSelectionMode() {
     else { navDefault.style.display = 'flex'; navSelection.style.display = 'none'; checkboxes.forEach(cb => cb.checked = false); }
     checkboxes.forEach(cb => cb.style.display = isSelectionMode ? 'block' : 'none');
 }
+
 function selectAllTrades() {
     const checkboxes = document.querySelectorAll('.trade-checkbox');
     const allChecked = Array.from(checkboxes).every(cb => cb.checked);
     checkboxes.forEach(cb => cb.checked = !allChecked);
 }
+
 function getCheckedIds() { return Array.from(document.querySelectorAll('.trade-checkbox:checked')).map(cb => cb.value); }
 
 async function deleteSelected() {
@@ -1181,758 +1143,25 @@ async function logout() {
     try { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); sessionStorage.clear(); localStorage.clear(); window.location.href = '/home.html'; } catch (err) {}
 }
 
+const filterSymbolEl = document.getElementById('filterSymbol');
+if (filterSymbolEl) filterSymbolEl.addEventListener('change', () => applyFilters());
 
-// ========================================================
-// CHAT SYSTEM LOGIC
-// ========================================================
+const filterStatusEl = document.getElementById('filterStatus');
+if (filterStatusEl) filterStatusEl.addEventListener('change', () => applyFilters());
 
-function parseMarkdown(text) {
-    if (!text) return '';
-    let parsed = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    parsed = parsed.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    parsed = parsed.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    parsed = parsed.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
-    return parsed;
-}
+const filterTypeEl = document.getElementById('filterType');
+if (filterTypeEl) filterTypeEl.addEventListener('change', () => applyFilters());
 
-function getChannelLevelText(level) {
-    if (level === 'all') return 'All Logged-in Users';
-    if (level === 'level_2_status') return 'Requires Level 2';
-    if (level === 'level_3_status') return 'Requires Level 3';
-    if (level === 'level_4_status') return 'Requires Level 4';
-    return level;
-}
-
-function toggleEmojiPicker() {
-    const picker = document.getElementById('emojiPickerContainer');
-    if (picker) {
-        picker.style.display = picker.style.display === 'none' ? 'block' : 'none';
-    }
-}
-
-// 1. Fetching & Rendering Channels (With Lock & Unread Dots)
-async function fetchChatChannels() {
-    const container = document.getElementById('chatChannelContainer');
-    if (!container) return;
-    
-    try {
-        const res = await fetch('/api/chat/channels', { credentials: 'same-origin' });
-        const data = await res.json();
-        if (data.success) {
-            chatChannels = data.data;
-            if (chatChannels.length === 0) {
-                container.innerHTML = '<div class="p-4 text-center text-muted">No channels available.</div>';
-                return;
-            }
-            
-            let html = '';
-            chatChannels.forEach(ch => {
-                let isLocked = false;
-                if (userData.role === 'student' && ch.required_level !== 'all') {
-                    isLocked = (userData.accessLevels && userData.accessLevels[ch.required_level] !== 'Yes');
-                }
-
-                const isAdminOrMod = (userData.role === 'admin' || userData.role === 'chat_moderator');
-                const levelTag = isAdminOrMod ? `<span class="badge bg-secondary ms-2" style="font-size:8px;">${getChannelLevelText(ch.required_level)}</span>` : '';
-                
-                const lockClass = isLocked ? 'locked' : '';
-                const iconHtml = isLocked ? `<span class="material-icons-round">lock</span>` : `#`;
-                const onClickHtml = isLocked ? `onclick="alert('🔒 This channel requires ${getChannelLevelText(ch.required_level)}. Please upgrade your access.')"` : `onclick="openChatRoom(${ch.id}, '${ch.name.replace(/'/g, "\\'")}', '${(ch.description || '').replace(/'/g, "\\'")}')"`;
-                
-                // Check Unread Status
-                let unreadDot = '';
-                if (!isLocked && ch.last_message_at) {
-                    const lastMsgTime = new Date(ch.last_message_at).getTime();
-                    const readTime = chatReadTimestamps[ch.id] || 0;
-                    if (lastMsgTime > readTime) {
-                        unreadDot = `<span class="bg-danger rounded-circle position-absolute" style="width:8px; height:8px; top:50%; right:35px; transform:translateY(-50%);"></span>`;
-                    }
-                }
-
-                html += `
-                <div class="channel-card ${lockClass}" ${onClickHtml}>
-                    <div class="d-flex align-items-center w-100">
-                        <div class="channel-icon">${iconHtml}</div>
-                        <div class="flex-grow-1 overflow-hidden">
-                            <div class="fw-bold text-truncate" style="font-size:14px; color:#000;">${ch.name} ${levelTag}</div>
-                            <div class="text-truncate" style="font-size:11px; color:var(--text-secondary);">${ch.description || ''}</div>
-                        </div>
-                    </div>
-                    ${unreadDot}
-                    ${isLocked ? '' : '<span class="material-icons-round text-muted" style="font-size:16px;">chevron_right</span>'}
-                </div>`;
-            });
-            container.innerHTML = html;
-        }
-    } catch (e) {
-        container.innerHTML = '<div class="p-4 text-center text-danger">Failed to load channels.</div>';
-    }
-}
-
-// 2. Open Chat Room
-function openChatRoom(channelId, name, desc) {
-    currentChatChannelId = channelId;
-    document.getElementById('activeChatChannelName').innerText = name;
-    document.getElementById('activeChatChannelDesc').innerText = desc || 'Broadcast Channel';
-    
-    document.getElementById('chatChannelListView').style.display = 'none';
-    document.getElementById('chatRoomView').style.display = 'flex';
-    
-    // Update read timestamp
-    chatReadTimestamps[channelId] = Date.now();
-    localStorage.setItem('chatReadTimestamps', JSON.stringify(chatReadTimestamps));
-
-    const adminInput = document.getElementById('chatAdminInputContainer');
-    const adminMenu = document.getElementById('chatRoomAdminMenu');
-    if (userData.role === 'admin' || userData.role === 'chat_moderator') {
-        adminInput.style.display = 'block';
-        adminMenu.style.display = 'block';
-    } else {
-        adminInput.style.display = 'none';
-        adminMenu.style.display = 'none';
-    }
-    
-    fetchChatMessages();
-}
-
-function closeChatRoom() {
-    // Update read timestamp one more time when leaving
-    if(currentChatChannelId) {
-        chatReadTimestamps[currentChatChannelId] = Date.now();
-        localStorage.setItem('chatReadTimestamps', JSON.stringify(chatReadTimestamps));
-    }
-    currentChatChannelId = null;
-    isChatSelectionMode = false;
-    document.getElementById('navChatSelection').style.display = 'none';
-    document.getElementById('chatRoomView').style.display = 'none';
-    document.getElementById('chatChannelListView').style.display = 'flex';
-    fetchChatChannels(); // refresh list to clear dots
-}
-
-// 3. Fetching & Rendering Messages
-async function fetchChatMessages() {
-    const container = document.getElementById('chatMessageHistory');
-    if(!container) return;
-    container.innerHTML = '<div class="text-center text-muted mt-3" style="font-size:12px;">Loading messages...</div>';
-    
-    try {
-        const res = await fetch(`/api/chat/channels/${currentChatChannelId}/messages`, { credentials: 'same-origin' });
-        const data = await res.json();
-        if (data.success) {
-            currentChatMessages = data.data;
-            renderMessages();
-        } else {
-            container.innerHTML = `<div class="text-center text-danger mt-3" style="font-size:12px;">${data.msg}</div>`;
-        }
-    } catch(e) {
-        container.innerHTML = '<div class="text-center text-danger mt-3" style="font-size:12px;">Error loading messages.</div>';
-    }
-}
-
-function renderMessages() {
-    const container = document.getElementById('chatMessageHistory');
-    if (currentChatMessages.length === 0) {
-        container.innerHTML = '<div class="text-center text-muted mt-3" style="font-size:12px;">No messages yet.</div>';
-        const banner = document.getElementById('pinnedMessageBanner');
-        if (banner) {
-            banner.classList.add('d-none');
-            banner.classList.remove('d-flex');
-        }
-        return;
-    }
-    
-    const isAdminOrMod = (userData.role === 'admin' || userData.role === 'chat_moderator');
-    let html = '';
-    let activePinnedMsg = null;
-    
-    currentChatMessages.forEach(msg => {
-        if (msg.is_pinned) activePinnedMsg = msg;
-
-        const isSelf = (isAdminOrMod && (msg.sender_name === 'Admin' || msg.sender_name === 'Moderator'));
-        let bubbleClass = isSelf ? 'sent' : 'received';
-        if (msg.is_pinned) bubbleClass += ' is-pinned';
-
-        const dateObj = new Date(msg.created_at);
-        const timeStr = dateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
-        
-        let replyHtml = '';
-        if (msg.reply_to_id) {
-            const repliedMsg = currentChatMessages.find(m => m.id === msg.reply_to_id);
-            if (repliedMsg) {
-                const repText = (repliedMsg.message_text || 'Attachment').substring(0, 40) + '...';
-                replyHtml = `<div class="reply-block" onclick="scrollToMsg(${repliedMsg.id})"><span class="fw-bold">${repliedMsg.sender_name}</span><br>${repText}</div>`;
-            }
-        }
-        
-        let imgHtml = '';
-        if (msg.image_path) {
-            imgHtml = `<a href="${msg.image_path}" target="_blank"><img src="${msg.image_path}" style="max-width:100%; border-radius:8px; margin-bottom:8px;"></a>`;
-        }
-        
-        let linkHtml = '';
-        if (msg.link_url) {
-            linkHtml = `<a href="${msg.link_url}" target="_blank" class="chat-link">${msg.link_url}</a>`;
-        }
-
-        const hoverMenu = isAdminOrMod ? `
-            <div class="chat-hover-actions shadow-sm">
-                <span class="material-icons-round chat-action-icon" onclick="selectedChatMsgId=${msg.id}; triggerReplyAction()" title="Reply">reply</span>
-                ${isSelf ? `<span class="material-icons-round chat-action-icon" onclick="selectedChatMsgId=${msg.id}; triggerEditChatAction()" title="Edit">edit</span>` : ''}
-                <span class="material-icons-round chat-action-icon" onclick="selectedChatMsgId=${msg.id}; triggerPinChatAction()" title="${msg.is_pinned ? 'Unpin' : 'Pin'}">${msg.is_pinned ? 'push_pin' : 'push_pin'}</span>
-                <span class="material-icons-round chat-action-icon text-danger" onclick="selectedChatMsgId=${msg.id}; triggerDeleteChatAction()" title="Delete">delete</span>
-            </div>
-        ` : '';
-
-        const checkDisplay = isChatSelectionMode ? 'block' : 'none';
-        
-        html += `
-        <div class="d-flex align-items-center mb-2 w-100 position-relative">
-            <input type="checkbox" class="custom-check chat-checkbox flex-shrink-0 ms-2 me-2" value="${msg.id}" style="display:${checkDisplay};">
-            <div class="chat-bubble ${bubbleClass} flex-grow-1" id="msg-${msg.id}" 
-                 data-msg-id="${msg.id}" 
-                 data-msg-text="${(msg.message_text || '').replace(/"/g, '&quot;')}"
-                 ontouchstart="handleTouchStart(event, ${msg.id})" 
-                 ontouchmove="handleTouchMove(event)" 
-                 ontouchend="handleTouchEnd(event)"
-                 style="margin-bottom:0;">
-                 
-                ${isAdminOrMod ? `<div class="swipe-reply-icon"><span class="material-icons-round" style="font-size:14px;">reply</span></div>` : ''}
-                ${hoverMenu}
-                
-                <div class="chat-title" style="color:var(--blue); font-size:12px;">${msg.sender_name} ${msg.is_pinned ? '<span class="material-icons-round text-primary align-middle ms-1" style="font-size:12px;">push_pin</span>' : ''}</div>
-                ${replyHtml}
-                ${imgHtml}
-                <div class="chat-body">${parseMarkdown(msg.message_text)}</div>
-                ${linkHtml}
-                <div class="chat-meta">
-                    <span>${timeStr}</span>
-                </div>
-            </div>
-        </div>`;
-    });
-    
-    container.innerHTML = html;
-    if(!isChatSelectionMode) container.scrollTop = container.scrollHeight;
-
-    const banner = document.getElementById('pinnedMessageBanner');
-    if (banner) {
-        if (activePinnedMsg) {
-            document.getElementById('pinnedMessageSender').innerText = activePinnedMsg.sender_name;
-            document.getElementById('pinnedMessageText').innerText = (activePinnedMsg.message_text || 'Attachment').substring(0, 50) + '...';
-            banner.classList.remove('d-none');
-            banner.classList.add('d-flex');
-            
-            if (isAdminOrMod) {
-                document.getElementById('btnUnpinMessage').style.display = 'block';
-            } else {
-                document.getElementById('btnUnpinMessage').style.display = 'none';
-            }
-        } else {
-            banner.classList.add('d-none');
-            banner.classList.remove('d-flex');
-        }
-    }
-}
-
-const chatImgInput = document.getElementById('chatInputImage');
-if (chatImgInput) {
-    chatImgInput.addEventListener('change', function() {
-        const ind = document.getElementById('chatImgPreviewIndicator');
-        if (this.files && this.files.length > 0) {
-            ind.style.display = 'block';
-        } else {
-            ind.style.display = 'none';
-        }
-    });
-}
-
-// 5. Sending Message (With Scheduling)
-const formChatMessage = document.getElementById('formChatMessage');
-if (formChatMessage) {
-    formChatMessage.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = document.getElementById('btnChatMessageSubmit');
-        btn.disabled = true;
-        
-        const chatInput = document.getElementById('chatInputText');
-        const formData = new FormData();
-        formData.append('channel_id', currentChatChannelId);
-        formData.append('message_text', chatInput.value);
-        
-        const linkVal = document.getElementById('chatInputLink').value;
-        if(linkVal) formData.append('link_url', linkVal);
-        
-        if(replyToMessageId) formData.append('reply_to_id', replyToMessageId);
-        
-        const scheduleEl = document.getElementById('chatInputSchedule');
-        if (scheduleEl && scheduleEl.value) formData.append('schedule_time', scheduleEl.value);
-
-        const recurEl = document.getElementById('chatInputRecurrence');
-        if (recurEl && recurEl.value !== 'none') formData.append('recurrence', recurEl.value);
-
-        const imageEl = document.getElementById('chatInputImage');
-        if (imageEl && imageEl.files[0]) {
-            formData.append('chat_image', imageEl.files[0]);
-        }
-
-        try {
-            const res = await fetch('/api/chat/messages', {
-                method: 'POST',
-                body: formData,
-                credentials: 'same-origin'
-            });
-
-            if (res.ok) {
-                chatInput.value = '';
-                chatInput.style.height = 'auto'; // Reset size
-                document.getElementById('chatInputLink').value = '';
-                if(scheduleEl) scheduleEl.value = '';
-                if(recurEl) recurEl.value = 'none';
-                if (imageEl) imageEl.value = '';
-                const ind = document.getElementById('chatImgPreviewIndicator');
-                if(ind) ind.style.display = 'none';
-                cancelReply();
-            } else {
-                alert("Error sending message.");
-            }
-        } catch (e) { alert("Network Error"); }
-        finally { btn.disabled = false; }
-    });
-}
-
-// 6. Socket Listeners for Real-time Chat
-socket.on('chat_channels_updated', () => {
-    if(document.getElementById('chatChannelListView').style.display !== 'none') {
-        fetchChatChannels();
-    }
-    if(userData.role === 'admin') fetchAdminChannels();
-});
-
-socket.on('new_chat_message', (msg) => {
-    if (currentChatChannelId === msg.channel_id) {
-        currentChatMessages.push(msg);
-        renderMessages();
-        
-        // Auto mark as read if currently in room
-        chatReadTimestamps[msg.channel_id] = Date.now();
-        localStorage.setItem('chatReadTimestamps', JSON.stringify(chatReadTimestamps));
-    } else {
-        // Update dots for other channels
-        if(document.getElementById('chatChannelListView').style.display !== 'none') {
-            fetchChatChannels(); 
-        }
-    }
-    tradeSound.play().catch(e => {});
-});
-
-socket.on('delete_chat_message', (data) => {
-    if (currentChatChannelId === data.channel_id) {
-        currentChatMessages = currentChatMessages.filter(m => m.id !== parseInt(data.id));
-        renderMessages();
-    }
-});
-
-socket.on('bulk_delete_chat_messages', (data) => {
-    if (currentChatChannelId === parseInt(data.channel_id)) {
-        fetchChatMessages();
-    }
-});
-
-socket.on('update_chat_message', (data) => {
-    const msg = currentChatMessages.find(m => m.id === parseInt(data.id));
-    if (msg) {
-        msg.message_text = data.message_text;
-        renderMessages();
-    }
-});
-
-socket.on('pin_chat_message', (data) => {
-    if (currentChatChannelId === data.channel_id) {
-        currentChatMessages.forEach(m => m.is_pinned = false);
-        const msg = currentChatMessages.find(m => m.id === parseInt(data.id));
-        if (msg) msg.is_pinned = data.is_pinned;
-        renderMessages();
-    }
-});
-
-// 7. Swipe to Reply & Long Press Logic
-let touchStartX = 0;
-let touchCurrentX = 0;
-let swipingMsgId = null;
-let isSwiping = false;
-
-function handleTouchStart(e, msgId) {
-    if (userData.role !== 'admin' && userData.role !== 'chat_moderator') return;
-    if (isChatSelectionMode) return; // Disable swipe when selecting
-    touchStartX = e.touches[0].clientX;
-    swipingMsgId = msgId;
-    isSwiping = false;
-    
-    selectedChatMsgId = msgId;
-    longPressTimer = setTimeout(() => {
-        if(!isSwiping) openChatActionMenu();
-    }, 600);
-}
-
-function handleTouchMove(e) {
-    if (userData.role !== 'admin' && userData.role !== 'chat_moderator') return;
-    if (!swipingMsgId || isChatSelectionMode) return;
-    
-    touchCurrentX = e.touches[0].clientX;
-    const diffX = touchCurrentX - touchStartX;
-    
-    if (Math.abs(diffX) > 10) {
-        isSwiping = true;
-        clearTimeout(longPressTimer); 
-    }
-    
-    if (diffX > 0 && diffX < 80) { 
-        const bubble = document.getElementById(`msg-${swipingMsgId}`);
-        const icon = bubble.querySelector('.swipe-reply-icon');
-        bubble.style.transform = `translateX(${diffX}px)`;
-        if(icon) icon.style.opacity = diffX / 80;
-    }
-}
-
-function handleTouchEnd(e) {
-    if (userData.role !== 'admin' && userData.role !== 'chat_moderator') return;
-    clearTimeout(longPressTimer);
-    
-    if (!swipingMsgId || isChatSelectionMode) return;
-    const bubble = document.getElementById(`msg-${swipingMsgId}`);
-    const icon = bubble.querySelector('.swipe-reply-icon');
-    
-    const diffX = touchCurrentX - touchStartX;
-    if (diffX > 50 && isSwiping) {
-        triggerReplyAction();
-    }
-    
-    bubble.style.transform = 'translateX(0)';
-    if(icon) icon.style.opacity = 0;
-    swipingMsgId = null;
-}
-
-// 8. Admin Action Menus & Logic
-function openChatActionMenu() {
-    document.getElementById('chatActionOverlay').style.display = 'flex';
-    setTimeout(() => { document.getElementById('chatActionMenu').classList.add('show'); }, 10);
-    if(navigator.vibrate) navigator.vibrate(50);
-}
-
-function closeChatActionMenu() {
-    const menu = document.getElementById('chatActionMenu');
-    if (menu) menu.classList.remove('show');
-    setTimeout(() => { 
-        const overlay = document.getElementById('chatActionOverlay');
-        if (overlay) overlay.style.display = 'none'; 
-    }, 300);
-}
-
-function triggerReplyAction() {
-    closeChatActionMenu();
-    const msgId = swipingMsgId || selectedChatMsgId;
-    if(!msgId) return;
-    
-    const bubble = document.getElementById(`msg-${msgId}`);
-    const text = bubble.getAttribute('data-msg-text') || 'Attachment';
-    
-    replyToMessageId = msgId;
-    const preview = document.getElementById('chatReplyPreview');
-    if (preview) {
-        preview.classList.remove('d-none');
-        document.getElementById('chatReplyText').innerText = text;
-        document.getElementById('chatInputText').focus();
-    }
-}
-
-function cancelReply() {
-    replyToMessageId = null;
-    const preview = document.getElementById('chatReplyPreview');
-    if (preview) preview.classList.add('d-none');
-}
-
-// Edit Modal Handling
-function triggerEditChatAction() {
-    closeChatActionMenu();
-    const msgId = selectedChatMsgId;
-    if(!msgId) return;
-    const msg = currentChatMessages.find(m => m.id === msgId);
-    if(!msg) return;
-    
-    document.getElementById('editChatMsgId').value = msg.id;
-    document.getElementById('editChatMsgText').value = msg.message_text || '';
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('editChatMessageModal')).show();
-}
-
-const formEditChatMessage = document.getElementById('formEditChatMessage');
-if(formEditChatMessage) {
-    formEditChatMessage.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const msgId = document.getElementById('editChatMsgId').value;
-        const newText = document.getElementById('editChatMsgText').value;
-        
-        try {
-            const res = await fetch(`/api/chat/messages/${msgId}`, {
-                method: 'PUT', headers: {'Content-Type': 'application/json'},
-                credentials: 'same-origin', body: JSON.stringify({ message_text: newText })
-            });
-            if(res.ok) {
-                bootstrap.Modal.getInstance(document.getElementById('editChatMessageModal')).hide();
-            }
-        } catch(e) { alert("Error saving edits."); }
-    });
-}
-
-// Pin Message Logic
-async function triggerPinChatAction() {
-    closeChatActionMenu();
-    const msgId = selectedChatMsgId;
-    if(!msgId) return;
-    const msg = currentChatMessages.find(m => m.id === msgId);
-    if(!msg) return;
-    
-    const isCurrentlyPinned = msg.is_pinned;
-    try {
-        await fetch(`/api/chat/messages/${msgId}/pin`, {
-            method: 'PUT', headers: {'Content-Type': 'application/json'},
-            credentials: 'same-origin', body: JSON.stringify({ is_pinned: !isCurrentlyPinned, channel_id: currentChatChannelId })
-        });
-    } catch(e) {}
-}
-
-async function unpinActiveMessage() {
-    const pinnedMsg = currentChatMessages.find(m => m.is_pinned);
-    if(pinnedMsg) {
-        selectedChatMsgId = pinnedMsg.id;
-        triggerPinChatAction();
-    }
-}
-
-async function triggerDeleteChatAction() {
-    closeChatActionMenu();
-    const msgId = selectedChatMsgId;
-    if(!msgId) return;
-    
-    if(confirm("Permanently delete this message?")) {
-        try {
-            await fetch(`/api/chat/messages/${msgId}`, { method: 'DELETE', credentials: 'same-origin' });
-        } catch(e) { alert("Error deleting message."); }
-    }
-}
-
-function scrollToMsg(id) {
-    const el = document.getElementById(`msg-${id}`);
-    if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.querySelector('.chat-bubble').style.backgroundColor = '#ffffcc';
-        setTimeout(() => { 
-            const isSelf = el.querySelector('.chat-bubble').classList.contains('sent');
-            el.querySelector('.chat-bubble').style.backgroundColor = isSelf ? '#dcf8c6' : '#ffffff'; 
-        }, 1500);
-    }
-}
-
-function scrollToPinned() {
-    const pinnedMsg = currentChatMessages.find(m => m.is_pinned);
-    if(pinnedMsg) scrollToMsg(pinnedMsg.id);
-}
-
-// 9. Bulk Deletion Logic
-function toggleChatSelectionMode() {
-    isChatSelectionMode = !isChatSelectionMode;
-    const navSelection = document.getElementById('navChatSelection');
-    if(isChatSelectionMode) { 
-        navSelection.style.display = 'flex'; 
-    } else { 
-        navSelection.style.display = 'none'; 
-    }
-    renderMessages(); // Re-render to show/hide checkboxes
-}
-
-function selectAllChatMessages() {
-    const checkboxes = document.querySelectorAll('.chat-checkbox');
-    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-    checkboxes.forEach(cb => cb.checked = !allChecked);
-}
-
-async function deleteSelectedChatMessages() {
-    const ids = Array.from(document.querySelectorAll('.chat-checkbox:checked')).map(cb => parseInt(cb.value));
-    if (ids.length === 0) return;
-    if (!confirm(`Delete ${ids.length} selected messages?`)) return;
-    
-    try {
-        const res = await fetch(`/api/chat/channels/${currentChatChannelId}/messages`, { 
-            method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin', body: JSON.stringify({ message_ids: ids }) 
-        });
-        if(res.ok) {
-            toggleChatSelectionMode();
-        }
-    } catch(e) { alert("Error deleting."); }
-}
-
-async function clearAllChatMessages() {
-    if (!confirm(`Are you sure you want to completely WIPE all history in this channel? This cannot be undone.`)) return;
-    
-    try {
-        await fetch(`/api/chat/channels/${currentChatChannelId}/messages`, { 
-            method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin', body: JSON.stringify({ all: true }) 
-        });
-    } catch(e) { alert("Error clearing channel."); }
-}
+const filterCategoryEl = document.getElementById('filterCategory');
+if (filterCategoryEl) filterCategoryEl.addEventListener('change', () => applyFilters());
 
 
 // ========================================================
-// CHAT ADMIN MANAGER LOGIC (CHANNELS & MODERATORS)
-// ========================================================
-
-async function fetchAdminChannels() {
-    const container = document.getElementById('adminChannelListContainer');
-    if(!container) return;
-    container.innerHTML = '<div class="text-center text-muted p-2" style="font-size:11px;">Loading...</div>';
-    
-    try {
-        const res = await fetch('/api/chat/channels', { credentials: 'same-origin' });
-        const data = await res.json();
-        if(data.success) {
-            if(data.data.length === 0) {
-                container.innerHTML = '<div class="text-center text-muted p-2" style="font-size:11px;">No channels.</div>';
-                return;
-            }
-            let html = '';
-            data.data.forEach(ch => {
-                html += `
-                <div class="p-2 mb-2 bg-white rounded border d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="fw-bold text-dark" style="font-size: 12px;">${ch.name}</div>
-                        <div class="text-muted" style="font-size: 10px;">Lvl: ${ch.required_level}</div>
-                    </div>
-                    <div>
-                        <button class="btn btn-sm btn-outline-primary p-1 me-1" onclick='openEditChannel(${JSON.stringify(ch).replace(/'/g, "\\'")})'><span class="material-icons-round" style="font-size:14px;">edit</span></button>
-                        <button class="btn btn-sm btn-outline-danger p-1" onclick="deleteChannel(${ch.id})"><span class="material-icons-round" style="font-size:14px;">delete</span></button>
-                    </div>
-                </div>`;
-            });
-            container.innerHTML = html;
-        }
-    } catch(e) { container.innerHTML = '<div class="text-danger p-2" style="font-size:11px;">Error loading.</div>'; }
-}
-
-const formAddChannel = document.getElementById('formAddChannel');
-if(formAddChannel) {
-    formAddChannel.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const data = {
-            name: document.getElementById('adminChannelName').value,
-            description: document.getElementById('adminChannelDesc').value,
-            required_level: document.getElementById('adminChannelLevel').value
-        };
-        try {
-            const res = await fetch('/api/chat/channels', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
-            if(res.ok) {
-                formAddChannel.reset();
-                fetchAdminChannels();
-            }
-        } catch(e) {}
-    });
-}
-
-window.openEditChannel = function(ch) {
-    document.getElementById('editChannelId').value = ch.id;
-    document.getElementById('editChannelName').value = ch.name;
-    document.getElementById('editChannelDesc').value = ch.description || '';
-    document.getElementById('editChannelLevel').value = ch.required_level || 'all';
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('editChannelModal')).show();
-};
-
-const formEditChannel = document.getElementById('formEditChannel');
-if (formEditChannel) {
-    formEditChannel.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const id = document.getElementById('editChannelId').value;
-        const data = {
-            name: document.getElementById('editChannelName').value,
-            description: document.getElementById('editChannelDesc').value,
-            required_level: document.getElementById('editChannelLevel').value
-        };
-        try {
-            const res = await fetch(`/api/chat/channels/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(data) });
-            if(res.ok) {
-                bootstrap.Modal.getInstance(document.getElementById('editChannelModal')).hide();
-                fetchAdminChannels();
-            }
-        } catch(e) {}
-    });
-}
-
-window.deleteChannel = async function(id) {
-    if(!confirm("Delete this channel and all its messages?")) return;
-    try {
-        await fetch(`/api/chat/channels/${id}`, { method: 'DELETE', credentials: 'same-origin' });
-        fetchAdminChannels();
-    } catch(e) {}
-};
-
-// --- MODERATORS MANAGEMENT ---
-async function fetchModerators() {
-    const tbody = document.getElementById('moderatorTableBody');
-    if(!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="2" class="text-center py-2">Loading...</td></tr>';
-    try {
-        const res = await fetch('/api/admin/moderators', { credentials: 'same-origin' });
-        const json = await res.json();
-        if(json.success) {
-            if(json.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="2" class="text-center text-muted py-2">No moderators.</td></tr>';
-                return;
-            }
-            tbody.innerHTML = json.data.map(m => {
-                const dateStr = new Date(m.created_at).toLocaleDateString('en-GB');
-                return `
-                <tr>
-                    <td class="align-middle fw-bold">${m.email}<br><span class="text-muted fw-normal" style="font-size:8px;">Added: ${dateStr}</span></td>
-                    <td class="text-end align-middle"><button class="btn btn-sm text-danger p-0" onclick="deleteModerator('${m.email}')"><span class="material-icons-round" style="font-size:16px;">delete</span></button></td>
-                </tr>`;
-            }).join('');
-        }
-    } catch(e) {}
-}
-
-const formAddModerator = document.getElementById('formAddModerator');
-if (formAddModerator) {
-    formAddModerator.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('adminModEmail').value;
-        const password = document.getElementById('adminModPassword').value;
-        try {
-            const res = await fetch('/api/admin/moderators', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({email, password}) });
-            const data = await res.json();
-            if(res.ok && data.success) {
-                formAddModerator.reset();
-                fetchModerators();
-            } else {
-                alert(data.msg || "Error adding moderator.");
-            }
-        } catch(e) { alert("Network error."); }
-    });
-}
-
-window.deleteModerator = async function(email) {
-    if(!confirm(`Remove ${email} as moderator?`)) return;
-    try {
-        await fetch(`/api/admin/moderators/${encodeURIComponent(email)}`, { method: 'DELETE', credentials: 'same-origin' });
-        fetchModerators();
-    } catch(e) {}
-};
-
-
-// ========================================================
-// PUSH NOTIFICATION SYSTEM
+// PAGINATED PUSH NOTIFICATION CHAT UI LOGIC
 // ========================================================
 let chatNotifications = [];
 let adminNotifOffset = 0;
-const NOTIF_LIMIT = 15; 
+const NOTIF_LIMIT = 15; // Limit chunks roughly equivalent to a day of notifications
 
 async function fetchChatNotifications(loadMore = false) {
     const history = document.getElementById('chatHistory');
@@ -1962,9 +1191,11 @@ async function fetchChatNotifications(loadMore = false) {
                 return;
             }
 
+            // chatNotifications has newest first (DESC). We want newest at bottom, so we reverse it.
             const sortedForDisplay = [...chatNotifications].reverse();
             
             let html = '';
+            // "Show More" button goes at the TOP because oldest messages are at the top
             if (fetched.length === NOTIF_LIMIT) {
                 html += `<div class="text-center my-2"><button id="btnLoadMoreAdmin" class="btn btn-sm btn-outline-secondary shadow-sm" style="font-size: 11px; border-radius: 12px; padding: 4px 12px; background: #fff;" onclick="fetchChatNotifications(true)">Show More Old Broadcasts</button></div>`;
             }
@@ -1979,16 +1210,16 @@ async function fetchChatNotifications(loadMore = false) {
                 const iconColor = isScheduled ? '#856404' : '#53bdeb';
                 
                 let targetText = '';
-                if (n.target_audience === 'logged_in') targetText = '🔒 Login Users';
-                else if (n.target_audience === 'non_logged_in') targetText = '🌐 Public Users';
-                else if (n.target_audience === 'both') targetText = '🌍 All Users';
-                else if (n.target_audience === 'login_no_level_2') targetText = '🔒 Login (No Lvl 2)';
-                else if (n.target_audience === 'login_no_level_3') targetText = '🔒 Login (No Lvl 3)';
-                else if (n.target_audience === 'login_no_level_4') targetText = '🔒 Login (No Lvl 4)';
-                else if (n.target_audience === 'login_with_level_2') targetText = '🔒 Login (With Lvl 2)';
-                else if (n.target_audience === 'login_with_level_3') targetText = '🔒 Login (With Lvl 3)';
-                else if (n.target_audience === 'login_with_level_4') targetText = '🔒 Login (With Lvl 4)';
-                else targetText = '🌍 All Users';
+if (n.target_audience === 'logged_in') targetText = '🔒 Login Users';
+else if (n.target_audience === 'non_logged_in') targetText = '🌐 Public Users';
+else if (n.target_audience === 'both') targetText = '🌍 All Users';
+else if (n.target_audience === 'login_no_level_2') targetText = '🔒 Login (No Lvl 2)';
+else if (n.target_audience === 'login_no_level_3') targetText = '🔒 Login (No Lvl 3)';
+else if (n.target_audience === 'login_no_level_4') targetText = '🔒 Login (No Lvl 4)';
+else if (n.target_audience === 'login_with_level_2') targetText = '🔒 Login (With Lvl 2)';
+else if (n.target_audience === 'login_with_level_3') targetText = '🔒 Login (With Lvl 3)';
+else if (n.target_audience === 'login_with_level_4') targetText = '🔒 Login (With Lvl 4)';
+else targetText = '🌍 All Users';
 
                 let recurrenceText = '';
                 if (n.recurrence === 'daily') recurrenceText = ' | 🔁 Daily';
@@ -2011,6 +1242,7 @@ async function fetchChatNotifications(loadMore = false) {
             const oldScrollHeight = history.scrollHeight;
             history.innerHTML = html;
 
+            // Maintain scroll position when loading history
             if (!loadMore) history.scrollTop = history.scrollHeight;
             else history.scrollTop = history.scrollHeight - oldScrollHeight;
         }
@@ -2057,7 +1289,7 @@ if (formChatPush) {
                 document.getElementById('chatPushSchedule').value = '';
                 document.getElementById('chatPushRecurrence').value = 'none';
                 if (imageEl) imageEl.value = '';
-                fetchChatNotifications(false); 
+                fetchChatNotifications(false); // Reset and load newest
             } else {
                 alert("Error sending notification.");
             }
@@ -2095,15 +1327,14 @@ async function fetchScheduledPushes() {
                 const dateStr = dateObj ? dateObj.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }) + ' ' + dateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }) : 'Immediate/Sent';
                 
                 let targetText = '🌍 All Users';
-                if (n.target_audience === 'logged_in') targetText = '🔒 Login Users';
-                else if (n.target_audience === 'non_logged_in') targetText = '🌐 Public Users';
-                else if (n.target_audience === 'login_no_level_2') targetText = '🔒 Login (No Lvl 2)';
-                else if (n.target_audience === 'login_no_level_3') targetText = '🔒 Login (No Lvl 3)';
-                else if (n.target_audience === 'login_no_level_4') targetText = '🔒 Login (No Lvl 4)';
-                else if (n.target_audience === 'login_with_level_2') targetText = '🔒 Login (With Lvl 2)';
-                else if (n.target_audience === 'login_with_level_3') targetText = '🔒 Login (With Lvl 3)';
-                else if (n.target_audience === 'login_with_level_4') targetText = '🔒 Login (With Lvl 4)';
-                
+if (n.target_audience === 'logged_in') targetText = '🔒 Login Users';
+else if (n.target_audience === 'non_logged_in') targetText = '🌐 Public Users';
+else if (n.target_audience === 'login_no_level_2') targetText = '🔒 Login (No Lvl 2)';
+else if (n.target_audience === 'login_no_level_3') targetText = '🔒 Login (No Lvl 3)';
+else if (n.target_audience === 'login_no_level_4') targetText = '🔒 Login (No Lvl 4)';
+else if (n.target_audience === 'login_with_level_2') targetText = '🔒 Login (With Lvl 2)';
+else if (n.target_audience === 'login_with_level_3') targetText = '🔒 Login (With Lvl 3)';
+else if (n.target_audience === 'login_with_level_4') targetText = '🔒 Login (With Lvl 4)';
                 let recurrenceText = n.recurrence === 'daily' ? ' | 🔁 Daily' : (n.recurrence === 'weekly' ? ' | 🔁 Weekly' : ' | Once');
 
                 return `
@@ -2133,7 +1364,7 @@ window.openEditPushModal = function(n) {
     document.getElementById('editPushRecurrence').value = n.recurrence || 'none';
     
     const imgInput = document.getElementById('editPushImage');
-    if(imgInput) imgInput.value = ''; 
+    if(imgInput) imgInput.value = ''; // Reset file input
     
     const currentImgLabel = document.getElementById('editPushCurrentImgLabel');
     if(currentImgLabel) {
@@ -2141,6 +1372,7 @@ window.openEditPushModal = function(n) {
     }
 
     if (n.scheduled_for) {
+        // Convert ISO to datetime-local format (YYYY-MM-DDThh:mm) respecting timezone offset
         const d = new Date(n.scheduled_for);
         const tzOffset = d.getTimezoneOffset() * 60000;
         const localISOTime = (new Date(d - tzOffset)).toISOString().slice(0, 16);
@@ -2238,6 +1470,7 @@ async function fetchUserNotifications(loadMore = false) {
                 return;
             }
             
+            // User List puts newest at the top
             let html = userNotifications.map(n => {
                 const dateObj = n.scheduled_for ? new Date(n.scheduled_for) : new Date(n.created_at);
                 const dateStr = dateObj.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }) + ' ' + dateObj.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
@@ -2253,6 +1486,7 @@ async function fetchUserNotifications(loadMore = false) {
                 </div>`;
             }).join('');
             
+            // "Show More" goes at the BOTTOM of the user notification panel
             if (fetched.length === NOTIF_LIMIT) {
                 html += `<div class="text-center my-3"><button id="btnLoadMoreUser" class="btn btn-sm btn-outline-secondary w-100 fw-bold" style="font-size: 12px; border-radius: 8px; background: #fff;" onclick="fetchUserNotifications(true)">Show More History</button></div>`;
             }

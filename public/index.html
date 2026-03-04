@@ -12,7 +12,6 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
-    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
 
     <style>
         :root {
@@ -65,7 +64,6 @@
         
         #noData { padding: 50px; text-align: center; color: var(--text-secondary); }
 
-        #learningSection, #chatSection { display: none; }
         #learningSection { display: block; padding: 10px; }
         #tradeSection { display: none; }
         
@@ -98,9 +96,8 @@
         .modal-header { padding: 12px 15px 0; border-bottom: none; }
         .modal-title { font-size: 15px; font-weight: 700; color: #000; }
         
-        .nav-tabs .nav-link { color: var(--text-secondary); border: none; border-bottom: 2px solid transparent; padding: 10px 5px; cursor: pointer; }
+        .nav-tabs .nav-link { color: var(--text-secondary); border: none; border-bottom: 2px solid transparent; padding: 10px 5px; }
         .nav-tabs .nav-link.active { color: var(--blue); background: transparent; border-bottom: 2px solid var(--blue); font-weight: bold; }
-        .tab-pane { padding: 10px 0; }
 
         #videoPlayerContainer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; display: none; }
         .video-js { width: 100% !important; height: 100% !important; }
@@ -111,50 +108,15 @@
         .admin-edit-btn { color: var(--blue); background: none; border: none; font-size: 14px; padding: 5px; }
         .admin-del-btn { color: var(--red); background: none; border: none; font-size: 14px; padding: 5px; }
 
-        /* --- CHAT STYLES --- */
-        .chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 12px; margin-bottom: 12px; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-break: break-word; transition: transform 0.2s; }
+        /* --- PUSH NOTIFICATION CHAT STYLES --- */
+        .chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 12px; margin-bottom: 12px; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .chat-bubble.sent { background-color: #dcf8c6; margin-left: auto; border-bottom-right-radius: 0; }
         .chat-bubble.scheduled { background-color: #fff3cd; margin-left: auto; border-bottom-right-radius: 0; }
-        .chat-bubble.received { background-color: #ffffff; margin-right: auto; border-bottom-left-radius: 0; }
-        
-        .chat-bubble.is-pinned { border: 1px solid var(--blue); box-shadow: 0 2px 6px rgba(0,122,255,0.3); }
-
         .chat-title { font-weight: bold; font-size: 14px; margin-bottom: 4px; color: #000; line-height: 1.2; }
         .chat-body { font-size: 13px; color: #222; margin-bottom: 6px; white-space: pre-wrap; line-height: 1.4; }
-        .chat-body strong { font-weight: bold; }
-        .chat-body em { font-style: italic; }
-        .chat-body a { color: #0056b3; text-decoration: underline; }
-        
         .chat-link { font-size: 12px; color: #0056b3; word-break: break-all; display: block; margin-bottom: 5px; text-decoration: underline; }
         .chat-meta { font-size: 10px; color: #666; text-align: right; display: flex; justify-content: flex-end; gap: 4px; align-items: center; margin-top: 5px; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 5px; }
-
-        /* Desktop Hover Menus */
-        .chat-hover-actions { position: absolute; top: -12px; right: 10px; background: #fff; border: 1px solid var(--border-color); border-radius: 12px; padding: 2px 6px; display: none; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 10; }
-        @media (hover: hover) {
-            .chat-bubble:hover .chat-hover-actions { display: flex; }
-        }
-        .chat-action-icon { cursor: pointer; font-size: 16px !important; color: #666; transition: color 0.2s; }
-        .chat-action-icon:hover { color: var(--blue); }
-        .chat-action-icon.text-danger:hover { color: var(--red); }
-
-        .reply-block { background: rgba(0,0,0,0.05); border-left: 3px solid var(--blue); padding: 4px 8px; margin-bottom: 6px; border-radius: 4px; font-size: 11px; cursor: pointer; }
-        
-        .channel-card { background: #fff; padding: 12px 15px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid var(--border-color); position: relative; overflow: hidden; }
-        .channel-card:active { background: #f8f9fa; }
-        .channel-icon { width: 40px; height: 40px; border-radius: 50%; background: #e3f2fd; color: var(--blue); display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 20px; }
-        .channel-card.locked { opacity: 0.7; background: #fdfdfd; cursor: not-allowed; }
-        .channel-card.locked .channel-icon { background: #f0f0f0; color: #999; }
-        
-        .swipe-reply-icon { position: absolute; right: -30px; top: 50%; transform: translateY(-50%); background: var(--blue); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
-
-        /* Admin Action Sheet Overlay for Long Press */
-        #chatActionOverlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1050; display: none; align-items: flex-end; }
-        .chat-action-menu { background: #fff; width: 100%; border-radius: 16px 16px 0 0; padding: 10px; padding-bottom: max(20px, env(safe-area-inset-bottom)); transform: translateY(100%); transition: transform 0.3s ease-out; }
-        .chat-action-menu.show { transform: translateY(0); }
-        .chat-action-btn { width: 100%; padding: 15px; background: transparent; border: none; border-bottom: 1px solid #eee; text-align: left; font-size: 15px; font-weight: 500; display: flex; align-items: center; }
-        .chat-action-btn:last-child { border-bottom: none; }
-        .chat-action-btn .material-icons-round { margin-right: 15px; color: #666; }
-        .chat-action-btn.text-danger .material-icons-round { color: var(--red); }
+        .chat-del-btn { color: var(--red); cursor: pointer; padding: 2px; }
     </style>
 </head>
 <body>
@@ -217,95 +179,6 @@
             </div>
         </div>
 
-        <div id="chatSection" style="display:none; flex-direction: column; height: calc(100vh - 110px);">
-            
-            <div id="chatChannelListView" style="display:flex; flex-direction: column; height:100%;">
-                <div class="p-2 bg-white shadow-sm z-1 d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-center">
-                        <span class="material-icons-round text-primary me-2">forum</span>
-                        <div>
-                            <h6 class="mb-0 fw-bold" style="font-size:14px;">Channels</h6>
-                            <div style="font-size:10px; color:var(--text-secondary);">Select a channel to view updates</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="flex-grow-1 p-2" id="chatChannelContainer" style="overflow-y:auto; background:#f0f2f5;">
-                    <div class="p-4 text-center text-muted">Loading channels...</div>
-                </div>
-            </div>
-
-            <div id="chatRoomView" style="display:none; flex-direction: column; height:100%; background:#efeae2;">
-                <div class="p-2 bg-white shadow-sm z-1 d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-center">
-                        <button class="btn btn-sm btn-light me-2 p-1 d-flex align-items-center border" onclick="closeChatRoom()"><span class="material-icons-round">arrow_back</span></button>
-                        <div>
-                            <h6 class="mb-0 fw-bold" id="activeChatChannelName" style="font-size:14px;">Channel Name</h6>
-                            <div style="font-size:10px; color:var(--text-secondary);" id="activeChatChannelDesc">Description</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="pinnedMessageBanner" class="bg-white border-bottom shadow-sm px-3 py-2 d-none align-items-center cursor-pointer" onclick="scrollToPinned()">
-                    <span class="material-icons-round text-primary me-2" style="font-size:18px;">push_pin</span>
-                    <div class="flex-grow-1 overflow-hidden" style="white-space:nowrap; text-overflow:ellipsis; font-size:12px;">
-                        <strong class="text-primary" id="pinnedMessageSender">Sender</strong><br>
-                        <span class="text-muted" id="pinnedMessageText">Pinned message text...</span>
-                    </div>
-                    <button class="btn btn-sm btn-link text-muted p-0 ms-2" id="btnUnpinMessage" style="display:none;" onclick="event.stopPropagation(); unpinActiveMessage()"><span class="material-icons-round" style="font-size:16px;">close</span></button>
-                </div>
-                
-                <div class="flex-grow-1 p-3" id="chatMessageHistory" style="overflow-y: auto; display: flex; flex-direction: column;">
-                </div>
-                
-                <div class="p-2 bg-white border-top shadow-lg position-relative" id="chatAdminInputContainer" style="display:none;">
-                    
-                    <div id="emojiPickerContainer" class="shadow-lg rounded" style="display:none; position:absolute; bottom:100%; left:10px; z-index:1050; background: white;">
-                        <emoji-picker class="light"></emoji-picker>
-                    </div>
-
-                    <div id="chatReplyPreview" class="d-none bg-light p-2 mb-2 rounded border border-info" style="font-size:11px; position:relative;">
-                        <span class="fw-bold text-primary">Replying to:</span> <span id="chatReplyText" class="text-muted text-truncate d-inline-block" style="max-width:200px; vertical-align:bottom;">...</span>
-                        <button class="btn btn-sm text-danger p-0 position-absolute top-0 end-0 m-1" onclick="cancelReply()"><span class="material-icons-round" style="font-size:14px;">close</span></button>
-                    </div>
-                    
-                    <form id="formChatMessage" class="d-flex flex-column gap-2 mb-0">
-                        <input type="hidden" id="replyToMessageId" value="">
-                        
-                        <div class="d-flex justify-content-between align-items-center px-1">
-                            <span class="text-muted" style="font-size:9px;">Supports: **bold**, *italic*, [link text](url)</span>
-                            <span class="material-icons-round text-secondary" style="font-size:16px; cursor:pointer;" onclick="toggleEmojiPicker()">mood</span>
-                        </div>
-                        
-                        <textarea id="chatInputText" class="form-control bg-light" rows="1" placeholder="Type message..." style="font-size:13px; resize:none;" required></textarea>
-                        
-                        <div class="d-flex gap-2 align-items-center bg-light p-1 rounded border">
-                            <span class="material-icons-round text-muted ms-1" style="font-size:16px;">schedule</span>
-                            <input type="datetime-local" id="chatInputSchedule" class="form-control form-control-sm bg-white" title="Schedule Time" style="font-size:11px; padding:2px 5px; height:24px; border:none; width: 130px;">
-                            <select id="chatInputRecurrence" class="form-select form-select-sm bg-white" style="font-size:11px; padding:2px 15px 2px 5px; height:24px; border:none; width:80px;">
-                                <option value="none">Once</option>
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly</option>
-                            </select>
-                        </div>
-
-                        <div class="d-flex gap-2 align-items-center">
-                            <label class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center p-1 m-0" style="width:34px; height:34px; cursor:pointer;" title="Attach Image">
-                                <span class="material-icons-round" style="font-size:18px;">image</span>
-                                <input type="file" id="chatInputImage" accept="image/*" style="display:none;">
-                            </label>
-                            
-                            <div id="chatImgPreviewIndicator" style="display:none; font-size:10px; color:var(--blue);" class="fw-bold flex-shrink-0">
-                                <span class="material-icons-round align-middle" style="font-size:12px;">check_circle</span> Img
-                            </div>
-
-                            <input type="text" id="chatInputLink" class="form-control form-control-sm bg-light flex-grow-1" placeholder="Attach URL Link" style="font-size:12px;">
-                            <button type="submit" class="btn btn-primary d-flex align-items-center justify-content-center flex-shrink-0" id="btnChatMessageSubmit" style="border-radius: 50%; width: 34px; height: 34px; padding: 0;"><span class="material-icons-round" style="margin-left:4px; font-size:18px;">send</span></button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
         <div id="pushSection" style="display:none; flex-direction: column; height: calc(100vh - 110px);">
             <div class="p-2 bg-white shadow-sm z-1 d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center">
@@ -319,21 +192,21 @@
             </div>
             
             <div class="flex-grow-1 p-3" id="chatHistory" style="overflow-y: auto; background-color: #efeae2; display: flex; flex-direction: column;">
-            </div>
+                </div>
             
             <div class="p-2 bg-white border-top shadow-lg">
                 <form id="formChatPush" class="d-flex flex-column gap-2 mb-0">
                     <select id="chatPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px; font-weight:bold; color:var(--blue);">
-                        <option value="both">🌍 Send to ALL Users (Login + Public)</option>
-                        <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
-                        <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
-                        <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
-                        <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
-                        <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
-                        <option value="login_with_level_2">🔒 Login User with Level 2</option>
-                        <option value="login_with_level_3">🔒 Login User with Level 3</option>
-                        <option value="login_with_level_4">🔒 Login User with Level 4</option>
-                    </select>
+    <option value="both">🌍 Send to ALL Users (Login + Public)</option>
+    <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
+    <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
+    <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
+    <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
+    <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
+    <option value="login_with_level_2">🔒 Login User with Level 2</option>
+    <option value="login_with_level_3">🔒 Login User with Level 3</option>
+    <option value="login_with_level_4">🔒 Login User with Level 4</option>
+</select>
                     <input type="text" id="chatPushTitle" class="form-control bg-light" placeholder="Notification Title (e.g. 🚨 New Strategy)" style="font-size:13px; font-weight:bold;" required>
                     <textarea id="chatPushBody" class="form-control bg-light" rows="2" placeholder="Type your message description here..." style="font-size:13px;" required></textarea>
                     
@@ -359,8 +232,6 @@
             <button class="b-btn" id="navTradeBtn" onclick="switchSection('trade')"><span class="material-icons-round">analytics</span>Trade</button>
             <button class="b-btn b-active" id="navLearnBtn" onclick="switchSection('learning')"><span class="material-icons-round">school</span>Learn</button>
             
-            <button class="b-btn" id="navChatBtn" onclick="switchSection('chat')" style="display:none;"><span class="material-icons-round">chat</span>Chat</button>
-
             <button class="b-btn" id="navPushBtn" onclick="switchSection('push')" style="display:none;"><span class="material-icons-round">campaign</span>Push</button>
 
             <button class="b-btn" id="btnRefresh" onclick="fetchTrades()" style="display:none;"><span class="material-icons-round">refresh</span>Refresh</button>
@@ -381,33 +252,6 @@
         <button class="close-video" onclick="closeVideoPlayer()"><span class="material-icons-round">close</span></button>
         <div id="dynamicWatermark"></div>
         <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" disablePictureInPicture controlsList="nodownload nofullscreen noremoteplayback" playsinline webkit-playsinline></video>
-    </div>
-
-    <div id="chatActionOverlay" onclick="closeChatActionMenu()">
-        <div class="chat-action-menu" id="chatActionMenu" onclick="event.stopPropagation()">
-            <button class="chat-action-btn" onclick="triggerReplyAction()"><span class="material-icons-round">reply</span> Reply</button>
-            <button class="chat-action-btn" onclick="triggerEditChatAction()"><span class="material-icons-round">edit</span> Edit Message</button>
-            <button class="chat-action-btn" onclick="triggerPinChatAction()"><span class="material-icons-round">push_pin</span> Pin/Unpin</button>
-            <button class="chat-action-btn text-danger" onclick="triggerDeleteChatAction()"><span class="material-icons-round">delete</span> Delete Message</button>
-        </div>
-    </div>
-
-    <div class="modal fade" id="editChatMessageModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title mb-0" style="font-size:15px;">Edit Message</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-3">
-                    <form id="formEditChatMessage" class="d-flex flex-column gap-2 mb-0">
-                        <input type="hidden" id="editChatMsgId">
-                        <textarea id="editChatMsgText" class="form-control bg-light" rows="4" style="font-size:13px;" required></textarea>
-                        <button type="submit" class="btn btn-primary w-100 mt-2 fw-bold" id="btnEditChatMsgSubmit">Save Changes</button>
-                    </form>
-                </div>
-            </div>
-        </div>
     </div>
 
     <div class="modal fade" id="scheduledPushModal" tabindex="-1">
@@ -436,16 +280,16 @@
                         <input type="hidden" id="editPushId">
                         <label class="form-label fw-bold mb-0" style="font-size: 10px; color: var(--text-secondary);">Target Audience</label>
                         <select id="editPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px;">
-                            <option value="both">🌍 Send to ALL Users (Login + Public)</option>
-                            <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
-                            <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
-                            <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
-                            <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
-                            <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
-                            <option value="login_with_level_2">🔒 Login User with Level 2</option>
-                            <option value="login_with_level_3">🔒 Login User with Level 3</option>
-                            <option value="login_with_level_4">🔒 Login User with Level 4</option>
-                        </select>
+    <option value="both">🌍 Send to ALL Users (Login + Public)</option>
+    <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
+    <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
+    <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
+    <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
+    <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
+    <option value="login_with_level_2">🔒 Login User with Level 2</option>
+    <option value="login_with_level_3">🔒 Login User with Level 3</option>
+    <option value="login_with_level_4">🔒 Login User with Level 4</option>
+</select>
                         <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Title</label>
                         <input type="text" id="editPushTitle" class="form-control bg-light" style="font-size:13px;" required>
                         <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Body</label>
@@ -478,7 +322,6 @@
             </div>
         </div>
     </div>
-    
     <div class="modal fade" id="disclaimerModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 500px;">
             <div class="modal-content">
@@ -517,36 +360,31 @@
     </div>
     
     <div class="modal fade" id="adminCourseModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title mb-0">Admin Manager</h5>
+                    <h5 class="modal-title mb-0">Admin Course Manager</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
                 </div>
                 <div class="modal-body p-0">
                     
-                    <div class="overflow-auto border-bottom">
-                        <ul class="nav nav-tabs flex-nowrap px-1 pt-2" id="adminTabs" role="tablist" style="white-space: nowrap;">
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link active fw-bold text-uppercase" id="tab-module" data-bs-toggle="tab" data-bs-target="#pane-module" type="button" role="tab" style="font-size: 10px;">Module</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link fw-bold text-uppercase" id="tab-lesson" data-bs-toggle="tab" data-bs-target="#pane-lesson" type="button" role="tab" style="font-size: 10px;">Lesson</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link fw-bold text-uppercase" id="tab-settings" data-bs-toggle="tab" data-bs-target="#pane-settings" type="button" role="tab" style="font-size: 10px;">Settings</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link fw-bold text-uppercase" id="tab-channels" data-bs-toggle="tab" data-bs-target="#pane-channels" type="button" role="tab" style="font-size: 10px;" onclick="fetchAdminChannels()">Channels</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link fw-bold text-uppercase" id="tab-mods" data-bs-toggle="tab" data-bs-target="#pane-mods" type="button" role="tab" style="font-size: 10px;" onclick="fetchModerators()">Moderators</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link fw-bold text-uppercase" id="tab-progress" data-bs-toggle="tab" data-bs-target="#pane-progress" type="button" role="tab" style="font-size: 10px;" onclick="fetchVideoProgress()">Progress</button>
-                            </li>
-                        </ul>
-                    </div>
+                    <ul class="nav nav-tabs nav-justified px-1 pt-2" id="adminTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active fw-bold text-uppercase" id="tab-module" data-bs-toggle="tab" data-bs-target="#pane-module" type="button" role="tab" style="font-size: 10px;">1. Module</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-uppercase" id="tab-lesson" data-bs-toggle="tab" data-bs-target="#pane-lesson" type="button" role="tab" style="font-size: 10px;">2. Lesson</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-uppercase" id="tab-settings" data-bs-toggle="tab" data-bs-target="#pane-settings" type="button" role="tab" style="font-size: 10px;">3. Settings</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-uppercase" id="tab-progress" data-bs-toggle="tab" data-bs-target="#pane-progress" type="button" role="tab" style="font-size: 10px;" onclick="fetchVideoProgress()">4. Progress</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-uppercase" id="tab-symbols" data-bs-toggle="tab" data-bs-target="#pane-symbols" type="button" role="tab" style="font-size: 10px;">5. Symbols</button>
+                        </li>
+                    </ul>
 
                     <div class="tab-content p-3" id="adminTabsContent">
                         
@@ -643,11 +481,6 @@
                                 </div>
                                 
                                 <div class="mb-2 d-flex align-items-center">
-                                    <input type="checkbox" class="custom-check m-0" id="adminShowChatTab">
-                                    <label class="form-check-label ms-2 fw-bold" for="adminShowChatTab" style="font-size: 11px; color: var(--text-secondary); cursor: pointer; color: var(--blue);">Enable CHAT Tab for All Users</label>
-                                </div>
-
-                                <div class="mb-2 d-flex align-items-center">
                                     <input type="checkbox" class="custom-check m-0" id="adminPushTradeAlerts">
                                     <label class="form-check-label ms-2 fw-bold" for="adminPushTradeAlerts" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Enable Web Push for Trade Alerts</label>
                                 </div>
@@ -709,56 +542,6 @@
                             </form>
                         </div>
 
-                        <div class="tab-pane fade" id="pane-channels" role="tabpanel">
-                            <h6 class="fw-bold mb-2" style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary);">Create Chat Channel</h6>
-                            <form id="formAddChannel" class="mb-4">
-                                <div class="mb-2">
-                                    <input type="text" id="adminChannelName" class="form-control form-control-sm" placeholder="Channel Name (e.g. VIP Analysis)" required>
-                                </div>
-                                <div class="mb-2">
-                                    <input type="text" id="adminChannelDesc" class="form-control form-control-sm" placeholder="Description (Optional)">
-                                </div>
-                                <div class="mb-2">
-                                    <select id="adminChannelLevel" class="form-select form-select-sm" required>
-                                        <option value="all">All Logged-in Users</option>
-                                        <option value="level_2_status">Requires Level 2</option>
-                                        <option value="level_3_status">Requires Level 3</option>
-                                        <option value="level_4_status">Requires Level 4</option>
-                                    </select>
-                                </div>
-                                <button type="submit" class="btn btn-sm btn-primary w-100 fw-bold">Create Channel</button>
-                            </form>
-                            
-                            <h6 class="fw-bold mb-2" style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary);">Manage Channels</h6>
-                            <div id="adminChannelListContainer" style="max-height: 250px; overflow-y: auto;">
-                                <div class="text-center text-muted p-2" style="font-size:11px;">Loading...</div>
-                            </div>
-                        </div>
-
-                        <div class="tab-pane fade" id="pane-mods" role="tabpanel">
-                            <h6 class="fw-bold mb-2" style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary);">Add Chat Moderator</h6>
-                            <p class="text-muted" style="font-size: 10px; margin-bottom: 12px;">Moderators can only access the Chat tab to send/manage messages.</p>
-                            
-                            <form id="formAddModerator" class="mb-4">
-                                <div class="mb-2">
-                                    <input type="email" id="adminModEmail" class="form-control form-control-sm" placeholder="Moderator Email" required>
-                                </div>
-                                <div class="mb-2">
-                                    <input type="password" id="adminModPassword" class="form-control form-control-sm" placeholder="Moderator Password" required>
-                                </div>
-                                <button type="submit" class="btn btn-sm btn-success w-100 fw-bold">Create Moderator Account</button>
-                            </form>
-
-                            <h6 class="fw-bold mb-2" style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary);">Active Moderators</h6>
-                            <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
-                                <table class="table table-sm table-bordered" style="font-size: 10px;">
-                                    <tbody id="moderatorTableBody">
-                                        <tr><td class="text-center text-muted py-2">Loading...</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
                         <div class="tab-pane fade" id="pane-progress" role="tabpanel">
                             <h6 class="fw-bold mb-3" style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary);">Student Watch Log</h6>
                             <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
@@ -779,41 +562,31 @@
                             <button type="button" class="btn btn-sm btn-outline-primary w-100 mt-2 fw-bold" onclick="fetchVideoProgress()" style="padding:8px; border-radius:4px;">↻ Refresh Report</button>
                         </div>
 
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+                        <div class="tab-pane fade" id="pane-symbols" role="tabpanel">
+                            <h6 class="fw-bold mb-2" style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary);">Manage Symbol Categories</h6>
+                            <p class="text-muted" style="font-size: 10px; margin-bottom: 12px;">Enter comma-separated symbol names (e.g., XAUUSD, BTCUSD) that belong to each category.</p>
+                            <form id="formAdminSymbols">
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px;">Forex/Crypto</label>
+                                    <input type="text" id="adminCatForex" class="form-control" placeholder="EURUSD, BTCUSD">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px;">Stock</label>
+                                    <input type="text" id="adminCatStock" class="form-control" placeholder="AAPL, TSLA">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px;">Index</label>
+                                    <input type="text" id="adminCatIndex" class="form-control" placeholder="US30, NAS100">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px;">Mcx</label>
+                                    <input type="text" id="adminCatMcx" class="form-control" placeholder="CRUDEOIL, GOLD">
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-success w-100 fw-bold" style="padding:8px; border-radius:4px;">Save Symbols</button>
+                            </form>
+                        </div>
 
-    <div class="modal fade" id="editChannelModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 320px;">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title mb-0">Edit Channel</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="formEditChannel">
-                        <input type="hidden" id="editChannelId">
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Channel Name</label>
-                            <input type="text" id="editChannelName" class="form-control" required>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
-                            <input type="text" id="editChannelDesc" class="form-control">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Access Level</label>
-                            <select id="editChannelLevel" class="form-select" required>
-                                <option value="all">All Logged-in Users</option>
-                                <option value="level_2_status">Requires Level 2</option>
-                                <option value="level_3_status">Requires Level 3</option>
-                                <option value="level_4_status">Requires Level 4</option>
-                            </select>
-                        </div>
-                        <button type="submit" class="btn btn-sm btn-primary w-100 fw-bold" style="padding:8px; border-radius:4px;">Save Changes</button>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>
@@ -955,7 +728,7 @@
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <script src="app.js?v=6.0"></script>
+    <script src="app.js?v=4.0"></script>
     
     <script>
         setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-GB'); }, 1000);
