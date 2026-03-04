@@ -1000,7 +1000,30 @@ app.get('/api/user/notifications', authenticateToken, async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 15;
         const offset = parseInt(req.query.offset) || 0;
-        const result = await pool.query("SELECT * FROM scheduled_notifications WHERE status = 'sent' AND target_audience IN ('logged_in', 'both') ORDER BY COALESCE(scheduled_for, created_at) DESC LIMIT $1 OFFSET $2", [limit, offset]);
+        
+        // 1. Base audiences everyone logged in can see
+        let allowedAudiences = ['both', 'logged_in'];
+        
+        // 2. Dynamically add audiences based on this specific user's levels
+        if (req.user && req.user.accessLevels) {
+            const levels = req.user.accessLevels;
+            
+            if (levels.level_2_status === 'Yes') allowedAudiences.push('login_with_level_2');
+            else allowedAudiences.push('login_no_level_2');
+            
+            if (levels.level_3_status === 'Yes') allowedAudiences.push('login_with_level_3');
+            else allowedAudiences.push('login_no_level_3');
+            
+            if (levels.level_4_status === 'Yes') allowedAudiences.push('login_with_level_4');
+            else allowedAudiences.push('login_no_level_4');
+        }
+
+        // 3. Query using ANY($1) array matching
+        const result = await pool.query(
+            "SELECT * FROM scheduled_notifications WHERE status = 'sent' AND target_audience = ANY($1) ORDER BY COALESCE(scheduled_for, created_at) DESC LIMIT $2 OFFSET $3", 
+            [allowedAudiences, limit, offset]
+        );
+        
         res.json({ success: true, data: result.rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
