@@ -1016,8 +1016,10 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, upload.single('
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, res) => {
+app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, upload.single('push_image'), async (req, res) => {
     const { title, body, url, schedule_time, target_audience, recurrence } = req.body;
+    let newImagePath = req.file ? `/uploads/${req.file.filename}` : null;
+
     try {
         let parsedScheduleTime = null;
         if (schedule_time) {
@@ -1029,10 +1031,26 @@ app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, 
             }
         }
 
-        await pool.query(
-            "UPDATE scheduled_notifications SET title = $1, body = $2, url = $3, scheduled_for = $4, target_audience = $5, recurrence = $6, status = $7 WHERE id = $8",
-            [title, body, url || '/', parsedScheduleTime || null, target_audience || 'both', recurrence || 'none', parsedScheduleTime ? 'pending' : 'sent', req.params.id]
-        );
+        // --- NEW IMAGE REPLACEMENT LOGIC ---
+        if (newImagePath) {
+            // Delete old image if exists
+            const { rows } = await pool.query("SELECT image_path FROM scheduled_notifications WHERE id = $1", [req.params.id]);
+            if (rows.length > 0 && rows[0].image_path) {
+                const oldPath = path.join(__dirname, rows[0].image_path);
+                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+            }
+
+            await pool.query(
+                "UPDATE scheduled_notifications SET title = $1, body = $2, url = $3, scheduled_for = $4, target_audience = $5, recurrence = $6, status = $7, image_path = $8 WHERE id = $9",
+                [title, body, url || '/', parsedScheduleTime || null, target_audience || 'both', recurrence || 'none', parsedScheduleTime ? 'pending' : 'sent', newImagePath, req.params.id]
+            );
+        } else {
+            // Just update text content without modifying image
+            await pool.query(
+                "UPDATE scheduled_notifications SET title = $1, body = $2, url = $3, scheduled_for = $4, target_audience = $5, recurrence = $6, status = $7 WHERE id = $8",
+                [title, body, url || '/', parsedScheduleTime || null, target_audience || 'both', recurrence || 'none', parsedScheduleTime ? 'pending' : 'sent', req.params.id]
+            );
+        }
 
         const jobs = await pushQueue.getDelayed();
         for (let job of jobs) {
@@ -1044,13 +1062,21 @@ app.put('/api/admin/notifications/:id', authenticateToken, isAdmin, async (req, 
             await pushQueue.add('send-push', { notificationId: parseInt(req.params.id) }, { delay: Math.max(delay, 0), jobId: `push_${req.params.id}_${Date.now()}` });
         } else {
             const uniqueSubs = await getValidPushSubscribers(target_audience || 'both');
+            
             // Re-fetch to get image_path if it exists (for immediate send update)
             const { rows } = await pool.query("SELECT image_path FROM scheduled_notifications WHERE id = $1", [req.params.id]);
-            const imagePath = rows.length > 0 ? rows[0].image_path : null;
+            const currentImagePath = rows.length > 0 ? rows[0].image_path : null;
 
-            const payload = { title, body, url: url || '/', image: imagePath };
+            const payload = { title, body, url: url || '/', image: currentImagePath };
             uniqueSubs.forEach(sub => { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); });
             io.emit('new_notification');
+            
+            // --- DELETE IMMEDIATE PUSH IMAGE FROM FS ---
+            if (currentImagePath) {
+                const filePath = path.join(__dirname, currentImagePath);
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                await pool.query("UPDATE scheduled_notifications SET image_path = NULL WHERE id = $1", [req.params.id]);
+            }
         }
 
         res.json({ success: true });
