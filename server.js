@@ -258,6 +258,7 @@ async function sendPushNotification(payload) {
             "INSERT INTO scheduled_notifications (title, body, url, status, target_audience, recurrence) VALUES ($1, $2, $3, 'sent', 'logged_in', 'none')",
             [payload.title, payload.body, payload.url || '/']
         );
+        io.emit('new_notification');
         console.log(`✅ Trade Push Successfully Saved to Dashboard History!\n`);
     } catch (err) { console.error("❌ Error sending trade push:", err); }
 }
@@ -455,7 +456,7 @@ app.post('/api/login', async (req, res) => {
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
             
         } else {
-            const localCreds = await pool.query("SELECT * FROM user_credentials WHERE email = $1", [email]);
+            const localCreds = await pool.query("SELECT * FROM user_credentials স্পেন WHERE email = $1", [email]);
             if (localCreds.rows.length > 0) {
                 const { salt, hash } = localCreds.rows[0];
                 const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
@@ -872,6 +873,7 @@ const pushWorker = new Worker('push-notifications', async job => {
                 console.log(`🔁 Notification ${notificationId} sent and rescheduled for ${nextTime}`);
             } else {
                 await pool.query("UPDATE scheduled_notifications SET status = 'sent' WHERE id = $1", [notificationId]);
+                io.emit('new_notification');
                 console.log(`✅ Scheduled push notification sent: ${notification.title}`);
             }
         } catch (e) {
@@ -941,6 +943,13 @@ app.get('/api/admin/notifications', authenticateToken, isAdmin, async (req, res)
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+app.get('/api/user/notifications', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM scheduled_notifications WHERE status = 'sent' AND target_audience IN ('logged_in', 'both') ORDER BY COALESCE(scheduled_for, created_at) DESC LIMIT 50");
+        res.json({ success: true, data: result.rows });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
 app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res) => {
     const { title, body, url, schedule_time, target_audience, recurrence } = req.body;
     try {
@@ -969,6 +978,7 @@ app.post('/api/admin/notifications', authenticateToken, isAdmin, async (req, res
                     if(e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
                 }); 
             });
+            io.emit('new_notification');
         } else {
             const delay = new Date(parsedScheduleTime).getTime() - Date.now();
             await pushQueue.add('send-push', { notificationId }, { delay: Math.max(delay, 0), jobId: `push_${notificationId}_${Date.now()}` });
@@ -1039,6 +1049,8 @@ app.post('/api/setup_confirmed', async (req, res) => {
 
         const isPushEnabled = await checkTradePushEnabled();
         const oldTrades = await pool.query("SELECT * FROM trades WHERE symbol = $1 AND status IN ('SIGNAL', 'SETUP', 'ACTIVE') AND trade_id != $2", [symbol, trade_id]);
+        
+        let reversalSymbols = [];
         for (const t of oldTrades.rows) {
             await pool.query("UPDATE trades SET status = 'CLOSED (Reversal)' WHERE trade_id = $1", [t.trade_id]);
             
@@ -1046,9 +1058,7 @@ app.post('/api/setup_confirmed', async (req, res) => {
                 if(t.telegram_msg_id) { await bot.sendMessage(CHAT_ID, `🔄 *Trade Reversed*\n❌ Closed by new signal.`, { reply_to_message_id: t.telegram_msg_id, parse_mode: 'Markdown' }); }
             } catch(tgErr) { console.error("⚠️ Telegram Reversal Send Failed (Skipping TG):", tgErr.message); }
             
-            if (isPushEnabled) {
-                await sendPushNotification({ title: '🔄 TRADE CLOSED', body: `${t.symbol} - Reversal / New Signal` });
-            }
+            reversalSymbols.push(t.symbol);
         }
         
         const check = await pool.query("SELECT telegram_msg_id FROM trades WHERE trade_id = $1", [trade_id]);
@@ -1062,10 +1072,14 @@ app.post('/api/setup_confirmed', async (req, res) => {
         io.emit('trade_update'); 
         
         if (isPushEnabled) { 
-            // Type (BUY/SELL) successfully added to the Body
+            let bodyStr = `${symbol} - ${type}\nEntry: ${entry} | SL: ${sl}\nTargets: ${tp1}, ${tp2}, ${tp3}`;
+            if (reversalSymbols.length > 0) {
+                bodyStr = `🔄 CLOSED: ${reversalSymbols.join(', ')} (Reversal)\n\n${bodyStr}`;
+            }
+            
             await sendPushNotification({ 
                 title: '✅ SETUP CONFIRMED', 
-                body: `${symbol} - ${type}\nEntry: ${entry} | SL: ${sl}\nTargets: ${tp1}, ${tp2}, ${tp3}` 
+                body: bodyStr 
             }); 
         }
         
