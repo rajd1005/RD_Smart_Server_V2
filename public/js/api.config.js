@@ -24,6 +24,7 @@ window.onload = function() {
     if (typeof fetchCourses === 'function') fetchCourses(); 
     if (typeof fetchUserNotifications === 'function') fetchUserNotifications(false); 
     if (typeof applyRoleRestrictions === 'function') applyRoleRestrictions(); 
+    if (typeof loadChannels === 'function') loadChannels(); // <-- ADD THIS LINE
     
     switchSection('learning'); 
     
@@ -49,13 +50,21 @@ window.onload = function() {
 function switchSection(section) {
     document.getElementById('tradeSection').style.display = 'none';
     document.getElementById('learningSection').style.display = 'none';
+    
     const pushSec = document.getElementById('pushSection');
     if(pushSec) pushSec.style.display = 'none';
     
+    const chanSec = document.getElementById('channelsSection');
+    if(chanSec) chanSec.style.display = 'none';
+    
     document.getElementById('navTradeBtn').classList.remove('b-active');
     document.getElementById('navLearnBtn').classList.remove('b-active');
+    
     const navPushBtn = document.getElementById('navPushBtn');
     if(navPushBtn) navPushBtn.classList.remove('b-active');
+    
+    const navChanBtn = document.getElementById('navChannelsBtn');
+    if(navChanBtn) navChanBtn.classList.remove('b-active');
 
     document.getElementById('btnRefresh').style.display = 'none';
     document.getElementById('btnFilter').style.display = 'none';
@@ -72,6 +81,10 @@ function switchSection(section) {
         if(pushSec) pushSec.style.display = 'flex';
         if(navPushBtn) navPushBtn.classList.add('b-active');
         if (typeof fetchChatNotifications === 'function') fetchChatNotifications(false); 
+    } else if (section === 'channels') {
+        if(chanSec) chanSec.style.display = 'block';
+        if(navChanBtn) navChanBtn.classList.add('b-active');
+        if (typeof loadChannels === 'function') loadChannels();
     } else {
         document.getElementById('learningSection').style.display = 'block';
         document.getElementById('navLearnBtn').classList.add('b-active');
