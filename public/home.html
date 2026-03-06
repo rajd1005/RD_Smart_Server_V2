@@ -9,6 +9,9 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#007aff">
+    <link rel="apple-touch-icon" href="/logo.png">
 
     <style>
         :root {
@@ -100,10 +103,14 @@
 <body>
 
     <div class="app-wrapper">
-        <nav class="navbar d-flex justify-content-between align-items-center">
-            <div class="navbar-brand">RD Algo Trading</div>
-            <button class="btn btn-sm btn-primary fw-bold px-3 py-1" style="border-radius: 4px; font-size:12px;" data-bs-toggle="modal" data-bs-target="#loginModal">Login</button>
-        </nav>
+<nav class="navbar d-flex justify-content-between align-items-center">
+    <div class="navbar-brand">RD Algo Trading</div>
+    <div>
+        <button id="installAppBtn" class="btn btn-sm btn-success fw-bold px-3 py-1 me-2" style="display:none; border-radius: 4px; font-size:12px;" onclick="installPWA()">Install App</button>
+        
+        <button class="btn btn-sm btn-primary fw-bold px-3 py-1" style="border-radius: 4px; font-size:12px;" data-bs-toggle="modal" data-bs-target="#loginModal">Login</button>
+    </div>
+</nav>
 
         <div class="curriculum-container pb-0" id="demoCoursesContainer" style="display:none;">
             <div class="accordion" id="publicCourseContainer_demo"></div>
@@ -967,5 +974,36 @@
         </div>
     </div>
 </div>
+    <script>
+    let deferredPrompt;
+    
+    // Listen for the browser telling us the app is ready to be installed
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        // Show the install button
+        const installBtn = document.getElementById('installAppBtn');
+        if (installBtn) installBtn.style.display = 'inline-block';
+    });
+
+    // Function to trigger when user clicks the "Install App" button
+    function installPWA() {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt(); // Show the native browser install prompt
+        deferredPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+                console.log('User accepted the install prompt');
+            }
+            deferredPrompt = null;
+            document.getElementById('installAppBtn').style.display = 'none';
+        });
+    }
+
+    // Hide button if already installed
+    window.addEventListener('appinstalled', (evt) => {
+        const installBtn = document.getElementById('installAppBtn');
+        if (installBtn) installBtn.style.display = 'none';
+    });
+</script>
 </body>
 </html>
