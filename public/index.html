@@ -189,94 +189,93 @@
             </div>
         </div>
 
-<div id="channelsSection" class="content-section" style="display:none; height: calc(100vh - 125px); padding: 5px; overflow: hidden;">
-    <div class="row h-100 g-0 border rounded bg-white shadow-sm" style="overflow: hidden; max-width: 100%;">
-        
-        <div class="col-md-4 col-12 border-end h-100 d-flex flex-column bg-white" id="channelListWrapper" style="overflow: hidden;">
-            <div class="p-2 border-bottom d-flex justify-content-between align-items-center bg-light">
-                <h6 class="mb-0 fw-bold px-1" style="font-size: 14px;">Channels</h6>
-                <button id="btnCreateChannel" class="btn btn-sm btn-primary" style="display:none; padding: 2px 6px;" data-bs-toggle="modal" data-bs-target="#createChannelModal">
-                    <span class="material-icons-round" style="font-size: 16px;">add</span>
-                </button>
-            </div>
-            <div id="channelsList" class="overflow-auto flex-grow-1 p-2"></div>
-        </div>
-
-        <div class="col-md-8 col-12 h-100 d-flex flex-column d-none d-md-flex position-relative" id="channelChatWrapper" style="background: #eef2f5; overflow: hidden;">
-            
-            <div class="p-2 border-bottom d-flex align-items-center bg-white shadow-sm flex-shrink-0" style="z-index: 10;">
-                <button class="btn btn-sm btn-light d-md-none me-2 p-1" onclick="closeMobileChat()">
-                    <span class="material-icons-round">arrow_back</span>
-                </button>
-                <div class="d-flex flex-column">
-                    <h6 class="mb-0 fw-bold d-flex align-items-center" id="activeChannelName" style="font-size: 14px;">Select a Channel</h6>
-                    <small class="text-muted" id="activeChannelDesc" style="font-size: 11px;">Join a broadcast to see updates.</small>
-                </div>
-            </div>
-
-            <div id="pinnedMessageBanner" class="bg-white border-bottom p-2 d-flex align-items-center flex-shrink-0" style="display:none !important; cursor:pointer; border-left: 3px solid var(--blue);">
-                <span class="material-icons-round text-primary me-2" style="font-size: 16px;">push_pin</span>
-                <div class="flex-grow-1 overflow-hidden">
-                    <div class="fw-bold text-primary" style="font-size: 10px;">Pinned Message</div>
-                    <div class="text-truncate text-muted" id="pinnedMessageText" style="font-size: 12px;"></div>
-                </div>
-                <button class="btn btn-sm text-muted p-0 ms-2 admin-only-btn" style="display:none;" onclick="unpinMessage()"><span class="material-icons-round" style="font-size:16px;">close</span></button>
-            </div>
-
-            <div id="chatMessagesArea" class="flex-grow-1 overflow-auto p-3 d-flex flex-column" style="background: #eef2f5;">
-                <div class="text-center text-muted mt-5 m-auto" id="chatEmptyState">Select a channel from the left menu.</div>
-            </div>
-
-            <div class="p-2 border-top bg-white flex-shrink-0" id="chatInputArea" style="display:none;">
+<div id="channelsSection" class="content-section" style="display:none; height: calc(100vh - 65px); padding-bottom: 60px; margin: -15px; overflow: hidden; background: var(--bg-color);">
+            <div class="row h-100 g-0 border-top bg-white shadow-sm" style="overflow: hidden; max-width: 100%;">
                 
-                <div id="chatActionBanner" class="bg-light p-2 mb-2 rounded d-flex justify-content-between align-items-center" style="display:none !important; border-left: 3px solid var(--blue);">
-                    <div class="overflow-hidden">
-                        <div class="fw-bold text-primary" id="chatActionTitle" style="font-size: 10px;">Replying to...</div>
-                        <div class="text-truncate text-muted" id="chatActionText" style="font-size: 11px;"></div>
-                    </div>
-                    <button class="btn btn-sm text-muted p-0 ms-2" onclick="cancelChatAction()"><span class="material-icons-round" style="font-size:14px;">close</span></button>
-                </div>
-
-                <div id="chatScheduleControls" class="bg-light p-2 mb-2 rounded d-flex gap-2" style="display:none !important; border: 1px dashed #ccc;">
-                    <input type="datetime-local" id="chanScheduleTime" class="form-control form-control-sm" style="font-size: 11px;">
-                    <select id="chanScheduleRecurrence" class="form-select form-select-sm" style="font-size: 11px; width: 100px;">
-                        <option value="none">Once</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                    </select>
-                </div>
-
-                <form id="formSendChannelMsg" class="d-flex align-items-end position-relative m-0">
-                    <input type="hidden" id="chatEditMsgId">
-                    <input type="hidden" id="chatReplyMsgId">
-
-                    <div class="d-flex flex-column me-2 gap-1">
-                        <button type="button" class="btn btn-light rounded-circle p-1 d-flex" title="Schedule Message" onclick="toggleScheduleControls()">
-                            <span class="material-icons-round text-secondary" style="font-size: 18px;">schedule</span>
+                <div class="col-md-4 col-12 border-end h-100 d-flex flex-column bg-white" id="channelListWrapper" style="overflow: hidden;">
+                    <div class="p-2 border-bottom d-flex justify-content-between align-items-center bg-light flex-shrink-0">
+                        <h6 class="mb-0 fw-bold px-1" style="font-size: 14px;">Channels</h6>
+                        <button id="btnCreateChannel" class="btn btn-sm btn-primary" style="display:none; padding: 2px 6px;" data-bs-toggle="modal" data-bs-target="#createChannelModal">
+                            <span class="material-icons-round" style="font-size: 16px;">add</span>
                         </button>
-                        <label class="btn btn-light rounded-circle p-1 d-flex m-0" title="Attach Image" style="cursor:pointer;">
-                            <span class="material-icons-round text-secondary" style="font-size: 18px;">attach_file</span>
-                            <input type="file" id="chatImageInput" accept="image/*" style="display:none;" onchange="previewChatImage(this)">
-                        </label>
                     </div>
+                    <div id="channelsList" class="overflow-auto flex-grow-1 p-2"></div>
+                </div>
+
+                <div class="col-md-8 col-12 h-100 d-flex flex-column d-none d-md-flex position-relative" id="channelChatWrapper" style="background: #eef2f5; overflow: hidden;">
                     
-                    <div class="flex-grow-1 position-relative">
-                        <div id="chatImagePreviewContainer" style="display:none; position:absolute; bottom:100%; left:0; background:#fff; padding:5px; border-radius:8px; border:1px solid #ddd; margin-bottom:5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                            <img id="chatImagePreview" src="" style="height:50px; border-radius:4px; object-fit:cover;">
-                            <span class="material-icons-round text-danger position-absolute" style="top:-8px; right:-8px; cursor:pointer; background:#fff; border-radius:50%; box-shadow: 0 1px 3px rgba(0,0,0,0.2);" onclick="clearChatImage()">cancel</span>
+                    <div class="p-2 border-bottom d-flex align-items-center bg-white shadow-sm flex-shrink-0" style="z-index: 10;">
+                        <button class="btn btn-sm btn-light d-md-none me-2 p-1" onclick="closeMobileChat()">
+                            <span class="material-icons-round" style="font-size: 18px;">arrow_back</span>
+                        </button>
+                        <div class="d-flex flex-column">
+                            <h6 class="mb-0 fw-bold d-flex align-items-center" id="activeChannelName" style="font-size: 14px;">Select a Channel</h6>
+                            <small class="text-muted" id="activeChannelDesc" style="font-size: 11px;">Join a broadcast to see updates.</small>
                         </div>
-                        <textarea id="chatTextInput" class="form-control bg-light" rows="1" placeholder="Broadcast message..." style="resize:none; overflow-y:auto; border-radius: 18px; padding: 8px 12px; max-height: 100px; font-size: 13px;"></textarea>
                     </div>
-                    
-                    <button type="submit" id="btnSendChat" class="btn btn-primary ms-2 rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; padding:0; transition: 0.2s;">
-                        <span class="material-icons-round" style="margin-left:2px; font-size: 18px;">send</span>
-                    </button>
-                </form>
+
+                    <div id="pinnedMessageBanner" class="bg-white border-bottom p-2 d-flex align-items-center flex-shrink-0 shadow-sm" style="display:none !important; cursor:pointer; border-left: 3px solid var(--blue); z-index: 9;">
+                        <span class="material-icons-round text-primary me-2" style="font-size: 16px;">push_pin</span>
+                        <div class="flex-grow-1 overflow-hidden" onclick="scrollToPinned()">
+                            <div class="fw-bold text-primary" style="font-size: 10px;">Pinned Message</div>
+                            <div class="text-truncate text-muted" id="pinnedMessageText" style="font-size: 12px;"></div>
+                        </div>
+                        <button class="btn btn-sm text-muted p-0 ms-2 admin-only-btn" style="display:none;" onclick="unpinMessage()"><span class="material-icons-round" style="font-size:16px;">close</span></button>
+                    </div>
+
+                    <div id="chatMessagesArea" class="flex-grow-1 overflow-auto p-2 d-flex flex-column" style="background: #eef2f5;">
+                        <div class="text-center text-muted mt-5 m-auto" id="chatEmptyState" style="font-size: 12px;">Select a channel from the left menu.</div>
+                    </div>
+
+                    <div class="p-2 border-top bg-white flex-shrink-0" id="chatInputArea" style="display:none; z-index: 10;">
+                        
+                        <div id="chatActionBanner" class="bg-light p-2 mb-2 rounded d-flex justify-content-between align-items-center" style="display:none !important; border-left: 3px solid var(--blue);">
+                            <div class="overflow-hidden">
+                                <div class="fw-bold text-primary" id="chatActionTitle" style="font-size: 10px;">Replying to...</div>
+                                <div class="text-truncate text-muted" id="chatActionText" style="font-size: 11px;"></div>
+                            </div>
+                            <button class="btn btn-sm text-muted p-0 ms-2" onclick="cancelChatAction()"><span class="material-icons-round" style="font-size:14px;">close</span></button>
+                        </div>
+
+                        <div id="chatScheduleControls" class="bg-light p-2 mb-2 rounded d-flex gap-2" style="display:none !important; border: 1px dashed #ccc;">
+                            <input type="datetime-local" id="chanScheduleTime" class="form-control form-control-sm" style="font-size: 11px;">
+                            <select id="chanScheduleRecurrence" class="form-select form-select-sm" style="font-size: 11px; width: 100px;">
+                                <option value="none">Once</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                            </select>
+                        </div>
+
+                        <form id="formSendChannelMsg" class="d-flex align-items-end position-relative m-0">
+                            <input type="hidden" id="chatEditMsgId">
+                            <input type="hidden" id="chatReplyMsgId">
+
+                            <div class="d-flex flex-column me-2 gap-1">
+                                <button type="button" class="btn btn-light rounded-circle p-1 d-flex shadow-sm" title="Schedule Message" onclick="toggleScheduleControls()">
+                                    <span class="material-icons-round text-secondary" style="font-size: 18px;">schedule</span>
+                                </button>
+                                <label class="btn btn-light rounded-circle p-1 d-flex m-0 shadow-sm" title="Attach Image" style="cursor:pointer;">
+                                    <span class="material-icons-round text-secondary" style="font-size: 18px;">attach_file</span>
+                                    <input type="file" id="chatImageInput" accept="image/*" style="display:none;" onchange="previewChatImage(this)">
+                                </label>
+                            </div>
+                            
+                            <div class="flex-grow-1 position-relative">
+                                <div id="chatImagePreviewContainer" style="display:none; position:absolute; bottom:100%; left:0; background:#fff; padding:5px; border-radius:8px; border:1px solid #ddd; margin-bottom:5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                    <img id="chatImagePreview" src="" style="height:50px; border-radius:4px; object-fit:cover;">
+                                    <span class="material-icons-round text-danger position-absolute" style="top:-8px; right:-8px; cursor:pointer; background:#fff; border-radius:50%; box-shadow: 0 1px 3px rgba(0,0,0,0.2);" onclick="clearChatImage()">cancel</span>
+                                </div>
+                                <textarea id="chatTextInput" class="form-control bg-light shadow-sm" rows="1" placeholder="Broadcast message..." style="resize:none; overflow-y:auto; border-radius: 18px; padding: 8px 12px; max-height: 80px; font-size: 13px;"></textarea>
+                            </div>
+                            
+                            <button type="submit" id="btnSendChat" class="btn btn-primary ms-2 rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 38px; height: 38px; padding:0; transition: 0.2s;">
+                                <span class="material-icons-round" style="margin-left:2px; font-size: 18px;">send</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-</div>
-
         <div id="pushSection" style="display:none; flex-direction: column; height: calc(100vh - 110px);">
             <div class="p-2 bg-white shadow-sm z-1 d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center">
