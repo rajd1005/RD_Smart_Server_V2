@@ -3,21 +3,21 @@ function applyRoleRestrictions() {
     const statPoints = document.getElementById('statPoints');
     const statWinRate = document.getElementById('statWinRate');
 
-    // Both Admin and Manager get access to Trades & Push
     if (role === 'admin' || role === 'manager') {
         document.getElementById('btnSelect').style.display = 'flex';
         document.getElementById('btnDelete').style.display = 'flex';
-     if (role === 'admin') {
+        
+        if (role === 'admin') {
             const btnCreateChan = document.getElementById('btnCreateChannel');
             if(btnCreateChan) btnCreateChan.style.display = 'inline-block';
         }
+        
         if (statPoints) statPoints.style.display = 'flex';
         if (statWinRate) statWinRate.style.display = 'flex';
 
         const navPushBtn = document.getElementById('navPushBtn');
         if (navPushBtn) navPushBtn.style.display = 'flex';
 
-        // ONLY ADMIN gets the Course Manager / Settings Gear icon
         const btnAdminCourseManager = document.getElementById('btnAdminCourseManager');
         if (btnAdminCourseManager && role === 'admin') btnAdminCourseManager.style.display = 'flex';
 
@@ -41,7 +41,6 @@ if (formAdminSettings) {
         const showGallery = document.getElementById('adminShowGallery')?.checked ? 'true' : 'false';
         const showCallWidget = document.getElementById('adminShowCallWidget')?.checked ? 'true' : 'false';
         
-
         const showStickyFooter = document.getElementById('adminShowStickyFooter')?.checked ? 'true' : 'false';
         const sticky_btn1_text = document.getElementById('adminBtn1Text')?.value || '';
         const sticky_btn1_icon = document.getElementById('adminBtn1Icon')?.value || '';
@@ -52,7 +51,8 @@ if (formAdminSettings) {
         
         const showDisclaimer = document.getElementById('adminShowDisclaimer')?.checked ? 'true' : 'false';
         const register_link = document.getElementById('adminRegisterLink')?.value || '';
-        const manager_emails = document.getElementById('adminManagerEmails')?.value || ''; // NEW LINE
+        const manager_emails = document.getElementById('adminManagerEmails')?.value || ''; 
+        const showChannelsTab = document.getElementById('adminShowChannelsTab')?.checked ? 'true' : 'false';
         
         let homepage_layout = undefined;
         const layoutList = document.querySelectorAll('#homepageLayoutDraggable li');
@@ -77,15 +77,13 @@ if (formAdminSettings) {
                 sticky_btn2_link: sticky_btn2_link,
                 show_disclaimer: showDisclaimer,
                 register_link: register_link,
-                manager_emails: manager_emails // NEW LINE
+                manager_emails: manager_emails, 
+                show_channels_tab: showChannelsTab 
             };
             if (homepage_layout) bodyData.homepage_layout = homepage_layout;
 
             const res = await fetch('/api/admin/settings', { 
-                method: 'PUT', 
-                headers: {'Content-Type': 'application/json'}, 
-                credentials: 'same-origin', 
-                body: JSON.stringify(bodyData) 
+                method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(bodyData) 
             });
             if(res.ok) { 
                 const m = bootstrap.Modal.getInstance(document.getElementById('adminCourseModal'));
@@ -115,10 +113,7 @@ if (formAdminSymbols) {
             };
 
             const res = await fetch('/api/admin/settings/symbols', { 
-                method: 'PUT', 
-                headers: {'Content-Type': 'application/json'}, 
-                credentials: 'same-origin', 
-                body: JSON.stringify(bodyData) 
+                method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(bodyData) 
             });
             
             if(res.ok) { 
@@ -300,10 +295,7 @@ window.deleteLesson = async function(e, id) {
     if (!password) return;
     try { 
         const res = await fetch(`/api/admin/lessons/${id}`, { 
-            method: 'DELETE', 
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin',
-            body: JSON.stringify({ password })
+            method: 'DELETE', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ password })
         }); 
         const data = await res.json();
         if(res.ok && data.success) fetchCourses(); 
@@ -317,10 +309,7 @@ window.deleteModule = async function(e, id) {
     if (!password) return;
     try { 
         const res = await fetch(`/api/admin/modules/${id}`, { 
-            method: 'DELETE', 
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin',
-            body: JSON.stringify({ password })
+            method: 'DELETE', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ password })
         }); 
         const data = await res.json();
         if(res.ok && data.success) fetchCourses(); 
