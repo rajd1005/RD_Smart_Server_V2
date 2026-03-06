@@ -39,10 +39,10 @@ router.post('/login', async (req, res) => {
 
         const matchedDemo = DEMO_USERS.find(user => user.email === email && user.password === password);
 
-        // --- FETCH MANAGER EMAILS EARLY TO APPLY EXCEPTIONS ---
+        // --- FETCH MANAGER EMAILS (WITH NULL PROTECTION) ---
         const settingsRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'manager_emails'");
-        const managerEmailsStr = settingsRes.rows.length > 0 ? settingsRes.rows[0].setting_value : '';
-        const managerEmails = managerEmailsStr.split(',').map(e => e.trim().toLowerCase());
+        const managerEmailsStr = (settingsRes.rows.length > 0 && settingsRes.rows[0].setting_value) ? String(settingsRes.rows[0].setting_value) : '';
+        const managerEmails = managerEmailsStr.split(',').map(e => e.trim().toLowerCase()).filter(e => e);
         const isManager = managerEmails.includes(email);
 
         if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
@@ -139,10 +139,10 @@ router.post('/forgot_password', async (req, res) => {
         const isDemoEmail = DEMO_USERS.some(user => user.email === email);
         if (email === ADMIN_EMAIL || isDemoEmail) return res.status(400).json({ success: false, msg: "This account password cannot be reset here." });
         
-        // CHECK IF USER IS A MANAGER
+        // CHECK IF USER IS A MANAGER (WITH NULL PROTECTION)
         const settingsRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'manager_emails'");
-        const managerEmailsStr = settingsRes.rows.length > 0 ? settingsRes.rows[0].setting_value : '';
-        const isManager = managerEmailsStr.split(',').map(e => e.trim().toLowerCase()).includes(email);
+        const managerEmailsStr = (settingsRes.rows.length > 0 && settingsRes.rows[0].setting_value) ? String(settingsRes.rows[0].setting_value) : '';
+        const isManager = managerEmailsStr.split(',').map(e => e.trim().toLowerCase()).filter(e => e).includes(email);
 
         // ONLY CHECK WP DB IF NOT A MANAGER
         if (!isManager) {
