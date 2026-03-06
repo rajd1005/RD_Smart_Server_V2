@@ -1,1 +1,117 @@
+<div id="pushSection" style="display:none; flex-direction: column; height: calc(100vh - 110px);">
+    <div class="p-2 bg-white shadow-sm z-1 d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <span class="material-icons-round text-primary me-2">campaign</span>
+            <div>
+                <h6 class="mb-0 fw-bold" style="font-size:14px;">Push Broadcasts</h6>
+                <div style="font-size:10px; color:var(--text-secondary);">Send updates to specific audiences</div>
+            </div>
+        </div>
+        <button class="btn btn-sm btn-outline-primary fw-bold" style="font-size: 10px;" data-bs-toggle="modal" data-bs-target="#scheduledPushModal">Manage Scheduled</button>
+    </div>
+    
+    <div class="flex-grow-1 p-3" id="chatHistory" style="overflow-y: auto; background-color: #efeae2; display: flex; flex-direction: column;">
+        </div>
+    
+    <div class="p-2 bg-white border-top shadow-lg">
+        <form id="formChatPush" class="d-flex flex-column gap-2 mb-0">
+            <select id="chatPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px; font-weight:bold; color:var(--blue);">
+<option value="both">🌍 Send to ALL Users (Login + Public)</option>
+<option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
+<option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
+<option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
+<option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
+<option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
+<option value="login_with_level_2">🔒 Login User with Level 2</option>
+<option value="login_with_level_3">🔒 Login User with Level 3</option>
+<option value="login_with_level_4">🔒 Login User with Level 4</option>
+</select>
+            <input type="text" id="chatPushTitle" class="form-control bg-light" placeholder="Notification Title (e.g. 🚨 New Strategy)" style="font-size:13px; font-weight:bold;" required>
+            <textarea id="chatPushBody" class="form-control bg-light" rows="2" placeholder="Type your message description here..." style="font-size:13px;" required></textarea>
+            
+            <input type="file" id="chatPushImage" class="form-control form-control-sm bg-light" accept="image/*" style="font-size:12px;" title="Optional Push Image">
+            
+            <div class="d-flex gap-2">
+                <input type="text" id="chatPushUrl" class="form-control form-control-sm bg-light" placeholder="Optional URL Link" style="font-size:12px;">
+                <input type="datetime-local" id="chatPushSchedule" class="form-control form-control-sm bg-light" title="Schedule Time" style="font-size:12px; width: 140px;">
+                
+                <select id="chatPushRecurrence" class="form-select form-select-sm bg-light" style="font-size:12px; width: 85px;">
+                    <option value="none">Once</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                </select>
+                
+                <button type="submit" class="btn btn-primary d-flex align-items-center justify-content-center flex-shrink-0" id="btnChatPushSubmit" style="border-radius: 50%; width: 34px; height: 34px; padding: 0;"><span class="material-icons-round" style="margin-left:4px; font-size:18px;">send</span></button>
+            </div>
+        </form>
+    </div>
+</div>
 
+<div class="modal fade" id="scheduledPushModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title mb-0" style="font-size:15px;"><span class="material-icons-round align-middle me-1" style="font-size:18px;">schedule</span>Scheduled & Recurring Pushes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light p-2" id="scheduledPushList">
+                <div class="text-center text-muted p-3" style="font-size: 12px;">Loading...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editPushModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title mb-0" style="font-size:15px;">Edit Scheduled Push</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <form id="formEditPush" class="d-flex flex-column gap-2 mb-0">
+                    <input type="hidden" id="editPushId">
+                    <label class="form-label fw-bold mb-0" style="font-size: 10px; color: var(--text-secondary);">Target Audience</label>
+                    <select id="editPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px;">
+<option value="both">🌍 Send to ALL Users (Login + Public)</option>
+<option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
+<option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
+<option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
+<option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
+<option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
+<option value="login_with_level_2">🔒 Login User with Level 2</option>
+<option value="login_with_level_3">🔒 Login User with Level 3</option>
+<option value="login_with_level_4">🔒 Login User with Level 4</option>
+</select>
+                    <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Title</label>
+                    <input type="text" id="editPushTitle" class="form-control bg-light" style="font-size:13px;" required>
+                    <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Body</label>
+                    <textarea id="editPushBody" class="form-control bg-light" rows="2" style="font-size:13px;" required></textarea>
+                    
+                    <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Image (Upload to Replace)</label>
+                    <input type="file" id="editPushImage" class="form-control form-control-sm bg-light" accept="image/*" style="font-size:12px;">
+                    <div id="editPushCurrentImgLabel" style="font-size: 10px; color: var(--blue); margin-top: 2px; display: none;"><span class="material-icons-round align-middle me-1" style="font-size:12px;">image</span>Current Image Attached</div>
+                    
+                    <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">URL Link</label>
+                    <input type="text" id="editPushUrl" class="form-control form-control-sm bg-light" style="font-size:12px;">
+                    
+                    <div class="row g-2 mt-1">
+                        <div class="col-7">
+                            <label class="form-label fw-bold mb-0" style="font-size: 10px; color: var(--text-secondary);">Schedule Time</label>
+                            <input type="datetime-local" id="editPushSchedule" class="form-control form-control-sm bg-light" style="font-size:12px;">
+                        </div>
+                        <div class="col-5">
+                            <label class="form-label fw-bold mb-0" style="font-size: 10px; color: var(--text-secondary);">Recurrence</label>
+                            <select id="editPushRecurrence" class="form-select form-select-sm bg-light" style="font-size:12px;">
+                                <option value="none">Once</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 mt-2 fw-bold" id="btnEditPushSubmit">Save Changes</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
