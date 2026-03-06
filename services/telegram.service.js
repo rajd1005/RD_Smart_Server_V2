@@ -3,43 +3,47 @@ const { pool } = require('../config/database');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const { pushQueue } = require('../workers/push.worker'); //
 
 const token = process.env.TG_BOT_TOKEN;
 let bot = null;
 
 if (token) {
     bot = new TelegramBot(token, { polling: true });
-    console.log("✅ Telegram Bot initialized for 2-Way Channel Sync.");
+    console.log("✅ Telegram Bot initialized for 2-Way Channel Sync (with Replies).");
 
-    // --- LISTENER: Catch messages sent natively in Telegram ---
     bot.on('channel_post', async (msg) => {
         try {
-            // 1. Check if 2-Way Sync is ON
             const syncSet = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'tg_2way_sync'");
             if (!syncSet.rows.length || syncSet.rows[0].setting_value !== 'true') return;
 
             const tgChatId = msg.chat.id.toString();
             const tgMsgId = msg.message_id;
 
-            // 2. Check if this Telegram Channel is linked to a Website Channel
-            const chRes = await pool.query("SELECT id FROM channels WHERE telegram_chat_id = $1", [tgChatId]);
-            if (chRes.rows.length === 0) return; // Not linked, ignore.
+            const chRes = await pool.query("SELECT * FROM channels WHERE telegram_chat_id = $1", [tgChatId]);
+            if (chRes.rows.length === 0) return; 
             
-            const channelId = chRes.rows[0].id;
+            const channel = chRes.rows[0];
             let messageText = msg.text || msg.caption || '';
             let mediaUrl = null;
+            let replyToLocalId = null;
 
-            // 3. Handle Media (Download image from Telegram to Website server)
+            // HANDLE TELEGRAM REPLIES natively
+            if (msg.reply_to_message) {
+                const tgReplyId = msg.reply_to_message.message_id;
+                const localMsgCheck = await pool.query("SELECT id FROM channel_messages WHERE telegram_msg_id = $1 LIMIT 1", [tgReplyId]);
+                if (localMsgCheck.rows.length > 0) {
+                    replyToLocalId = localMsgCheck.rows[0].id;
+                }
+            }
+
             if (msg.photo && msg.photo.length > 0) {
-                // Get highest resolution photo
                 const photo = msg.photo[msg.photo.length - 1];
                 const fileLink = await bot.getFileLink(photo.file_id);
-                
                 const ext = path.extname(fileLink) || '.jpg';
                 const filename = `${photo.file_id}${ext}`;
                 const destPath = path.join(__dirname, '../uploads', filename);
                 
-                // Download file locally
                 await new Promise((resolve, reject) => {
                     const file = fs.createWriteStream(destPath);
                     https.get(fileLink, (response) => {
@@ -47,47 +51,54 @@ if (token) {
                         file.on('finish', () => { file.close(); resolve(); });
                     }).on('error', (err) => { fs.unlink(destPath); reject(err); });
                 });
-                
                 mediaUrl = `/uploads/${filename}`;
             }
 
-            // 4. Save to Database
-            const dbRes = await pool.query(
-                "INSERT INTO channel_messages (channel_id, telegram_msg_id, sender_email, sender_name, message_text, media_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-                [channelId, tgMsgId, 'telegram_sync', 'Telegram Admin', messageText, mediaUrl]
+            await pool.query(
+                "INSERT INTO channel_messages (channel_id, telegram_msg_id, sender_email, sender_name, message_text, media_url, reply_to_id) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                [channel.id, tgMsgId, 'telegram_sync', 'Telegram Admin', messageText, mediaUrl, replyToLocalId]
             );
 
-            // 5. We cannot easily access req.app.get('io') here without a bit of a workaround.
-            // Since this runs globally, the easiest way to trigger a dashboard update is via a Redis Pub/Sub 
-            // OR just let the frontend auto-refresh if they have the channel open.
-            console.log(`🔄 2-Way Sync: Received message from TG Channel and saved to Web Channel ID: ${channelId}`);
+            // Trigger Push Notification
+            let pushTarget = 'both';
+            if (channel.required_level === 'level_2') pushTarget = 'login_with_level_2';
+            else if (channel.required_level === 'level_3') pushTarget = 'login_with_level_3';
+            else if (channel.required_level === 'level_4') pushTarget = 'login_with_level_4';
+
+            const pushTitle = `New post in ${channel.name}`;
+            const pushBody = messageText ? (messageText.length > 50 ? messageText.substring(0, 50) + '...' : messageText) : 'Media attachment uploaded.';
             
-        } catch (error) {
-            console.error("❌ Error syncing Telegram -> Web:", error);
-        }
+            await pushQueue.add('send-push', { 
+                title: pushTitle, body: pushBody, targetAudience: pushTarget, url: `${process.env.BASE_URL || ''}/home.html` 
+            });
+
+            console.log(`🔄 TG->Web Sync: Saved replyTo=${replyToLocalId} in Channel: ${channel.id}`);
+        } catch (error) { console.error("❌ TG Sync Error:", error); }
     });
 }
 
-// --- FUNCTION: Send message from Web Dashboard to Telegram ---
-const sendChannelMessage = async (chatId, text, imagePath) => {
+// SEND TO TELEGRAM WITH REPLY CAPABILITY
+const sendChannelMessage = async (chatId, text, imagePath, replyToLocalId = null) => {
     if (!bot) return null;
     try {
-        const opts = { parse_mode: 'HTML' }; // Allow bold/italics
-        let sentMsg;
+        const opts = { parse_mode: 'HTML' }; 
         
+        // Find the Telegram Message ID if replying
+        if (replyToLocalId) {
+            const repCheck = await pool.query("SELECT telegram_msg_id FROM channel_messages WHERE id = $1", [replyToLocalId]);
+            if (repCheck.rows.length > 0 && repCheck.rows[0].telegram_msg_id) {
+                opts.reply_to_message_id = parseInt(repCheck.rows[0].telegram_msg_id);
+            }
+        }
+
+        let sentMsg;
         if (imagePath && fs.existsSync(imagePath)) {
             sentMsg = await bot.sendPhoto(chatId, imagePath, { caption: text, ...opts });
         } else if (text) {
             sentMsg = await bot.sendMessage(chatId, text, opts);
         }
         return sentMsg ? sentMsg.message_id : null;
-    } catch (err) {
-        console.error("❌ Telegram Send Failed:", err.message);
-        return null;
-    }
+    } catch (err) { return null; }
 };
 
-module.exports = {
-    bot,
-    sendChannelMessage
-};
+module.exports = { bot, sendChannelMessage };
