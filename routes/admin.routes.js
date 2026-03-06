@@ -9,7 +9,7 @@ const webpush = require('web-push');
 const { Queue } = require('bullmq');
 const { pool } = require('../config/database');
 const { redisClient, redisConnection } = require('../config/redis');
-const { authenticateToken, isAdmin } = require('../middlewares/auth.middleware');
+const { authenticateToken, isAdmin, isManagerOrAdmin } = require('../middlewares/auth.middleware');
 const pushRoutes = require('./push.routes');
 
 const upload = multer({ dest: 'uploads/' });
@@ -23,7 +23,12 @@ const DELETE_PASSWORD = (process.env.DELETE_PASSWORD || "admin123").trim();
 // --- SETTINGS ---
 router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
     // ... Settings logic remains exactly the same
-    const { accordion_state, hide_trade_tab, show_gallery, show_call_widget, homepage_layout, show_sticky_footer, sticky_btn1_text, sticky_btn1_link, sticky_btn1_icon, sticky_btn2_text, sticky_btn2_link, sticky_btn2_icon, show_disclaimer, register_link, push_trade_alerts } = req.body;
+    const { 
+        accordion_state, hide_trade_tab, show_gallery, show_call_widget, homepage_layout,
+        show_sticky_footer, sticky_btn1_text, sticky_btn1_link, sticky_btn1_icon,
+        sticky_btn2_text, sticky_btn2_link, sticky_btn2_icon,
+        show_disclaimer, register_link, push_trade_alerts, manager_emails // <--- Added manager_emails
+    } = req.body;
     try {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state || 'first']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('hide_trade_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [hide_trade_tab || 'false']);
@@ -53,6 +58,7 @@ router.put('/settings/symbols', authenticateToken, isAdmin, async (req, res) => 
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('cat_stock', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [cat_stock || '']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('cat_index', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [cat_index || '']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('cat_mcx', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [cat_mcx || '']);
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('manager_emails', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [manager_emails || '']);
         await redisClient.del('system_settings').catch(()=>{});
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
@@ -207,7 +213,7 @@ router.post('/lessons/reorder', authenticateToken, isAdmin, async (req, res) => 
 });
 
 // --- ADMIN NOTIFICATIONS ---
-router.get('/notifications', authenticateToken, isAdmin, async (req, res) => {
+router.get('/notifications', authenticateToken, isManagerOrAdmin, async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 15;
         const offset = parseInt(req.query.offset) || 0;
@@ -216,14 +222,14 @@ router.get('/notifications', authenticateToken, isAdmin, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-router.get('/notifications/scheduled', authenticateToken, isAdmin, async (req, res) => {
+router.get('/notifications/scheduled', authenticateToken, isManagerOrAdmin, async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM scheduled_notifications WHERE status = 'pending' OR recurrence != 'none' ORDER BY created_at DESC");
         res.json({ success: true, data: result.rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-router.post('/notifications', authenticateToken, isAdmin, upload.single('push_image'), async (req, res) => {
+router.post('/notifications', authenticateToken, isManagerOrAdmin, upload.single('push_image'), async (req, res) => {
     const { title, body, url, schedule_time, target_audience, recurrence } = req.body;
     let imagePath = req.file ? `/uploads/${req.file.filename}` : null;
     let absoluteImagePath = req.file ? req.file.path : null;
@@ -277,7 +283,7 @@ router.post('/notifications', authenticateToken, isAdmin, upload.single('push_im
     }
 });
 
-router.put('/notifications/:id', authenticateToken, isAdmin, upload.single('push_image'), async (req, res) => {
+router.put('/notifications/:id', authenticateToken, isManagerOrAdmin, upload.single('push_image'), async (req, res) => {
     const { title, body, url, schedule_time, target_audience, recurrence } = req.body;
     let newImagePath = req.file ? `/uploads/${req.file.filename}` : null;
 
@@ -332,7 +338,7 @@ router.put('/notifications/:id', authenticateToken, isAdmin, upload.single('push
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-router.delete('/notifications/:id', authenticateToken, isAdmin, async (req, res) => {
+router.delete('/notifications/:id', authenticateToken, isManagerOrAdmin, async (req, res) => {
     try {
         const { rows } = await pool.query("SELECT image_path FROM scheduled_notifications WHERE id = $1", [req.params.id]);
         if (rows.length > 0 && rows[0].image_path) {
