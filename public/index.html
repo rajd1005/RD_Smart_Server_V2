@@ -135,8 +135,8 @@
                 <div class="server-time" id="clock" style="margin-right: 15px;">00:00:00</div>
                 
                 <button id="installAppBtn" onclick="installPWA()" style="display:none; background:#00b346; color:#fff; border:none; border-radius:4px; padding:4px 8px; font-size:11px; font-weight:bold; margin-right: 15px;">
-        <span class="material-icons-round" style="font-size:14px; vertical-align:middle;">download</span> Install
-    </button>
+                    <span class="material-icons-round" style="font-size:14px; vertical-align:middle;">download</span> Install
+                </button>
                 <button id="btnAdminCourseManager" class="position-relative" type="button" data-bs-toggle="modal" data-bs-target="#adminCourseModal" style="display:none; background:none; border:none; color:var(--blue); padding:0; align-items:center; margin-right: 15px;">
                     <span class="material-icons-round">settings</span>
                 </button>
@@ -175,99 +175,6 @@
         </div>
 
         <div id="learningSection">
-            <div id="channelsSection" class="content-section" style="display:none; height: calc(100vh - 120px); margin: -15px; overflow: hidden;">
-    <div class="row h-100 g-0">
-        
-        <div class="col-md-4 col-12 border-end h-100 d-flex flex-column bg-white" id="channelListWrapper">
-            <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-light">
-                <h6 class="mb-0 fw-bold">Broadcast Channels</h6>
-                <button id="btnCreateChannel" class="btn btn-sm btn-primary" style="display:none;" data-bs-toggle="modal" data-bs-target="#createChannelModal">
-                    <span class="material-icons-round" style="font-size: 16px;">add</span>
-                </button>
-            </div>
-            <div id="channelsList" class="overflow-auto flex-grow-1 p-2">
-                </div>
-        </div>
-
-        <div class="col-md-8 col-12 h-100 d-flex flex-column bg-white d-none d-md-flex" id="channelChatWrapper" style="background: #eef2f5;">
-            
-            <div class="p-3 border-bottom d-flex align-items-center bg-white shadow-sm" style="z-index: 10;">
-                <button class="btn btn-sm btn-light d-md-none me-2 p-1" onclick="closeMobileChat()">
-                    <span class="material-icons-round">arrow_back</span>
-                </button>
-                <div class="d-flex flex-column">
-                    <h6 class="mb-0 fw-bold d-flex align-items-center" id="activeChannelName">Select a Channel</h6>
-                    <small class="text-muted" id="activeChannelDesc" style="font-size: 11px;">Join a broadcast to see updates.</small>
-                </div>
-            </div>
-
-            <div id="chatMessagesArea" class="flex-grow-1 overflow-auto p-3" style="background: #eef2f5;">
-                <div class="text-center text-muted mt-5" id="chatEmptyState">Select a channel from the left menu.</div>
-            </div>
-
-            <div class="p-2 border-top bg-white" id="chatInputArea" style="display:none;">
-                <form id="formSendChannelMsg" class="d-flex align-items-end position-relative">
-                    <label class="btn btn-light mb-0 me-2 d-flex align-items-center justify-content-center rounded-circle" style="width: 40px; height: 40px; padding:0; cursor:pointer;">
-                        <span class="material-icons-round text-secondary">attach_file</span>
-                        <input type="file" id="chatImageInput" accept="image/*" style="display:none;" onchange="previewChatImage(this)">
-                    </label>
-                    
-                    <div class="flex-grow-1 position-relative">
-                        <div id="chatImagePreviewContainer" style="display:none; position:absolute; bottom:100%; left:0; background:#fff; padding:5px; border-radius:8px; border:1px solid #ddd; margin-bottom:10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                            <img id="chatImagePreview" src="" style="height:60px; border-radius:4px; object-fit:cover;">
-                            <span class="material-icons-round text-danger position-absolute" style="top:-8px; right:-8px; cursor:pointer; background:#fff; border-radius:50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);" onclick="clearChatImage()">cancel</span>
-                        </div>
-                        
-                        <textarea id="chatTextInput" class="form-control" rows="1" placeholder="Broadcast a message... (Use *bold*, _italic_, ~strike~)" style="resize:none; overflow-y:hidden; border-radius: 20px; padding: 10px 15px; max-height: 120px; font-size: 14px;"></textarea>
-                    </div>
-                    
-                    <button type="submit" id="btnSendChat" class="btn btn-primary ms-2 rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; padding:0; transition: 0.2s;">
-                        <span class="material-icons-round" style="margin-left:3px;">send</span>
-                    </button>
-                </form>
-            </div>
-
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="createChannelModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header border-0 pb-0">
-                <h5 class="fw-bold mb-0">Create Channel</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="formCreateChannel">
-                    <div class="mb-3">
-                        <label class="form-label small fw-bold">Channel Name</label>
-                        <input type="text" id="newChanName" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-bold">Description</label>
-                        <input type="text" id="newChanDesc" class="form-control">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-bold">Required Access Level</label>
-                        <select id="newChanLevel" class="form-select">
-                            <option value="demo">Public / Demo (Everyone)</option>
-                            <option value="level_2">Level 2 (Pro)</option>
-                            <option value="level_3">Level 3 (Elite)</option>
-                            <option value="level_4">Level 4 (Master)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-bold">Telegram Chat ID (Optional)</label>
-                        <input type="text" id="newChanTgId" class="form-control" placeholder="-100123456789">
-                        <small class="text-muted" style="font-size: 10px;">Links this to a Telegram Channel for 2-way sync.</small>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100 fw-bold">Create Channel</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
             <div class="d-flex justify-content-between align-items-center mb-2 px-1">
                 <div id="adminAccordionControls" style="display:none;">
                     <button class="btn btn-sm btn-outline-secondary" onclick="toggleAccordions('all')" style="font-size: 11px;">Open All</button>
@@ -278,6 +185,58 @@
             
             <div class="accordion" id="courseModuleContainer">
                 <div class="p-4 text-center text-muted">Loading courses...</div>
+            </div>
+        </div>
+
+        <div id="channelsSection" class="content-section" style="display:none; height: calc(100vh - 120px); margin: -15px; overflow: hidden;">
+            <div class="row h-100 g-0">
+                <div class="col-md-4 col-12 border-end h-100 d-flex flex-column bg-white" id="channelListWrapper">
+                    <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-light">
+                        <h6 class="mb-0 fw-bold">Broadcast Channels</h6>
+                        <button id="btnCreateChannel" class="btn btn-sm btn-primary" style="display:none;" data-bs-toggle="modal" data-bs-target="#createChannelModal">
+                            <span class="material-icons-round" style="font-size: 16px;">add</span>
+                        </button>
+                    </div>
+                    <div id="channelsList" class="overflow-auto flex-grow-1 p-2">
+                        </div>
+                </div>
+
+                <div class="col-md-8 col-12 h-100 d-flex flex-column bg-white d-none d-md-flex" id="channelChatWrapper" style="background: #eef2f5;">
+                    <div class="p-3 border-bottom d-flex align-items-center bg-white shadow-sm" style="z-index: 10;">
+                        <button class="btn btn-sm btn-light d-md-none me-2 p-1" onclick="closeMobileChat()">
+                            <span class="material-icons-round">arrow_back</span>
+                        </button>
+                        <div class="d-flex flex-column">
+                            <h6 class="mb-0 fw-bold d-flex align-items-center" id="activeChannelName">Select a Channel</h6>
+                            <small class="text-muted" id="activeChannelDesc" style="font-size: 11px;">Join a broadcast to see updates.</small>
+                        </div>
+                    </div>
+
+                    <div id="chatMessagesArea" class="flex-grow-1 overflow-auto p-3" style="background: #eef2f5;">
+                        <div class="text-center text-muted mt-5" id="chatEmptyState">Select a channel from the left menu.</div>
+                    </div>
+
+                    <div class="p-2 border-top bg-white" id="chatInputArea" style="display:none;">
+                        <form id="formSendChannelMsg" class="d-flex align-items-end position-relative">
+                            <label class="btn btn-light mb-0 me-2 d-flex align-items-center justify-content-center rounded-circle" style="width: 40px; height: 40px; padding:0; cursor:pointer;">
+                                <span class="material-icons-round text-secondary">attach_file</span>
+                                <input type="file" id="chatImageInput" accept="image/*" style="display:none;" onchange="previewChatImage(this)">
+                            </label>
+                            
+                            <div class="flex-grow-1 position-relative">
+                                <div id="chatImagePreviewContainer" style="display:none; position:absolute; bottom:100%; left:0; background:#fff; padding:5px; border-radius:8px; border:1px solid #ddd; margin-bottom:10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                                    <img id="chatImagePreview" src="" style="height:60px; border-radius:4px; object-fit:cover;">
+                                    <span class="material-icons-round text-danger position-absolute" style="top:-8px; right:-8px; cursor:pointer; background:#fff; border-radius:50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);" onclick="clearChatImage()">cancel</span>
+                                </div>
+                                <textarea id="chatTextInput" class="form-control" rows="1" placeholder="Broadcast a message... (Use *bold*, _italic_, ~strike~)" style="resize:none; overflow-y:hidden; border-radius: 20px; padding: 10px 15px; max-height: 120px; font-size: 14px;"></textarea>
+                            </div>
+                            
+                            <button type="submit" id="btnSendChat" class="btn btn-primary ms-2 rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; padding:0; transition: 0.2s;">
+                                <span class="material-icons-round" style="margin-left:3px;">send</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -294,21 +253,21 @@
             </div>
             
             <div class="flex-grow-1 p-3" id="chatHistory" style="overflow-y: auto; background-color: #efeae2; display: flex; flex-direction: column;">
-                </div>
+            </div>
             
             <div class="p-2 bg-white border-top shadow-lg">
                 <form id="formChatPush" class="d-flex flex-column gap-2 mb-0">
                     <select id="chatPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px; font-weight:bold; color:var(--blue);">
-    <option value="both">🌍 Send to ALL Users (Login + Public)</option>
-    <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
-    <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
-    <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
-    <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
-    <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
-    <option value="login_with_level_2">🔒 Login User with Level 2</option>
-    <option value="login_with_level_3">🔒 Login User with Level 3</option>
-    <option value="login_with_level_4">🔒 Login User with Level 4</option>
-</select>
+                        <option value="both">🌍 Send to ALL Users (Login + Public)</option>
+                        <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
+                        <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
+                        <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
+                        <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
+                        <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
+                        <option value="login_with_level_2">🔒 Login User with Level 2</option>
+                        <option value="login_with_level_3">🔒 Login User with Level 3</option>
+                        <option value="login_with_level_4">🔒 Login User with Level 4</option>
+                    </select>
                     <input type="text" id="chatPushTitle" class="form-control bg-light" placeholder="Notification Title (e.g. 🚨 New Strategy)" style="font-size:13px; font-weight:bold;" required>
                     <textarea id="chatPushBody" class="form-control bg-light" rows="2" placeholder="Type your message description here..." style="font-size:13px;" required></textarea>
                     
@@ -331,17 +290,23 @@
         </div>
 
         <nav class="bottom-nav" id="navDefault">
-            <button class="b-btn" id="navTradeBtn" onclick="switchSection('trade')"><span class="material-icons-round">analytics</span>Trade</button>
-<button id="navLearnBtn" class="nav-btn" onclick="switchSection('learning')">
-    <span class="material-icons-round">school</span>
-    <span class="nav-text">Learn</span>
-</button>
+            <button class="b-btn" id="navTradeBtn" onclick="switchSection('trade')">
+                <span class="material-icons-round">analytics</span>Trade
+            </button>
+            <button class="b-btn" id="navLearnBtn" onclick="switchSection('learning')">
+                <span class="material-icons-round">school</span>Learn
+            </button>
+            <button class="b-btn" id="navPushBtn" onclick="switchSection('push')" style="display:none;">
+                <span class="material-icons-round">campaign</span>Push
+            </button>
 
-<button id="navChannelsBtn" class="nav-btn position-relative" onclick="switchSection('channels')" style="display: none;">
-    <span class="material-icons-round">campaign</span>
-    <span class="nav-text">Channels</span>
-    <span class="position-absolute bg-danger border border-light rounded-circle" id="channelsUnreadBadge" style="display:none; width: 10px; height: 10px; top: 5px; right: 25%;"></span>
-</button>
+            <button class="b-btn" id="navChannelsBtn" onclick="switchSection('channels')" style="display: none;">
+                <span class="position-relative d-inline-flex align-items-center justify-content-center">
+                    <span class="material-icons-round">forum</span>
+                    <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle" id="channelsUnreadBadge" style="display:none; width: 10px; height: 10px;"></span>
+                </span>
+                Channels
+            </button>
 
             <button class="b-btn" id="btnRefresh" onclick="fetchTrades()" style="display:none;"><span class="material-icons-round">refresh</span>Refresh</button>
             <button class="b-btn" id="btnFilter" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterSheet" style="display:none;"><span class="material-icons-round">filter_list</span>Filter</button>
@@ -355,6 +320,44 @@
             <button class="b-btn b-del" onclick="deleteSelected()"><span class="material-icons-round">delete_forever</span>Delete</button>
         </nav>
 
+    </div>
+
+    <div class="modal fade" id="createChannelModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="fw-bold mb-0">Create Channel</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formCreateChannel">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Channel Name</label>
+                            <input type="text" id="newChanName" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Description</label>
+                            <input type="text" id="newChanDesc" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Required Access Level</label>
+                            <select id="newChanLevel" class="form-select">
+                                <option value="demo">Public / Demo (Everyone)</option>
+                                <option value="level_2">Level 2 (Pro)</option>
+                                <option value="level_3">Level 3 (Elite)</option>
+                                <option value="level_4">Level 4 (Master)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Telegram Chat ID (Optional)</label>
+                            <input type="text" id="newChanTgId" class="form-control" placeholder="-100123456789">
+                            <small class="text-muted" style="font-size: 10px;">Links this to a Telegram Channel for 2-way sync.</small>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">Create Channel</button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="videoPlayerContainer">
@@ -389,16 +392,16 @@
                         <input type="hidden" id="editPushId">
                         <label class="form-label fw-bold mb-0" style="font-size: 10px; color: var(--text-secondary);">Target Audience</label>
                         <select id="editPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px;">
-    <option value="both">🌍 Send to ALL Users (Login + Public)</option>
-    <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
-    <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
-    <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
-    <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
-    <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
-    <option value="login_with_level_2">🔒 Login User with Level 2</option>
-    <option value="login_with_level_3">🔒 Login User with Level 3</option>
-    <option value="login_with_level_4">🔒 Login User with Level 4</option>
-</select>
+                            <option value="both">🌍 Send to ALL Users (Login + Public)</option>
+                            <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
+                            <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
+                            <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
+                            <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
+                            <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
+                            <option value="login_with_level_2">🔒 Login User with Level 2</option>
+                            <option value="login_with_level_3">🔒 Login User with Level 3</option>
+                            <option value="login_with_level_4">🔒 Login User with Level 4</option>
+                        </select>
                         <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Title</label>
                         <input type="text" id="editPushTitle" class="form-control bg-light" style="font-size:13px;" required>
                         <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Body</label>
@@ -431,6 +434,7 @@
             </div>
         </div>
     </div>
+
     <div class="modal fade" id="disclaimerModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 500px;">
             <div class="modal-content">
@@ -610,15 +614,15 @@
                                     <input type="checkbox" class="custom-check m-0" id="adminShowDisclaimer">
                                     <label class="form-check-label ms-2 fw-bold" for="adminShowDisclaimer" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Legal Disclaimer Popup</label>
                                 </div>
-<div class="mb-4">
-    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Registration Link</label>
-    <input type="text" id="adminRegisterLink" class="form-control" placeholder="URL for New Registrations">
-</div>
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Registration Link</label>
+                                    <input type="text" id="adminRegisterLink" class="form-control" placeholder="URL for New Registrations">
+                                </div>
 
-<div class="mb-4">
-    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Manager Emails (Comma-separated)</label>
-    <input type="text" id="adminManagerEmails" class="form-control" placeholder="manager1@example.com, manager2@example.com">
-</div>
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Manager Emails (Comma-separated)</label>
+                                    <input type="text" id="adminManagerEmails" class="form-control" placeholder="manager1@example.com, manager2@example.com">
+                                </div>
                                 
                                 <div class="mb-4">
                                     <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Homepage Layout Order (Drag to Reorder)</label>
@@ -814,7 +818,7 @@
     <div class="offcanvas offcanvas-bottom" tabindex="-1" id="filterSheet">
         <div class="offcanvas-header pb-0"><h6 class="offcanvas-title fw-bold">Filter Options</h6><button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button></div>
         <div class="offcanvas-body pt-2">
-        <div class="row g-2">
+            <div class="row g-2">
                 <div class="col-12">
                     <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Date / Range</label>
                     <input type="text" id="filterDateRange" class="form-control" placeholder="Select Date(s)..." style="background-color: #fff;">
@@ -836,6 +840,50 @@
         </div>
     </div>
 
+    <div class="modal fade" id="pushReminderModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
+            <div class="modal-content text-center p-3">
+                <div class="modal-header border-0 pb-0 justify-content-center">
+                    <span class="material-icons-round text-primary" style="font-size: 48px;">notifications_active</span>
+                </div>
+                <div class="modal-body px-4 pb-2 pt-3">
+                    <h5 class="fw-bold mb-2" id="pushModalTitle">Never Miss a Trade!</h5>
+                    <p class="text-muted small mb-3" style="font-size: 13px; line-height: 1.4;" id="pushModalDesc">
+                        Get instant alerts for new signals, setups, and profit booking directly on your device.
+                    </p>
+                    
+                    <div id="pushBlockedInstructions" style="display: none; background: #fff3cd; color: #856404; padding: 10px; border-radius: 8px; font-size: 11px; text-align: left; margin-bottom: 15px;">
+                        <strong>Notifications are blocked.</strong><br>
+                        1. Click the 🔒 padlock icon next to our URL at the top of your browser.<br>
+                        2. Change "Notifications" to <strong>Allow</strong>.<br>
+                        3. Refresh this page.
+                    </div>
+
+                    <button type="button" class="btn btn-primary w-100 fw-bold mb-2" id="btnEnablePush" onclick="handlePushEnableClick()">Enable Notifications</button>
+                    <button type="button" class="btn btn-light w-100 fw-bold text-muted" data-bs-dismiss="modal" onclick="dismissPushPrompt()">Maybe Later</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="installAppModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
+            <div class="modal-content text-center p-3">
+                <div class="modal-header border-0 pb-0 justify-content-center">
+                    <span class="material-icons-round text-success" style="font-size: 48px;">download_for_offline</span>
+                </div>
+                <div class="modal-body px-4 pb-2 pt-3">
+                    <h5 class="fw-bold mb-2">Install RD Algo App</h5>
+                    <p class="text-muted small mb-3" style="font-size: 13px; line-height: 1.4;">
+                        Install our app on your device for a faster, full-screen trading experience and quick access.
+                    </p>
+                    <button type="button" class="btn btn-success w-100 fw-bold mb-2" id="btnEnableInstall" onclick="handleInstallAppClick()">Install App</button>
+                    <button type="button" class="btn btn-light w-100 fw-bold text-muted" data-bs-dismiss="modal" onclick="dismissInstallPrompt()">Maybe Later</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="/socket.io/socket.io.js"></script>
@@ -848,7 +896,7 @@
     <script src="/js/courses.js"></script>
     <script src="/js/admin.js"></script>
     <script src="/js/notifications.js"></script>
-    <script src="/js/channels.js"></script> <script src="/js/admin.js"></script>
+    <script src="/js/channels.js"></script>
     
     <script>
         setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-GB'); }, 1000);
@@ -883,47 +931,5 @@
             }
         }
     </script>
-    <div class="modal fade" id="pushReminderModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
-        <div class="modal-content text-center p-3">
-            <div class="modal-header border-0 pb-0 justify-content-center">
-                <span class="material-icons-round text-primary" style="font-size: 48px;">notifications_active</span>
-            </div>
-            <div class="modal-body px-4 pb-2 pt-3">
-                <h5 class="fw-bold mb-2" id="pushModalTitle">Never Miss a Trade!</h5>
-                <p class="text-muted small mb-3" style="font-size: 13px; line-height: 1.4;" id="pushModalDesc">
-                    Get instant alerts for new signals, setups, and profit booking directly on your device.
-                </p>
-                
-                <div id="pushBlockedInstructions" style="display: none; background: #fff3cd; color: #856404; padding: 10px; border-radius: 8px; font-size: 11px; text-align: left; margin-bottom: 15px;">
-                    <strong>Notifications are blocked.</strong><br>
-                    1. Click the 🔒 padlock icon next to our URL at the top of your browser.<br>
-                    2. Change "Notifications" to <strong>Allow</strong>.<br>
-                    3. Refresh this page.
-                </div>
-
-                <button type="button" class="btn btn-primary w-100 fw-bold mb-2" id="btnEnablePush" onclick="handlePushEnableClick()">Enable Notifications</button>
-                <button type="button" class="btn btn-light w-100 fw-bold text-muted" data-bs-dismiss="modal" onclick="dismissPushPrompt()">Maybe Later</button>
-            </div>
-        </div>
-    </div>
-</div>
-    <div class="modal fade" id="installAppModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
-        <div class="modal-content text-center p-3">
-            <div class="modal-header border-0 pb-0 justify-content-center">
-                <span class="material-icons-round text-success" style="font-size: 48px;">download_for_offline</span>
-            </div>
-            <div class="modal-body px-4 pb-2 pt-3">
-                <h5 class="fw-bold mb-2">Install RD Algo App</h5>
-                <p class="text-muted small mb-3" style="font-size: 13px; line-height: 1.4;">
-                    Install our app on your device for a faster, full-screen trading experience and quick access.
-                </p>
-                <button type="button" class="btn btn-success w-100 fw-bold mb-2" id="btnEnableInstall" onclick="handleInstallAppClick()">Install App</button>
-                <button type="button" class="btn btn-light w-100 fw-bold text-muted" data-bs-dismiss="modal" onclick="dismissInstallPrompt()">Maybe Later</button>
-            </div>
-        </div>
-    </div>
-</div>
 </body>
 </html>
