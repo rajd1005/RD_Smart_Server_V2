@@ -16,21 +16,15 @@ const DEMO_USERS = [
     { email: "demo6@rdalgo.in", password: "demo123" }
 ];
 
-// --- PUSH TARGETING & EXPIRATION SYNC LOGIC ---
 async function getValidPushSubscribers(audienceType) {
     let query = "SELECT id, email, sub_data FROM push_subscriptions";
-    
     if (audienceType === 'non_logged_in') query += " WHERE email = 'public'";
     else if (audienceType !== 'both') query += " WHERE email != 'public'";
     
     const subs = await pool.query(query);
-    
     if (audienceType === 'non_logged_in') {
-        const unique = [];
-        const eps = new Set();
-        for (let r of subs.rows) {
-            if (!eps.has(r.sub_data.endpoint)) { eps.add(r.sub_data.endpoint); unique.push(r.sub_data); }
-        }
+        const unique = []; const eps = new Set();
+        for (let r of subs.rows) { if (!eps.has(r.sub_data.endpoint)) { eps.add(r.sub_data.endpoint); unique.push(r.sub_data); } }
         return unique;
     }
 
@@ -46,10 +40,7 @@ async function getValidPushSubscribers(audienceType) {
         const placeholders = emailsToCheck.map(() => '?').join(',');
         try {
             const [wpRows] = await authPool.query(`SELECT student_email, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email IN (${placeholders})`, emailsToCheck);
-            
-            const d = new Date();
-            const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
-            const nowIST = new Date(utc + (3600000 * 5.5));
+            const d = new Date(); const utc = d.getTime() + (d.getTimezoneOffset() * 60000); const nowIST = new Date(utc + (3600000 * 5.5));
 
             wpRows.forEach(row => {
                 const expiry = new Date(row.student_expiry_date);
@@ -57,18 +48,11 @@ async function getValidPushSubscribers(audienceType) {
                     if (row.student_email) {
                         const email = String(row.student_email).toLowerCase().trim();
                         actuallyValidEmails.add(email);
-                        userLevels.set(email, {
-                            level_2_status: row.level_2_status || 'No',
-                            level_3_status: row.level_3_status || 'No',
-                            level_4_status: row.level_4_status || 'No'
-                        });
+                        userLevels.set(email, { level_2_status: row.level_2_status || 'No', level_3_status: row.level_3_status || 'No', level_4_status: row.level_4_status || 'No' });
                     }
                 }
             });
-
-            emailsToCheck.forEach(email => {
-                if (!actuallyValidEmails.has(email)) expiredEmails.add(email);
-            });
+            emailsToCheck.forEach(email => { if (!actuallyValidEmails.has(email)) expiredEmails.add(email); });
         } catch(e) {
             console.error("Auth DB Error during push sync (Failsafe activated)", e.message);
             emailsToCheck.forEach(email => actuallyValidEmails.add(email)); 
@@ -78,12 +62,9 @@ async function getValidPushSubscribers(audienceType) {
     if (expiredEmails.size > 0) {
         const expiredArray = Array.from(expiredEmails);
         await pool.query("UPDATE push_subscriptions SET email = 'public' WHERE LOWER(email) = ANY($1)", [expiredArray]).catch(()=>{});
-        console.log(`📉 Push Subs Downgraded to Public (Expired): ${expiredArray.length} users`);
     }
 
-    const uniqueSubs = [];
-    const endpoints = new Set();
-
+    const uniqueSubs = []; const endpoints = new Set();
     for (let row of subs.rows) {
         let rowEmail = String(row.email).toLowerCase().trim();
         let isValidAudience = false;
@@ -95,7 +76,6 @@ async function getValidPushSubscribers(audienceType) {
         } else {
             if (rowEmail !== 'public' && actuallyValidEmails.has(rowEmail)) {
                 const levels = userLevels.get(rowEmail) || { level_2_status: 'No', level_3_status: 'No', level_4_status: 'No' };
-                
                 if (audienceType === 'login_no_level_2' && levels.level_2_status !== 'Yes') isValidAudience = true;
                 else if (audienceType === 'login_no_level_3' && levels.level_3_status !== 'Yes') isValidAudience = true;
                 else if (audienceType === 'login_no_level_4' && levels.level_4_status !== 'Yes') isValidAudience = true;
@@ -110,22 +90,21 @@ async function getValidPushSubscribers(audienceType) {
             uniqueSubs.push(row.sub_data);
         }
     }
-
     return uniqueSubs;
 }
 
 async function sendPushNotification(payload, io) {
     try {
         console.log(`\n🔔 --- PREPARING TRADE PUSH ---`);
-        console.log(`📝 Title: ${payload.title}`);
-        
         const uniqueSubs = await getValidPushSubscribers('logged_in');
-        console.log(`🚀 Final Targeted Audience: ${uniqueSubs.length} Active Logged-in Devices`);
         
         for (let sub of uniqueSubs) {
-            await webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
-                if (e.statusCode === 410) { pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{}); }
-            });
+            // 🔥 FAIL-SAFE ADDED:
+            try {
+                await webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
+                    if (e.statusCode === 410) { pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{}); }
+                });
+            } catch (err) {}
         }
 
         await pool.query(
@@ -148,40 +127,26 @@ async function checkTradePushEnabled() {
     } catch(e) { return true; }
 }
 
-// --- ROUTES ---
 router.get('/public_key', (req, res) => {
-    if (req.app.locals.vapidPublicKey) {
-        res.json({ success: true, publicKey: req.app.locals.vapidPublicKey });
-    } else {
-        res.status(500).json({ success: false, msg: "VAPID key not initialized." });
-    }
+    if (req.app.locals.vapidPublicKey) res.json({ success: true, publicKey: req.app.locals.vapidPublicKey });
+    else res.status(500).json({ success: false, msg: "VAPID key not initialized." });
 });
 
 router.post('/subscribe', async (req, res) => {
     const subscription = req.body;
     const endpoint = subscription.endpoint;
     let email = 'public'; 
-
     const token = req.cookies.authToken;
-    if (token) {
-        try {
-            const decoded = jwt.verify(token, JWT_SECRET);
-            email = String(decoded.email).toLowerCase().trim();
-        } catch(e) {}
-    }
+    if (token) { try { const decoded = jwt.verify(token, JWT_SECRET); email = String(decoded.email).toLowerCase().trim(); } catch(e) {} }
 
     try {
         const existing = await pool.query("SELECT id FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [endpoint]);
-        if (existing.rows.length === 0) {
-            await pool.query("INSERT INTO push_subscriptions (email, sub_data) VALUES ($1, $2)", [email, subscription]);
-        } else {
-            await pool.query("UPDATE push_subscriptions SET email = $1, sub_data = $2 WHERE id = $3", [email, subscription, existing.rows[0].id]);
-        }
+        if (existing.rows.length === 0) await pool.query("INSERT INTO push_subscriptions (email, sub_data) VALUES ($1, $2)", [email, subscription]);
+        else await pool.query("UPDATE push_subscriptions SET email = $1, sub_data = $2 WHERE id = $3", [email, subscription, existing.rows[0].id]);
         res.status(201).json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// We attach the helper functions to the router so `trades.routes.js` can use them
 router.getValidPushSubscribers = getValidPushSubscribers;
 router.sendPushNotification = sendPushNotification;
 router.checkTradePushEnabled = checkTradePushEnabled;
