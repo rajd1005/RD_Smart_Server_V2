@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Dashboard - Rd Algo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#007aff">
+    <link rel="apple-touch-icon" href="/logo.png">
+
+    <style>
+        :root {
+            --bg-color: #f0f2f5; --card-bg: #ffffff;
+            --text-primary: #212529; --text-secondary: #878a8d;
+            --border-color: #e9ecef;
+            --green: #00b346; --red: #ff3b30; --blue: #007aff;
+        }
+        
+        body { background-color: #dbe0e5; font-family: 'Roboto', sans-serif; color: var(--text-primary); margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+        .app-wrapper { max-width: 800px; margin: 0 auto; background-color: var(--bg-color); min-height: 100vh; position: relative; padding-bottom: 60px; box-shadow: 0 0 25px rgba(0,0,0,0.08); }
+
+        .app-header { background: #fff; border-bottom: 1px solid var(--border-color); padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+        .app-title { font-size: 16px; font-weight: 700; color: #000; letter-spacing: -0.5px; }
+        .server-time { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
+
+        .stats-bar { background: #fff; padding: 10px 15px; display: flex; gap: 15px; overflow-x: auto; border-bottom: 1px solid var(--border-color); margin-bottom: 10px; }
+        .stats-bar::-webkit-scrollbar { display: none; }
+        .stat-item { min-width: 80px; display: flex; flex-direction: column; }
+        .stat-lbl { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 500; }
+        .stat-val { font-size: 15px; font-weight: 700; color: #000; line-height: 1.1; }
+        .val-green { color: var(--green); }
+        .val-red { color: var(--red); }
+
+        .trade-list { padding: 0 10px; }
+        .trade-card { background: #fff; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); position: relative; }
+        .tc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .tc-mid { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .tc-bot { display: flex; justify-content: space-between; background: #f8f9fa; padding: 6px 8px; border-radius: 4px; font-size: 11px; }
+        .tc-symbol { font-size: 15px; font-weight: 700; color: #000; }
+        .tc-profit { font-size: 16px; font-weight: 700; text-align: right; }
+        .tc-time { font-size: 10px; color: var(--text-secondary); }
+        .c-green { color: var(--green); } .c-red { color: var(--red); }
+        .type-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 2px 5px; border-radius: 3px; }
+        .bg-buy { background: #e3f2fd; color: var(--blue); } .bg-sell { background: #ffebee; color: var(--red); }
+        .status-txt { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .detail-grp { display: flex; gap: 10px; }
+        .dt-item { display: flex; flex-direction: column; }
+        .dt-lbl { font-size: 9px; color: var(--text-secondary); margin-bottom: 1px; }
+        .dt-val { font-weight: 600; color: #333; }
+
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; margin: 0 auto; width: 100%; max-width: 800px; background: #fff; border-top: 1px solid var(--border-color); padding: 8px 0; display: flex; justify-content: space-around; z-index: 999; }
+        .b-btn { background: none; border: none; display: flex; flex-direction: column; align-items: center; font-size: 10px; color: var(--text-secondary); font-weight: 500; }
+        .b-btn .material-icons-round { font-size: 22px; margin-bottom: 2px; }
+        .b-active { color: var(--blue); } .b-del { color: var(--red); }
+        
+        .offcanvas-bottom { height: auto !important; border-radius: 15px 15px 0 0; left: 0; right: 0; margin: 0 auto; max-width: 800px; }
+        .custom-check { width: 18px; height: 18px; margin-right: 10px; border-radius: 4px; border: 2px solid #ccc; cursor: pointer; margin-top: 0;}
+        .custom-check:checked { background-color: var(--blue); border-color: var(--blue); }
+        
+        #noData { padding: 50px; text-align: center; color: var(--text-secondary); }
+
+        #learningSection { display: block; padding: 10px; }
+        #tradeSection { display: none; }
+        
+        .accordion-item { border: 1px solid var(--border-color); border-radius: 8px !important; margin-bottom: 6px; background: #fff; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .accordion-button { padding: 10px 12px; font-weight: 700; color: #000; background: #f8f9fa; box-shadow: none !important; font-size: 14px; min-height: 44px; }
+        .accordion-button:not(.collapsed) { background: #e3f2fd; color: var(--blue); }
+        .accordion-button::after { transform: scale(0.8); }
+        
+        .lesson-accordion-item { border: none !important; border-top: 1px solid var(--border-color) !important; border-radius: 0 !important; margin: 0 !important; box-shadow: none !important; }
+        .lesson-accordion-item:first-child { border-top: none !important; }
+        .lesson-accordion-btn { padding: 8px 12px; font-size: 13px; font-weight: 600; background: transparent !important; color: inherit; box-shadow: none !important; min-height: 38px; }
+        .lesson-accordion-btn:not(.collapsed) { background: #f8f9fa !important; color: var(--blue) !important; }
+        
+        .lesson-item-content { padding: 12px; border-radius: 0; transition: background 0.2s; border-top: 1px solid #f0f2f5; }
+        .lesson-item-content:hover { background-color: #f9fbfd; }
+        
+        .thumb-wrapper-full { position: relative; width: 100%; border-radius: 6px; overflow: hidden; background: #000; border: 1px solid rgba(0,0,0,0.1); max-height: 450px; display: flex; flex-direction: column; justify-content: center; align-items: center; margin-bottom: 10px; cursor: pointer; }
+        .thumb-wrapper-full img { width: 100%; max-height: 450px; object-fit: contain; opacity: 0.85; transition: opacity 0.2s; pointer-events: none; display: block; }
+        .lesson-item-content:hover .thumb-wrapper-full img { opacity: 1; }
+        .thumb-play-overlay-full { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+        .thumb-play-overlay-full .material-icons-round { color: #fff; font-size: 52px; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.8)); transition: transform 0.2s; }
+        .lesson-item-content:hover .thumb-play-overlay-full .material-icons-round { transform: scale(1.1); }
+        
+        .lock-notice { background-color: #fff3cd; color: #856404; padding: 6px 12px; font-size: 11px; font-weight: 600; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
+        .lock-notice a { color: #0056b3; text-decoration: underline; }
+
+        .form-control, .form-select { font-size: 13px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-color); }
+        .form-control:focus, .form-select:focus { border-color: var(--blue); box-shadow: 0 0 0 0.2rem rgba(0, 122, 255, 0.15); }
+        .modal-content { border-radius: 8px; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+        .modal-header { padding: 12px 15px 0; border-bottom: none; }
+        .modal-title { font-size: 15px; font-weight: 700; color: #000; }
+        
+        .nav-tabs .nav-link { color: var(--text-secondary); border: none; border-bottom: 2px solid transparent; padding: 10px 5px; }
+        .nav-tabs .nav-link.active { color: var(--blue); background: transparent; border-bottom: 2px solid var(--blue); font-weight: bold; }
+
+        #videoPlayerContainer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; display: none; }
+        .video-js { width: 100% !important; height: 100% !important; }
+        .close-video { position: absolute; top: 15px; right: 15px; z-index: 2010; color: #fff; background: rgba(0,0,0,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
+        
+        #dynamicWatermark { position: absolute; color: rgba(255, 0, 0, 0.85); font-family: 'Roboto', sans-serif; font-size: clamp(11px, 3.5vmin, 24px); font-weight: 900; text-align: center; line-height: 1.3; pointer-events: none; z-index: 2005; white-space: nowrap; display: none; text-shadow: 1px 1px 3px rgba(0,0,0,0.9), -1px -1px 3px rgba(255,255,255,0.4); transition: top 3s ease-in-out, left 3s ease-in-out; }
+
+        .admin-edit-btn { color: var(--blue); background: none; border: none; font-size: 14px; padding: 5px; }
+        .admin-del-btn { color: var(--red); background: none; border: none; font-size: 14px; padding: 5px; }
+
+        /* --- PUSH NOTIFICATION CHAT STYLES --- */
+        .chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 12px; margin-bottom: 12px; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .chat-bubble.sent { background-color: #dcf8c6; margin-left: auto; border-bottom-right-radius: 0; }
+        .chat-bubble.scheduled { background-color: #fff3cd; margin-left: auto; border-bottom-right-radius: 0; }
+        .chat-title { font-weight: bold; font-size: 14px; margin-bottom: 4px; color: #000; line-height: 1.2; }
+        .chat-body { font-size: 13px; color: #222; margin-bottom: 6px; white-space: pre-wrap; line-height: 1.4; }
+        .chat-link { font-size: 12px; color: #0056b3; word-break: break-all; display: block; margin-bottom: 5px; text-decoration: underline; }
+        .chat-meta { font-size: 10px; color: #666; text-align: right; display: flex; justify-content: flex-end; gap: 4px; align-items: center; margin-top: 5px; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 5px; }
+        .chat-del-btn { color: var(--red); cursor: pointer; padding: 2px; }
+    </style>
+</head>
+<body>
+
+    <div class="app-wrapper">
+
+        <header class="app-header">
+            <div class="d-flex align-items-center">
+                <div class="app-title">Rd Algo</div>
+                <div id="activeDateDisplay" style="font-size: 10px; background: #e3f2fd; color: var(--blue); padding: 2px 6px; border-radius: 4px; margin-left: 8px; font-weight: 600;">Loading...</div>
+            </div>
+            <div class="d-flex align-items-center">
+                <div class="server-time" id="clock" style="margin-right: 15px;">00:00:00</div>
+                
+                <button id="installAppBtn" onclick="installPWA()" style="display:none; background:#00b346; color:#fff; border:none; border-radius:4px; padding:4px 8px; font-size:11px; font-weight:bold; margin-right: 15px;">
+        <span class="material-icons-round" style="font-size:14px; vertical-align:middle;">download</span> Install
+    </button>
+                <button id="btnAdminCourseManager" class="position-relative" type="button" data-bs-toggle="modal" data-bs-target="#adminCourseModal" style="display:none; background:none; border:none; color:var(--blue); padding:0; align-items:center; margin-right: 15px;">
+                    <span class="material-icons-round">settings</span>
+                </button>
+                
+                <button class="position-relative" type="button" data-bs-toggle="offcanvas" data-bs-target="#notificationSheet" style="background:none; border:none; color:var(--text-primary); padding:0; display:flex; align-items:center; margin-right: 15px;">
+                    <span class="material-icons-round">notifications</span>
+                    <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle" id="notifBadge" style="display:none;"><span class="visually-hidden">New alerts</span></span>
+                </button>
+
+                <button onclick="logout()" style="background:none; border:none; color:var(--red); padding:0; display:flex; align-items:center;">
+                    <span class="material-icons-round">logout</span>
+                </button>
+            </div>
+        </header>
+
+        <div id="tradeSection">
+            <div class="stats-bar align-items-center">
+                <div class="stat-item" id="statPoints" style="display:none;"><span class="stat-lbl">Points</span><span class="stat-val" id="totalPips">0.00</span></div>
+                <div class="stat-item"><span class="stat-lbl">Active</span><span class="stat-val" id="activeTrades">0</span></div>
+                <div class="stat-item" id="statWinRate" style="display:none;"><span class="stat-lbl">Win Rate</span><span class="stat-val" id="winRate">0%</span></div>
+                <div class="stat-item"><span class="stat-lbl">Signals</span><span class="stat-val" id="totalTrades">0</span></div>
+                
+                <div class="stat-item ms-auto">
+                    <span class="stat-lbl">Market</span>
+                    <select id="filterCategory" class="form-select border-1" style="padding: 2px 18px 2px 6px; font-size: 11px; height: 24px; box-shadow: none;" onchange="applyFilters()">
+                        <option value="ALL">All</option>
+                        <option value="Forex/Crypto">Forex/Crypto</option>
+                        <option value="Stock">Stock</option>
+                        <option value="Index">Index</option>
+                        <option value="Mcx">Mcx</option>
+                    </select>
+                </div>
+            </div>
+            <div class="trade-list" id="tradeListContainer"></div>
+            <div id="noData" style="display:none;"><span class="material-icons-round" style="font-size:32px; opacity:0.3;">toc</span><div class="mt-2 text-muted small">No trades found</div></div>
+        </div>
+
+        <div id="learningSection">
+            <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                <div id="adminAccordionControls" style="display:none;">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleAccordions('all')" style="font-size: 11px;">Open All</button>
+                    <button class="btn btn-sm btn-outline-secondary ms-1" onclick="toggleAccordions('none')" style="font-size: 11px;">Close All</button>
+                    <button class="btn btn-sm btn-outline-primary ms-1" onclick="toggleAccordions('first')" style="font-size: 11px;">Open 1st</button>
+                </div>
+            </div>
+            
+            <div class="accordion" id="courseModuleContainer">
+                <div class="p-4 text-center text-muted">Loading courses...</div>
+            </div>
+        </div>
+
+        <div id="pushSection" style="display:none; flex-direction: column; height: calc(100vh - 110px);">
+            <div class="p-2 bg-white shadow-sm z-1 d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <span class="material-icons-round text-primary me-2">campaign</span>
+                    <div>
+                        <h6 class="mb-0 fw-bold" style="font-size:14px;">Push Broadcasts</h6>
+                        <div style="font-size:10px; color:var(--text-secondary);">Send updates to specific audiences</div>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-outline-primary fw-bold" style="font-size: 10px;" data-bs-toggle="modal" data-bs-target="#scheduledPushModal">Manage Scheduled</button>
+            </div>
+            
+            <div class="flex-grow-1 p-3" id="chatHistory" style="overflow-y: auto; background-color: #efeae2; display: flex; flex-direction: column;">
+                </div>
+            
+            <div class="p-2 bg-white border-top shadow-lg">
+                <form id="formChatPush" class="d-flex flex-column gap-2 mb-0">
+                    <select id="chatPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px; font-weight:bold; color:var(--blue);">
+    <option value="both">🌍 Send to ALL Users (Login + Public)</option>
+    <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
+    <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
+    <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
+    <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
+    <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
+    <option value="login_with_level_2">🔒 Login User with Level 2</option>
+    <option value="login_with_level_3">🔒 Login User with Level 3</option>
+    <option value="login_with_level_4">🔒 Login User with Level 4</option>
+</select>
+                    <input type="text" id="chatPushTitle" class="form-control bg-light" placeholder="Notification Title (e.g. 🚨 New Strategy)" style="font-size:13px; font-weight:bold;" required>
+                    <textarea id="chatPushBody" class="form-control bg-light" rows="2" placeholder="Type your message description here..." style="font-size:13px;" required></textarea>
+                    
+                    <input type="file" id="chatPushImage" class="form-control form-control-sm bg-light" accept="image/*" style="font-size:12px;" title="Optional Push Image">
+                    
+                    <div class="d-flex gap-2">
+                        <input type="text" id="chatPushUrl" class="form-control form-control-sm bg-light" placeholder="Optional URL Link" style="font-size:12px;">
+                        <input type="datetime-local" id="chatPushSchedule" class="form-control form-control-sm bg-light" title="Schedule Time" style="font-size:12px; width: 140px;">
+                        
+                        <select id="chatPushRecurrence" class="form-select form-select-sm bg-light" style="font-size:12px; width: 85px;">
+                            <option value="none">Once</option>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                        </select>
+                        
+                        <button type="submit" class="btn btn-primary d-flex align-items-center justify-content-center flex-shrink-0" id="btnChatPushSubmit" style="border-radius: 50%; width: 34px; height: 34px; padding: 0;"><span class="material-icons-round" style="margin-left:4px; font-size:18px;">send</span></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <nav class="bottom-nav" id="navDefault">
+            <button class="b-btn" id="navTradeBtn" onclick="switchSection('trade')"><span class="material-icons-round">analytics</span>Trade</button>
+            <button class="b-btn b-active" id="navLearnBtn" onclick="switchSection('learning')"><span class="material-icons-round">school</span>Learn</button>
+            
+            <button class="b-btn" id="navPushBtn" onclick="switchSection('push')" style="display:none;"><span class="material-icons-round">campaign</span>Push</button>
+
+            <button class="b-btn" id="btnRefresh" onclick="fetchTrades()" style="display:none;"><span class="material-icons-round">refresh</span>Refresh</button>
+            <button class="b-btn" id="btnFilter" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterSheet" style="display:none;"><span class="material-icons-round">filter_list</span>Filter</button>
+            <button class="b-btn" id="btnSelect" onclick="toggleSelectionMode()" style="display:none;"><span class="material-icons-round" id="selectIcon">check_circle</span>Select</button>
+            <button class="b-btn b-del" id="btnDelete" onclick="deleteSelected()" style="display:none;"><span class="material-icons-round">delete</span>Delete</button>
+        </nav>
+
+        <nav class="bottom-nav" id="navSelection" style="display:none;">
+            <button class="b-btn" onclick="toggleSelectionMode()"><span class="material-icons-round">close</span>Cancel</button>
+            <button class="b-btn b-active" onclick="selectAllTrades()"><span class="material-icons-round">done_all</span>Select All</button>
+            <button class="b-btn b-del" onclick="deleteSelected()"><span class="material-icons-round">delete_forever</span>Delete</button>
+        </nav>
+
+    </div>
+
+    <div id="videoPlayerContainer">
+        <button class="close-video" onclick="closeVideoPlayer()"><span class="material-icons-round">close</span></button>
+        <div id="dynamicWatermark"></div>
+        <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" disablePictureInPicture controlsList="nodownload nofullscreen noremoteplayback" playsinline webkit-playsinline></video>
+    </div>
+
+    <div class="modal fade" id="scheduledPushModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title mb-0" style="font-size:15px;"><span class="material-icons-round align-middle me-1" style="font-size:18px;">schedule</span>Scheduled & Recurring Pushes</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light p-2" id="scheduledPushList">
+                    <div class="text-center text-muted p-3" style="font-size: 12px;">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editPushModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title mb-0" style="font-size:15px;">Edit Scheduled Push</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <form id="formEditPush" class="d-flex flex-column gap-2 mb-0">
+                        <input type="hidden" id="editPushId">
+                        <label class="form-label fw-bold mb-0" style="font-size: 10px; color: var(--text-secondary);">Target Audience</label>
+                        <select id="editPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px;">
+    <option value="both">🌍 Send to ALL Users (Login + Public)</option>
+    <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
+    <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
+    <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
+    <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
+    <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
+    <option value="login_with_level_2">🔒 Login User with Level 2</option>
+    <option value="login_with_level_3">🔒 Login User with Level 3</option>
+    <option value="login_with_level_4">🔒 Login User with Level 4</option>
+</select>
+                        <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Title</label>
+                        <input type="text" id="editPushTitle" class="form-control bg-light" style="font-size:13px;" required>
+                        <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Body</label>
+                        <textarea id="editPushBody" class="form-control bg-light" rows="2" style="font-size:13px;" required></textarea>
+                        
+                        <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Image (Upload to Replace)</label>
+                        <input type="file" id="editPushImage" class="form-control form-control-sm bg-light" accept="image/*" style="font-size:12px;">
+                        <div id="editPushCurrentImgLabel" style="font-size: 10px; color: var(--blue); margin-top: 2px; display: none;"><span class="material-icons-round align-middle me-1" style="font-size:12px;">image</span>Current Image Attached</div>
+                        
+                        <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">URL Link</label>
+                        <input type="text" id="editPushUrl" class="form-control form-control-sm bg-light" style="font-size:12px;">
+                        
+                        <div class="row g-2 mt-1">
+                            <div class="col-7">
+                                <label class="form-label fw-bold mb-0" style="font-size: 10px; color: var(--text-secondary);">Schedule Time</label>
+                                <input type="datetime-local" id="editPushSchedule" class="form-control form-control-sm bg-light" style="font-size:12px;">
+                            </div>
+                            <div class="col-5">
+                                <label class="form-label fw-bold mb-0" style="font-size: 10px; color: var(--text-secondary);">Recurrence</label>
+                                <select id="editPushRecurrence" class="form-select form-select-sm bg-light" style="font-size:12px;">
+                                    <option value="none">Once</option>
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 mt-2 fw-bold" id="btnEditPushSubmit">Save Changes</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="disclaimerModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 500px;">
+            <div class="modal-content">
+                <div class="modal-header bg-light pb-2">
+                    <h5 class="modal-title text-danger fw-bold w-100 text-center">
+                        <span class="material-icons-round align-middle me-1">warning</span> MANDATORY LEGAL DISCLAIMER
+                    </h5>
+                </div>
+                <div class="modal-body p-4" id="disclaimerScrollBody" style="font-size: 13px; line-height: 1.6; color: #444; max-height: 60vh; overflow-y: auto;">
+                    <p class="fw-bold text-dark text-center mb-3">READ CAREFULLY BEFORE PROCEEDING</p>
+                    
+                    <div class="alert alert-warning p-2 text-center" style="border-left: 4px solid #856404; background-color: #fff3cd; color: #856404; font-weight: 700;">
+                        ⚠️ DO NOT TRADE WITH REAL MONEY<br>
+                        <span style="font-weight: 500; font-size: 11px;">Indicators and signals are strictly for PAPER TRADING and educational evaluation only.</span>
+                    </div>
+
+                    <p>By accessing or using the RD Algo platform, services, software, or provided information, you explicitly acknowledge, understand, and agree to the following terms:</p>
+                    
+                    <ul class="ps-3 mb-3">
+                        <li class="mb-2"><strong>Educational Purposes Only:</strong> All content, indicators, signals, and strategies provided by RD Algo are strictly for educational and informational purposes. They do not constitute financial, investment, or trading advice.</li>
+                        <li class="mb-2"><strong>No SEBI Registration:</strong> RD Algo, its founders, and its team members are <strong>NOT registered with SEBI</strong> (Securities and Exchange Board of India) as financial advisors or research analysts.</li>
+                        <li class="mb-2"><strong>High Risk Warning:</strong> Trading in financial markets (including stocks, options, forex, and crypto) involves a high degree of risk. You may lose some or all of your initial capital.</li>
+                        <li class="mb-2"><strong>Your Sole Responsibility:</strong> You are 100% responsible for your own trading decisions. RD Algo will not be held liable for any financial losses, damages, or consequences resulting from the use of our platform.</li>
+                        <li class="mb-0"><strong>Past Performance:</strong> Past performance, whether actual or indicated by historical backtests, is no guarantee of future results.</li>
+                    </ul>
+                    <div class="p-3 bg-light border rounded text-center mt-4">
+                        <p class="mb-0 fw-bold" style="font-size: 12px; color: #000;">By clicking "I AGREE", you electronically sign this agreement and confirm you have read and understood these risks.</p>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-center bg-light pt-2 pb-3 border-top-0">
+                    <button type="button" class="btn btn-outline-secondary px-4 fw-bold" onclick="declineDisclaimer()">DECLINE & LOGOUT</button>
+                    <button type="button" class="btn btn-success px-5 fw-bold" id="btnAgreeDisclaimer" onclick="acceptDisclaimer()">I AGREE</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal fade" id="adminCourseModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title mb-0">Admin Course Manager</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
+                </div>
+                <div class="modal-body p-0">
+                    
+                    <ul class="nav nav-tabs nav-justified px-1 pt-2" id="adminTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active fw-bold text-uppercase" id="tab-module" data-bs-toggle="tab" data-bs-target="#pane-module" type="button" role="tab" style="font-size: 10px;">1. Module</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-uppercase" id="tab-lesson" data-bs-toggle="tab" data-bs-target="#pane-lesson" type="button" role="tab" style="font-size: 10px;">2. Lesson</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-uppercase" id="tab-settings" data-bs-toggle="tab" data-bs-target="#pane-settings" type="button" role="tab" style="font-size: 10px;">3. Settings</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-uppercase" id="tab-progress" data-bs-toggle="tab" data-bs-target="#pane-progress" type="button" role="tab" style="font-size: 10px;" onclick="fetchVideoProgress()">4. Progress</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-uppercase" id="tab-symbols" data-bs-toggle="tab" data-bs-target="#pane-symbols" type="button" role="tab" style="font-size: 10px;">5. Symbols</button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content p-3" id="adminTabsContent">
+                        
+                        <div class="tab-pane fade show active" id="pane-module" role="tabpanel">
+                            <form id="formAddModule">
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Module Title</label>
+                                    <input type="text" id="modTitle" class="form-control" required>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Short Description</label>
+                                    <input type="text" id="modDesc" class="form-control">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Access Level</label>
+                                    <select id="modLevel" class="form-select" required>
+                                        <option value="demo">Demo / Public</option>
+                                        <option value="level_1_status">Level 1 (All Access)</option>
+                                        <option value="level_2_status">Requires Level 2</option>
+                                        <option value="level_3_status">Requires Level 3</option>
+                                        <option value="level_4_status">Requires Level 4</option>
+                                    </select>
+                                </div>
+
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Show on Home Page</label>
+                                        <select id="modShowHome" class="form-select" required>
+                                            <option value="true">Yes</option>
+                                            <option value="false">No (Hidden)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Dashboard Visiblity</label>
+                                        <select id="modDashVis" class="form-select" required>
+                                            <option value="all">Show to All</option>
+                                            <option value="accessible">Show Only if Accessible</option>
+                                            <option value="hidden">Hide Completely</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
+                                    <input type="number" id="modDisplayOrder" class="form-control" value="0" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Custom Lock Notice (HTML Allowed)</label>
+                                    <input type="text" id="modLockNotice" class="form-control">
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Create Module</button>
+                            </form>
+                        </div>
+
+                        <div class="tab-pane fade" id="pane-lesson" role="tabpanel">
+                            <form id="formAddLesson">
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Select Module</label>
+                                    <select id="lessonModuleId" class="form-select" required><option value="">Select...</option></select>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Lesson Title</label>
+                                    <input type="text" id="lessonTitle" class="form-control" required>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description / Rich Text (HTML Allowed)</label>
+                                    <textarea id="lessonDesc" class="form-control" rows="4" placeholder="Write text or paste HTML embeds here..."></textarea>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
+                                    <input type="number" id="lessonDisplayOrder" class="form-control" value="0" required>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Upload Thumbnail (Optional)</label>
+                                    <input type="file" id="lessonThumbnailFile" class="form-control" accept="image/*">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Upload MP4 Video (Optional)</label>
+                                    <input type="file" id="lessonVideoFile" class="form-control" accept="video/mp4,video/x-m4v,video/*">
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-success w-100" style="padding:8px; border-radius:4px;">Save Lesson</button>
+                            </form>
+                        </div>
+
+                        <div class="tab-pane fade" id="pane-settings" role="tabpanel">
+                            <form id="formAdminSettings">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Default Accordion State</label>
+                                    <select id="adminAccordionState" class="form-select mb-2" required>
+                                        <option value="first">Open 1st Module & 1st Video</option>
+                                        <option value="all">Open All Modules & Videos</option>
+                                        <option value="none">Close All</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-2 d-flex align-items-center">
+                                    <input type="checkbox" class="custom-check m-0" id="adminPushTradeAlerts">
+                                    <label class="form-check-label ms-2 fw-bold" for="adminPushTradeAlerts" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Enable Web Push for Trade Alerts</label>
+                                </div>
+
+                                <div class="mb-2 d-flex align-items-center">
+                                    <input type="checkbox" class="custom-check m-0" id="adminShowGallery">
+                                    <label class="form-check-label ms-2 fw-bold" for="adminShowGallery" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Performance Gallery on Home Page</label>
+                                </div>
+                                <div class="mb-2 d-flex align-items-center">
+                                    <input type="checkbox" class="custom-check m-0" id="adminShowCallWidget">
+                                    <label class="form-check-label ms-2 fw-bold" for="adminShowCallWidget" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Call Report on Home Page</label>
+                                </div>
+                                <div class="mb-2 d-flex align-items-center">
+                                    <input type="checkbox" class="custom-check m-0" id="adminHideTradeTab">
+                                    <label class="form-check-label ms-2 fw-bold" for="adminHideTradeTab" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Hide Trade Tab for All Users</label>
+                                </div>
+                                <div class="mb-3 d-flex align-items-center">
+                                    <input type="checkbox" class="custom-check m-0" id="adminShowDisclaimer">
+                                    <label class="form-check-label ms-2 fw-bold" for="adminShowDisclaimer" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Legal Disclaimer Popup</label>
+                                </div>
+<div class="mb-4">
+    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Registration Link</label>
+    <input type="text" id="adminRegisterLink" class="form-control" placeholder="URL for New Registrations">
+</div>
+
+<div class="mb-4">
+    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Manager Emails (Comma-separated)</label>
+    <input type="text" id="adminManagerEmails" class="form-control" placeholder="manager1@example.com, manager2@example.com">
+</div>
+                                
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Homepage Layout Order (Drag to Reorder)</label>
+                                    <ul id="homepageLayoutDraggable" class="list-group list-group-flush" style="font-size: 11px; cursor: grab; border: 1px solid var(--border-color); border-radius: 4px; padding: 0;">
+                                        <li class="list-group-item p-2 d-flex align-items-center" data-id="demoCoursesContainer" style="border-bottom: 1px solid var(--border-color);"><span class="material-icons-round text-muted me-2" style="font-size:16px;">drag_indicator</span>Demo Courses</li>
+                                        <li class="list-group-item p-2 d-flex align-items-center" data-id="galleryWrapper" style="border-bottom: 1px solid var(--border-color);"><span class="material-icons-round text-muted me-2" style="font-size:16px;">drag_indicator</span>Performance Gallery</li>
+                                        <li class="list-group-item p-2 d-flex align-items-center" data-id="callReportWrapper" style="border-bottom: 1px solid var(--border-color);"><span class="material-icons-round text-muted me-2" style="font-size:16px;">drag_indicator</span>Call Report</li>
+                                        <li class="list-group-item p-2 d-flex align-items-center" data-id="otherCoursesContainer"><span class="material-icons-round text-muted me-2" style="font-size:16px;">drag_indicator</span>Locked Courses</li>
+                                    </ul>
+                                </div>
+
+                                <hr class="my-3">
+                                <h6 class="fw-bold text-primary mb-2" style="font-size: 11px; text-transform: uppercase;">Home Page Sticky Buttons</h6>
+                                
+                                <div class="mb-2 d-flex align-items-center">
+                                    <input type="checkbox" class="custom-check m-0" id="adminShowStickyFooter">
+                                    <label class="form-check-label ms-2 fw-bold" for="adminShowStickyFooter" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Enable Sticky Buttons</label>
+                                </div>
+                                
+                                <div class="row g-2 mb-2">
+                                    <div class="col-12"><label class="form-label fw-bold mb-0" style="font-size: 9px; color: var(--text-secondary);">BUTTON 1 (LEFT / GREEN)</label></div>
+                                    <div class="col-4"><input type="text" id="adminBtn1Text" class="form-control" placeholder="Text" style="font-size: 10px;"></div>
+                                    <div class="col-4"><input type="text" id="adminBtn1Icon" class="form-control" placeholder="Icon (chat)" style="font-size: 10px;"></div>
+                                    <div class="col-4"><input type="text" id="adminBtn1Link" class="form-control" placeholder="Link (URL)" style="font-size: 10px;"></div>
+                                </div>
+
+                                <div class="row g-2 mb-3">
+                                    <div class="col-12"><label class="form-label fw-bold mb-0" style="font-size: 9px; color: var(--text-secondary);">BUTTON 2 (RIGHT / BLUE)</label></div>
+                                    <div class="col-4"><input type="text" id="adminBtn2Text" class="form-control" placeholder="Text" style="font-size: 10px;"></div>
+                                    <div class="col-4"><input type="text" id="adminBtn2Icon" class="form-control" placeholder="Icon (send)" style="font-size: 10px;"></div>
+                                    <div class="col-4"><input type="text" id="adminBtn2Link" class="form-control" placeholder="Link (URL)" style="font-size: 10px;"></div>
+                                </div>
+
+                                <button type="submit" class="btn btn-sm btn-warning w-100 fw-bold" style="padding:8px; border-radius:4px;">Save Settings</button>
+                            </form>
+                        </div>
+
+                        <div class="tab-pane fade" id="pane-progress" role="tabpanel">
+                            <h6 class="fw-bold mb-3" style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary);">Student Watch Log</h6>
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-bordered table-striped" style="font-size: 10px;">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th>Student</th>
+                                            <th>Lesson</th>
+                                            <th class="text-center">Watched</th>
+                                            <th>Last Active</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="progressTableBody">
+                                        <tr><td colspan="4" class="text-center text-muted py-3">Click refresh to load...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary w-100 mt-2 fw-bold" onclick="fetchVideoProgress()" style="padding:8px; border-radius:4px;">↻ Refresh Report</button>
+                        </div>
+
+                        <div class="tab-pane fade" id="pane-symbols" role="tabpanel">
+                            <h6 class="fw-bold mb-2" style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary);">Manage Symbol Categories</h6>
+                            <p class="text-muted" style="font-size: 10px; margin-bottom: 12px;">Enter comma-separated symbol names (e.g., XAUUSD, BTCUSD) that belong to each category.</p>
+                            <form id="formAdminSymbols">
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px;">Forex/Crypto</label>
+                                    <input type="text" id="adminCatForex" class="form-control" placeholder="EURUSD, BTCUSD">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px;">Stock</label>
+                                    <input type="text" id="adminCatStock" class="form-control" placeholder="AAPL, TSLA">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px;">Index</label>
+                                    <input type="text" id="adminCatIndex" class="form-control" placeholder="US30, NAS100">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px;">Mcx</label>
+                                    <input type="text" id="adminCatMcx" class="form-control" placeholder="CRUDEOIL, GOLD">
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-success w-100 fw-bold" style="padding:8px; border-radius:4px;">Save Symbols</button>
+                            </form>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editModuleModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 320px;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title mb-0">Edit Module</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formEditModule">
+                        <input type="hidden" id="editModId">
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Module Title</label>
+                            <input type="text" id="editModTitle" class="form-control" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
+                            <input type="text" id="editModDesc" class="form-control">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Access Level</label>
+                            <select id="editModLevel" class="form-select" required>
+                                <option value="demo">Demo / Public</option>
+                                <option value="level_1_status">Level 1 (All Access)</option>
+                                <option value="level_2_status">Requires Level 2</option>
+                                <option value="level_3_status">Requires Level 3</option>
+                                <option value="level_4_status">Requires Level 4</option>
+                            </select>
+                        </div>
+
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Show on Home</label>
+                                <select id="editModShowHome" class="form-select" required>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No (Hidden)</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Dash Visiblity</label>
+                                <select id="editModDashVis" class="form-select" required>
+                                    <option value="all">Show to All</option>
+                                    <option value="accessible">Accessible Only</option>
+                                    <option value="hidden">Hide Completely</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
+                            <input type="number" id="editModDisplayOrder" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Custom Lock Notice</label>
+                            <input type="text" id="editModLockNotice" class="form-control">
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Save Changes</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editLessonModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 320px;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title mb-0">Edit Lesson Information</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formEditLesson">
+                        <input type="hidden" id="editLessonId">
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Lesson Title</label>
+                            <input type="text" id="editLessonTitle" class="form-control" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description / Rich Text</label>
+                            <textarea id="editLessonDesc" class="form-control" rows="4"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
+                            <input type="number" id="editLessonDisplayOrder" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Update Thumbnail (Leave empty to keep existing)</label>
+                            <input type="file" id="editLessonThumbnailFile" class="form-control" accept="image/*">
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Save Changes</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="notificationSheet" style="width: 320px; max-width: 100vw;">
+        <div class="offcanvas-header pb-0 border-bottom">
+            <h6 class="offcanvas-title fw-bold"><span class="material-icons-round text-primary me-2 align-middle">notifications_active</span>Alerts</h6>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body pt-2" id="userNotificationList" style="background-color: #efeae2; overflow-y: auto;">
+            <div class="text-center text-muted mt-3" style="font-size:12px;">Loading alerts...</div>
+        </div>
+    </div>
+
+    <div class="offcanvas offcanvas-bottom" tabindex="-1" id="filterSheet">
+        <div class="offcanvas-header pb-0"><h6 class="offcanvas-title fw-bold">Filter Options</h6><button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button></div>
+        <div class="offcanvas-body pt-2">
+        <div class="row g-2">
+                <div class="col-12">
+                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Date / Range</label>
+                    <input type="text" id="filterDateRange" class="form-control" placeholder="Select Date(s)..." style="background-color: #fff;">
+                </div>
+                <div class="col-6">
+                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Type</label>
+                    <select id="filterType" class="form-select"><option value="ALL">All</option><option value="BUY">Buy</option><option value="SELL">Sell</option></select>
+                </div>
+                <div class="col-6">
+                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Status</label>
+                    <select id="filterStatus" class="form-select"><option value="ALL">All</option><option value="OPEN">Running</option><option value="TP">Profitable</option><option value="SL">Loss</option></select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Symbol</label>
+                    <select id="filterSymbol" class="form-select"><option value="">All Symbols</option></select>
+                </div>
+            </div>
+            <button class="btn btn-primary w-100 mt-3 fw-bold" style="padding:8px; border-radius:4px;" data-bs-dismiss="offcanvas" onclick="applyFilters()">Apply</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    
+    <script src="/js/api.config.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/trades.js"></script>
+    <script src="/js/courses.js"></script>
+    <script src="/js/admin.js"></script>
+    <script src="/js/notifications.js"></script>
+    
+    <script>
+        setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-GB'); }, 1000);
+        
+        async function fetchVideoProgress() {
+            const tbody = document.getElementById('progressTableBody');
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-3">Loading...</td></tr>';
+            try {
+                const res = await fetch('/api/admin/video/progress');
+                if(!res.ok) throw new Error('Failed to fetch');
+                const data = await res.json();
+                if(data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No watch records found.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.map(r => {
+                    let mins = Math.floor(r.watched_seconds / 60);
+                    let secs = r.watched_seconds % 60;
+                    let timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+                    let dateStr = new Date(r.last_watched).toLocaleString('en-GB', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'});
+                    return `
+                    <tr>
+                        <td class="text-break fw-bold">${r.email}</td>
+                        <td class="text-break">${r.title}</td>
+                        <td class="text-center fw-bold text-success">${timeStr}</td>
+                        <td class="text-muted">${dateStr}</td>
+                    </tr>
+                    `;
+                }).join('');
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-3">Error loading report.</td></tr>';
+            }
+        }
+    </script>
+    <div class="modal fade" id="pushReminderModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
+        <div class="modal-content text-center p-3">
+            <div class="modal-header border-0 pb-0 justify-content-center">
+                <span class="material-icons-round text-primary" style="font-size: 48px;">notifications_active</span>
+            </div>
+            <div class="modal-body px-4 pb-2 pt-3">
+                <h5 class="fw-bold mb-2" id="pushModalTitle">Never Miss a Trade!</h5>
+                <p class="text-muted small mb-3" style="font-size: 13px; line-height: 1.4;" id="pushModalDesc">
+                    Get instant alerts for new signals, setups, and profit booking directly on your device.
+                </p>
+                
+                <div id="pushBlockedInstructions" style="display: none; background: #fff3cd; color: #856404; padding: 10px; border-radius: 8px; font-size: 11px; text-align: left; margin-bottom: 15px;">
+                    <strong>Notifications are blocked.</strong><br>
+                    1. Click the 🔒 padlock icon next to our URL at the top of your browser.<br>
+                    2. Change "Notifications" to <strong>Allow</strong>.<br>
+                    3. Refresh this page.
+                </div>
+
+                <button type="button" class="btn btn-primary w-100 fw-bold mb-2" id="btnEnablePush" onclick="handlePushEnableClick()">Enable Notifications</button>
+                <button type="button" class="btn btn-light w-100 fw-bold text-muted" data-bs-dismiss="modal" onclick="dismissPushPrompt()">Maybe Later</button>
+            </div>
+        </div>
+    </div>
+</div>
+    <div class="modal fade" id="installAppModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
+        <div class="modal-content text-center p-3">
+            <div class="modal-header border-0 pb-0 justify-content-center">
+                <span class="material-icons-round text-success" style="font-size: 48px;">download_for_offline</span>
+            </div>
+            <div class="modal-body px-4 pb-2 pt-3">
+                <h5 class="fw-bold mb-2">Install RD Algo App</h5>
+                <p class="text-muted small mb-3" style="font-size: 13px; line-height: 1.4;">
+                    Install our app on your device for a faster, full-screen trading experience and quick access.
+                </p>
+                <button type="button" class="btn btn-success w-100 fw-bold mb-2" id="btnEnableInstall" onclick="handleInstallAppClick()">Install App</button>
+                <button type="button" class="btn btn-light w-100 fw-bold text-muted" data-bs-dismiss="modal" onclick="dismissInstallPrompt()">Maybe Later</button>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
