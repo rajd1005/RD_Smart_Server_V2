@@ -7,7 +7,10 @@ function applyRoleRestrictions() {
     if (role === 'admin' || role === 'manager') {
         document.getElementById('btnSelect').style.display = 'flex';
         document.getElementById('btnDelete').style.display = 'flex';
-
+     if (role === 'admin') {
+            const btnCreateChan = document.getElementById('btnCreateChannel');
+            if(btnCreateChan) btnCreateChan.style.display = 'inline-block';
+        }
         if (statPoints) statPoints.style.display = 'flex';
         if (statWinRate) statWinRate.style.display = 'flex';
 
