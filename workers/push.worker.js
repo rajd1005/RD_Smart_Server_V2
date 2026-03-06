@@ -16,51 +16,33 @@ const DEMO_USERS = [
     { email: "demo6@rdalgo.in", password: "demo123" }
 ];
 
-// Initialize worker inside a function to pass `io` and `pushQueue` from server.js
 function initPushWorker(io, pushQueue) {
     
     async function getValidPushSubscribers(audienceType) {
         let query = "SELECT id, email, sub_data FROM push_subscriptions";
-        
-        // Public non-login targeting
-        if (audienceType === 'non_logged_in') {
-            query += " WHERE email = 'public'";
-        } 
-        // Any kind of logged-in user targeting
-        else if (audienceType !== 'both') {
-            query += " WHERE email != 'public'";
-        }
+        if (audienceType === 'non_logged_in') query += " WHERE email = 'public'";
+        else if (audienceType !== 'both') query += " WHERE email != 'public'";
         
         const subs = await pool.query(query);
-        
-        // Quick exit for purely public notifications
         if (audienceType === 'non_logged_in') {
-            const unique = [];
-            const eps = new Set();
-            for (let r of subs.rows) {
-                if (!eps.has(r.sub_data.endpoint)) { eps.add(r.sub_data.endpoint); unique.push(r.sub_data); }
-            }
+            const unique = []; const eps = new Set();
+            for (let r of subs.rows) { if (!eps.has(r.sub_data.endpoint)) { eps.add(r.sub_data.endpoint); unique.push(r.sub_data); } }
             return unique;
         }
 
         const emailsToCheck = [...new Set(subs.rows.filter(r => r.email !== 'public').map(r => String(r.email).toLowerCase().trim()))];
         const actuallyValidEmails = new Set([ADMIN_EMAIL, ...DEMO_USERS.map(u => u.email), 'public']);
         const expiredEmails = new Set();
-        const userLevels = new Map(); // Store level access per email
+        const userLevels = new Map(); 
 
-        // Admin and Demo users default to having all levels
         userLevels.set(ADMIN_EMAIL, { level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' });
         DEMO_USERS.forEach(u => userLevels.set(u.email, { level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' }));
 
         if (emailsToCheck.length > 0) {
             const placeholders = emailsToCheck.map(() => '?').join(',');
             try {
-                // Updated Query to also pull level statuses
                 const [wpRows] = await authPool.query(`SELECT student_email, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email IN (${placeholders})`, emailsToCheck);
-                
-                const d = new Date();
-                const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
-                const nowIST = new Date(utc + (3600000 * 5.5));
+                const d = new Date(); const utc = d.getTime() + (d.getTimezoneOffset() * 60000); const nowIST = new Date(utc + (3600000 * 5.5));
 
                 wpRows.forEach(row => {
                     const expiry = new Date(row.student_expiry_date);
@@ -68,48 +50,30 @@ function initPushWorker(io, pushQueue) {
                         if (row.student_email) {
                             const email = String(row.student_email).toLowerCase().trim();
                             actuallyValidEmails.add(email);
-                            // Save their level statuses
-                            userLevels.set(email, {
-                                level_2_status: row.level_2_status || 'No',
-                                level_3_status: row.level_3_status || 'No',
-                                level_4_status: row.level_4_status || 'No'
-                            });
+                            userLevels.set(email, { level_2_status: row.level_2_status || 'No', level_3_status: row.level_3_status || 'No', level_4_status: row.level_4_status || 'No' });
                         }
                     }
                 });
-
-                emailsToCheck.forEach(email => {
-                    if (!actuallyValidEmails.has(email)) expiredEmails.add(email);
-                });
-            } catch(e) {
-                console.error("Auth DB Error during push sync (Failsafe activated)", e.message);
-                emailsToCheck.forEach(email => actuallyValidEmails.add(email)); 
-            }
+                emailsToCheck.forEach(email => { if (!actuallyValidEmails.has(email)) expiredEmails.add(email); });
+            } catch(e) { emailsToCheck.forEach(email => actuallyValidEmails.add(email)); }
         }
 
-        // Downgrade expired subscriptions to public
         if (expiredEmails.size > 0) {
             const expiredArray = Array.from(expiredEmails);
             await pool.query("UPDATE push_subscriptions SET email = 'public' WHERE LOWER(email) = ANY($1)", [expiredArray]).catch(()=>{});
-            console.log(`📉 Push Subs Downgraded to Public (Expired): ${expiredArray.length} users`);
         }
 
-        const uniqueSubs = [];
-        const endpoints = new Set();
-
+        const uniqueSubs = []; const endpoints = new Set();
         for (let row of subs.rows) {
             let rowEmail = String(row.email).toLowerCase().trim();
             let isValidAudience = false;
-            
             if (audienceType === 'both') {
                 if (rowEmail === 'public' || actuallyValidEmails.has(rowEmail)) isValidAudience = true;
             } else if (audienceType === 'logged_in') {
                 if (rowEmail !== 'public' && actuallyValidEmails.has(rowEmail)) isValidAudience = true;
             } else {
-                // Handle the new specific level-based rules
                 if (rowEmail !== 'public' && actuallyValidEmails.has(rowEmail)) {
                     const levels = userLevels.get(rowEmail) || { level_2_status: 'No', level_3_status: 'No', level_4_status: 'No' };
-                    
                     if (audienceType === 'login_no_level_2' && levels.level_2_status !== 'Yes') isValidAudience = true;
                     else if (audienceType === 'login_no_level_3' && levels.level_3_status !== 'Yes') isValidAudience = true;
                     else if (audienceType === 'login_no_level_4' && levels.level_4_status !== 'Yes') isValidAudience = true;
@@ -124,7 +88,6 @@ function initPushWorker(io, pushQueue) {
                 uniqueSubs.push(row.sub_data);
             }
         }
-
         return uniqueSubs;
     }
 
@@ -139,9 +102,12 @@ function initPushWorker(io, pushQueue) {
                 const payload = { title: notification.title, body: notification.body, url: notification.url || '/', image: notification.image_path };
 
                 for (let sub of uniqueSubs) {
-                    await webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
-                        if (e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
-                    });
+                    // 🔥 FAIL-SAFE ADDED:
+                    try {
+                        await webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
+                            if (e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
+                        });
+                    } catch(err) {}
                 }
                 
                 if (notification.recurrence && notification.recurrence !== 'none') {
@@ -159,16 +125,16 @@ function initPushWorker(io, pushQueue) {
                     io.emit('new_notification');
                     console.log(`✅ Scheduled push notification sent: ${notification.title}`);
 
-                    // --- DELETE SCHEDULED IMAGE AFTER ONE-TIME SEND ---
                     if (notification.image_path) {
-                        const filePath = path.join(__dirname, '..', notification.image_path);
-                        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-                        await pool.query("UPDATE scheduled_notifications SET image_path = NULL WHERE id = $1", [notificationId]);
+                        const safePath = notification.image_path.replace(/^\//, ''); // Strip leading slash
+                        const filePath = path.join(__dirname, '..', safePath);
+                        try {
+                            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                            await pool.query("UPDATE scheduled_notifications SET image_path = NULL WHERE id = $1", [notificationId]);
+                        } catch(e){}
                     }
                 }
-            } catch (e) {
-                console.error("❌ Scheduled push failed:", e);
-            }
+            } catch (e) { console.error("❌ Scheduled push failed:", e); }
         }
     }, { connection: redisConnection });
 
