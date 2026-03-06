@@ -3,13 +3,10 @@ function applyRoleRestrictions() {
     const statPoints = document.getElementById('statPoints');
     const statWinRate = document.getElementById('statWinRate');
 
-    if (role === 'admin') {
+    // Both Admin and Manager get access to Trades & Push
+    if (role === 'admin' || role === 'manager') {
         document.getElementById('btnSelect').style.display = 'flex';
         document.getElementById('btnDelete').style.display = 'flex';
-        const btnAdminCourseManager = document.getElementById('btnAdminCourseManager');
-        if (btnAdminCourseManager) btnAdminCourseManager.style.display = 'flex';
-        const adminAccordionControls = document.getElementById('adminAccordionControls');
-        if (adminAccordionControls) adminAccordionControls.style.display = 'block';
 
         if (statPoints) statPoints.style.display = 'flex';
         if (statWinRate) statWinRate.style.display = 'flex';
@@ -17,6 +14,12 @@ function applyRoleRestrictions() {
         const navPushBtn = document.getElementById('navPushBtn');
         if (navPushBtn) navPushBtn.style.display = 'flex';
 
+        // ONLY ADMIN gets the Course Manager / Settings Gear icon
+        const btnAdminCourseManager = document.getElementById('btnAdminCourseManager');
+        if (btnAdminCourseManager && role === 'admin') btnAdminCourseManager.style.display = 'flex';
+
+        const adminAccordionControls = document.getElementById('adminAccordionControls');
+        if (adminAccordionControls && role === 'admin') adminAccordionControls.style.display = 'block';
     } else {
         if (statPoints) statPoints.style.display = 'none';
         if (statWinRate) statWinRate.style.display = 'none';
@@ -34,6 +37,7 @@ if (formAdminSettings) {
         const push_trade_alerts = document.getElementById('adminPushTradeAlerts')?.checked ? 'true' : 'false';
         const showGallery = document.getElementById('adminShowGallery')?.checked ? 'true' : 'false';
         const showCallWidget = document.getElementById('adminShowCallWidget')?.checked ? 'true' : 'false';
+        
 
         const showStickyFooter = document.getElementById('adminShowStickyFooter')?.checked ? 'true' : 'false';
         const sticky_btn1_text = document.getElementById('adminBtn1Text')?.value || '';
@@ -45,6 +49,7 @@ if (formAdminSettings) {
         
         const showDisclaimer = document.getElementById('adminShowDisclaimer')?.checked ? 'true' : 'false';
         const register_link = document.getElementById('adminRegisterLink')?.value || '';
+        const manager_emails = document.getElementById('adminManagerEmails')?.value || ''; // NEW LINE
         
         let homepage_layout = undefined;
         const layoutList = document.querySelectorAll('#homepageLayoutDraggable li');
@@ -68,7 +73,8 @@ if (formAdminSettings) {
                 sticky_btn2_icon: sticky_btn2_icon,
                 sticky_btn2_link: sticky_btn2_link,
                 show_disclaimer: showDisclaimer,
-                register_link: register_link
+                register_link: register_link,
+                manager_emails: manager_emails // NEW LINE
             };
             if (homepage_layout) bodyData.homepage_layout = homepage_layout;
 
