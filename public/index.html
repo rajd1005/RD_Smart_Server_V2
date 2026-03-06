@@ -24,14 +24,16 @@
             --green: #00b346; --red: #ff3b30; --blue: #007aff;
         }
         
-        body { background-color: #dbe0e5; font-family: 'Roboto', sans-serif; color: var(--text-primary); margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
-        .app-wrapper { max-width: 800px; margin: 0 auto; background-color: var(--bg-color); min-height: 100vh; position: relative; padding-bottom: 60px; box-shadow: 0 0 25px rgba(0,0,0,0.08); }
+        body { background-color: #dbe0e5; font-family: 'Roboto', sans-serif; color: var(--text-primary); margin: 0; padding: 0; -webkit-font-smoothing: antialiased; overflow: hidden; }
+        .app-wrapper { max-width: 800px; margin: 0 auto; background-color: var(--bg-color); height: 100vh; position: relative; padding-bottom: 60px; box-shadow: 0 0 25px rgba(0,0,0,0.08); display: flex; flex-direction: column; overflow: hidden; }
 
-        .app-header { background: #fff; border-bottom: 1px solid var(--border-color); padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+        .app-header { background: #fff; border-bottom: 1px solid var(--border-color); padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; z-index: 100; flex-shrink: 0; }
         .app-title { font-size: 16px; font-weight: 700; color: #000; letter-spacing: -0.5px; }
         .server-time { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
 
-        .stats-bar { background: #fff; padding: 10px 15px; display: flex; gap: 15px; overflow-x: auto; border-bottom: 1px solid var(--border-color); margin-bottom: 10px; }
+        .content-section { flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; }
+
+        .stats-bar { background: #fff; padding: 10px 15px; display: flex; gap: 15px; overflow-x: auto; border-bottom: 1px solid var(--border-color); margin-bottom: 10px; flex-shrink: 0; }
         .stats-bar::-webkit-scrollbar { display: none; }
         .stat-item { min-width: 80px; display: flex; flex-direction: column; }
         .stat-lbl { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 500; }
@@ -39,7 +41,7 @@
         .val-green { color: var(--green); }
         .val-red { color: var(--red); }
 
-        .trade-list { padding: 0 10px; }
+        .trade-list { padding: 0 10px; flex-grow: 1; overflow-y: auto; }
         .trade-card { background: #fff; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); position: relative; }
         .tc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
         .tc-mid { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
@@ -56,7 +58,7 @@
         .dt-lbl { font-size: 9px; color: var(--text-secondary); margin-bottom: 1px; }
         .dt-val { font-weight: 600; color: #333; }
 
-        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; margin: 0 auto; width: 100%; max-width: 800px; background: #fff; border-top: 1px solid var(--border-color); padding: 8px 0; display: flex; justify-content: space-around; z-index: 999; }
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; margin: 0 auto; width: 100%; max-width: 800px; background: #fff; border-top: 1px solid var(--border-color); padding: 8px 0; display: flex; justify-content: space-around; z-index: 999; flex-shrink: 0; }
         .b-btn { background: none; border: none; display: flex; flex-direction: column; align-items: center; font-size: 10px; color: var(--text-secondary); font-weight: 500; }
         .b-btn .material-icons-round { font-size: 22px; margin-bottom: 2px; }
         .b-active { color: var(--blue); } .b-del { color: var(--red); }
@@ -67,8 +69,8 @@
         
         #noData { padding: 50px; text-align: center; color: var(--text-secondary); }
 
-        #learningSection { display: block; padding: 10px; }
-        #tradeSection { display: none; }
+        #learningSection { display: block; padding: 10px; flex-grow: 1; overflow-y: auto; }
+        #tradeSection { display: none; flex-direction: column; height: 100%; }
         
         .accordion-item { border: 1px solid var(--border-color); border-radius: 8px !important; margin-bottom: 6px; background: #fff; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         .accordion-button { padding: 10px 12px; font-weight: 700; color: #000; background: #f8f9fa; box-shadow: none !important; font-size: 14px; min-height: 44px; }
@@ -111,7 +113,6 @@
         .admin-edit-btn { color: var(--blue); background: none; border: none; font-size: 14px; padding: 5px; }
         .admin-del-btn { color: var(--red); background: none; border: none; font-size: 14px; padding: 5px; }
 
-        /* --- PUSH NOTIFICATION CHAT STYLES --- */
         .chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 12px; margin-bottom: 12px; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .chat-bubble.sent { background-color: #dcf8c6; margin-left: auto; border-bottom-right-radius: 0; }
         .chat-bubble.scheduled { background-color: #fff3cd; margin-left: auto; border-bottom-right-radius: 0; }
@@ -152,7 +153,7 @@
             </div>
         </header>
 
-        <div id="tradeSection">
+        <div id="tradeSection" class="content-section">
             <div class="stats-bar align-items-center">
                 <div class="stat-item" id="statPoints" style="display:none;"><span class="stat-lbl">Points</span><span class="stat-val" id="totalPips">0.00</span></div>
                 <div class="stat-item"><span class="stat-lbl">Active</span><span class="stat-val" id="activeTrades">0</span></div>
@@ -174,7 +175,7 @@
             <div id="noData" style="display:none;"><span class="material-icons-round" style="font-size:32px; opacity:0.3;">toc</span><div class="mt-2 text-muted small">No trades found</div></div>
         </div>
 
-        <div id="learningSection">
+        <div id="learningSection" class="content-section">
             <div class="d-flex justify-content-between align-items-center mb-2 px-1">
                 <div id="adminAccordionControls" style="display:none;">
                     <button class="btn btn-sm btn-outline-secondary" onclick="toggleAccordions('all')" style="font-size: 11px;">Open All</button>
@@ -188,8 +189,8 @@
             </div>
         </div>
 
-        <div id="channelsSection" class="content-section" style="display:none; height: calc(100vh - 65px); padding-bottom: 60px; margin: -15px; overflow: hidden; background: var(--bg-color);">
-            <div class="row h-100 g-0 border-top bg-white shadow-sm" style="overflow: hidden; max-width: 100%;">
+        <div id="channelsSection" class="content-section" style="display:none; background: var(--bg-color); flex-direction: column;">
+            <div class="row g-0 bg-white shadow-sm" style="flex: 1; min-height: 0; overflow: hidden; max-width: 100%;">
                 
                 <div class="col-md-4 col-12 border-end h-100 d-flex flex-column bg-white" id="channelListWrapper" style="overflow: hidden;">
                     <div class="p-2 border-bottom d-flex justify-content-between align-items-center bg-light flex-shrink-0">
@@ -276,8 +277,8 @@
             </div>
         </div>
 
-        <div id="pushSection" style="display:none; flex-direction: column; height: calc(100vh - 110px);">
-            <div class="p-2 bg-white shadow-sm z-1 d-flex justify-content-between align-items-center">
+        <div id="pushSection" class="content-section" style="display:none; flex-direction: column;">
+            <div class="p-2 bg-white shadow-sm z-1 d-flex justify-content-between align-items-center flex-shrink-0">
                 <div class="d-flex align-items-center">
                     <span class="material-icons-round text-primary me-2">campaign</span>
                     <div>
@@ -291,7 +292,7 @@
             <div class="flex-grow-1 p-3" id="chatHistory" style="overflow-y: auto; background-color: #efeae2; display: flex; flex-direction: column;">
             </div>
             
-            <div class="p-2 bg-white border-top shadow-lg">
+            <div class="p-2 bg-white border-top shadow-lg flex-shrink-0">
                 <form id="formChatPush" class="d-flex flex-column gap-2 mb-0">
                     <select id="chatPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px; font-weight:bold; color:var(--blue);">
                         <option value="both">🌍 Send to ALL Users (Login + Public)</option>
@@ -396,6 +397,44 @@
         </div>
     </div>
 
+    <div class="modal fade" id="editChannelModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="fw-bold mb-0">Edit Channel</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formEditChannel">
+                        <input type="hidden" id="editChanId">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Channel Name</label>
+                            <input type="text" id="editChanName" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Description</label>
+                            <input type="text" id="editChanDesc" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Required Access Level</label>
+                            <select id="editChanLevel" class="form-select">
+                                <option value="demo">Public / Demo (Everyone)</option>
+                                <option value="level_2">Level 2 (Pro)</option>
+                                <option value="level_3">Level 3 (Elite)</option>
+                                <option value="level_4">Level 4 (Master)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Telegram Chat ID</label>
+                            <input type="text" id="editChanTgId" class="form-control">
+                        </div>
+                        <button type="submit" class="btn btn-warning w-100 fw-bold">Save Changes</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="videoPlayerContainer">
         <button class="close-video" onclick="closeVideoPlayer()"><span class="material-icons-round">close</span></button>
         <div id="dynamicWatermark"></div>
@@ -466,6 +505,85 @@
                         </div>
                         <button type="submit" class="btn btn-primary w-100 mt-2 fw-bold" id="btnEditPushSubmit">Save Changes</button>
                     </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="notificationSheet" style="width: 320px; max-width: 100vw;">
+        <div class="offcanvas-header pb-0 border-bottom">
+            <h6 class="offcanvas-title fw-bold"><span class="material-icons-round text-primary me-2 align-middle">notifications_active</span>Alerts</h6>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body pt-2" id="userNotificationList" style="background-color: #efeae2; overflow-y: auto;">
+            <div class="text-center text-muted mt-3" style="font-size:12px;">Loading alerts...</div>
+        </div>
+    </div>
+
+    <div class="offcanvas offcanvas-bottom" tabindex="-1" id="filterSheet">
+        <div class="offcanvas-header pb-0"><h6 class="offcanvas-title fw-bold">Filter Options</h6><button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button></div>
+        <div class="offcanvas-body pt-2">
+            <div class="row g-2">
+                <div class="col-12">
+                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Date / Range</label>
+                    <input type="text" id="filterDateRange" class="form-control" placeholder="Select Date(s)..." style="background-color: #fff;">
+                </div>
+                <div class="col-6">
+                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Type</label>
+                    <select id="filterType" class="form-select"><option value="ALL">All</option><option value="BUY">Buy</option><option value="SELL">Sell</option></select>
+                </div>
+                <div class="col-6">
+                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Status</label>
+                    <select id="filterStatus" class="form-select"><option value="ALL">All</option><option value="OPEN">Running</option><option value="TP">Profitable</option><option value="SL">Loss</option></select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Symbol</label>
+                    <select id="filterSymbol" class="form-select"><option value="">All Symbols</option></select>
+                </div>
+            </div>
+            <button class="btn btn-primary w-100 mt-3 fw-bold" style="padding:8px; border-radius:4px;" data-bs-dismiss="offcanvas" onclick="applyFilters()">Apply</button>
+        </div>
+    </div>
+
+    <div class="modal fade" id="pushReminderModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
+            <div class="modal-content text-center p-3">
+                <div class="modal-header border-0 pb-0 justify-content-center">
+                    <span class="material-icons-round text-primary" style="font-size: 48px;">notifications_active</span>
+                </div>
+                <div class="modal-body px-4 pb-2 pt-3">
+                    <h5 class="fw-bold mb-2" id="pushModalTitle">Never Miss a Trade!</h5>
+                    <p class="text-muted small mb-3" style="font-size: 13px; line-height: 1.4;" id="pushModalDesc">
+                        Get instant alerts for new signals, setups, and profit booking directly on your device.
+                    </p>
+                    
+                    <div id="pushBlockedInstructions" style="display: none; background: #fff3cd; color: #856404; padding: 10px; border-radius: 8px; font-size: 11px; text-align: left; margin-bottom: 15px;">
+                        <strong>Notifications are blocked.</strong><br>
+                        1. Click the 🔒 padlock icon next to our URL at the top of your browser.<br>
+                        2. Change "Notifications" to <strong>Allow</strong>.<br>
+                        3. Refresh this page.
+                    </div>
+
+                    <button type="button" class="btn btn-primary w-100 fw-bold mb-2" id="btnEnablePush" onclick="handlePushEnableClick()">Enable Notifications</button>
+                    <button type="button" class="btn btn-light w-100 fw-bold text-muted" data-bs-dismiss="modal" onclick="dismissPushPrompt()">Maybe Later</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="installAppModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
+            <div class="modal-content text-center p-3">
+                <div class="modal-header border-0 pb-0 justify-content-center">
+                    <span class="material-icons-round text-success" style="font-size: 48px;">download_for_offline</span>
+                </div>
+                <div class="modal-body px-4 pb-2 pt-3">
+                    <h5 class="fw-bold mb-2">Install RD Algo App</h5>
+                    <p class="text-muted small mb-3" style="font-size: 13px; line-height: 1.4;">
+                        Install our app on your device for a faster, full-screen trading experience and quick access.
+                    </p>
+                    <button type="button" class="btn btn-success w-100 fw-bold mb-2" id="btnEnableInstall" onclick="handleInstallAppClick()">Install App</button>
+                    <button type="button" class="btn btn-light w-100 fw-bold text-muted" data-bs-dismiss="modal" onclick="dismissInstallPrompt()">Maybe Later</button>
                 </div>
             </div>
         </div>
@@ -646,10 +764,15 @@
                                     <input type="checkbox" class="custom-check m-0" id="adminHideTradeTab">
                                     <label class="form-check-label ms-2 fw-bold" for="adminHideTradeTab" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Hide Trade Tab for All Users</label>
                                 </div>
-                                <div class="mb-3 d-flex align-items-center">
+                                <div class="mb-2 d-flex align-items-center">
                                     <input type="checkbox" class="custom-check m-0" id="adminShowDisclaimer">
                                     <label class="form-check-label ms-2 fw-bold" for="adminShowDisclaimer" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Legal Disclaimer Popup</label>
                                 </div>
+                                <div class="mb-3 d-flex align-items-center">
+                                    <input type="checkbox" class="custom-check m-0" id="adminShowChannelsTab">
+                                    <label class="form-check-label ms-2 fw-bold" for="adminShowChannelsTab" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Channels Tab to Students</label>
+                                </div>
+                                
                                 <div class="mb-4">
                                     <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Registration Link</label>
                                     <input type="text" id="adminRegisterLink" class="form-control" placeholder="URL for New Registrations">
@@ -741,180 +864,6 @@
                         </div>
 
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="editModuleModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 320px;">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title mb-0">Edit Module</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="formEditModule">
-                        <input type="hidden" id="editModId">
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Module Title</label>
-                            <input type="text" id="editModTitle" class="form-control" required>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
-                            <input type="text" id="editModDesc" class="form-control">
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Access Level</label>
-                            <select id="editModLevel" class="form-select" required>
-                                <option value="demo">Demo / Public</option>
-                                <option value="level_1_status">Level 1 (All Access)</option>
-                                <option value="level_2_status">Requires Level 2</option>
-                                <option value="level_3_status">Requires Level 3</option>
-                                <option value="level_4_status">Requires Level 4</option>
-                            </select>
-                        </div>
-
-                        <div class="row g-2 mb-2">
-                            <div class="col-6">
-                                <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Show on Home</label>
-                                <select id="editModShowHome" class="form-select" required>
-                                    <option value="true">Yes</option>
-                                    <option value="false">No (Hidden)</option>
-                                </select>
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Dash Visiblity</label>
-                                <select id="editModDashVis" class="form-select" required>
-                                    <option value="all">Show to All</option>
-                                    <option value="accessible">Accessible Only</option>
-                                    <option value="hidden">Hide Completely</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
-                            <input type="number" id="editModDisplayOrder" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Custom Lock Notice</label>
-                            <input type="text" id="editModLockNotice" class="form-control">
-                        </div>
-                        <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Save Changes</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="editLessonModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 320px;">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title mb-0">Edit Lesson Information</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="formEditLesson">
-                        <input type="hidden" id="editLessonId">
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Lesson Title</label>
-                            <input type="text" id="editLessonTitle" class="form-control" required>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description / Rich Text</label>
-                            <textarea id="editLessonDesc" class="form-control" rows="4"></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
-                            <input type="number" id="editLessonDisplayOrder" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Update Thumbnail (Leave empty to keep existing)</label>
-                            <input type="file" id="editLessonThumbnailFile" class="form-control" accept="image/*">
-                        </div>
-                        <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Save Changes</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="offcanvas offcanvas-end" tabindex="-1" id="notificationSheet" style="width: 320px; max-width: 100vw;">
-        <div class="offcanvas-header pb-0 border-bottom">
-            <h6 class="offcanvas-title fw-bold"><span class="material-icons-round text-primary me-2 align-middle">notifications_active</span>Alerts</h6>
-            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
-        </div>
-        <div class="offcanvas-body pt-2" id="userNotificationList" style="background-color: #efeae2; overflow-y: auto;">
-            <div class="text-center text-muted mt-3" style="font-size:12px;">Loading alerts...</div>
-        </div>
-    </div>
-
-    <div class="offcanvas offcanvas-bottom" tabindex="-1" id="filterSheet">
-        <div class="offcanvas-header pb-0"><h6 class="offcanvas-title fw-bold">Filter Options</h6><button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button></div>
-        <div class="offcanvas-body pt-2">
-            <div class="row g-2">
-                <div class="col-12">
-                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Date / Range</label>
-                    <input type="text" id="filterDateRange" class="form-control" placeholder="Select Date(s)..." style="background-color: #fff;">
-                </div>
-                <div class="col-6">
-                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Type</label>
-                    <select id="filterType" class="form-select"><option value="ALL">All</option><option value="BUY">Buy</option><option value="SELL">Sell</option></select>
-                </div>
-                <div class="col-6">
-                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Status</label>
-                    <select id="filterStatus" class="form-select"><option value="ALL">All</option><option value="OPEN">Running</option><option value="TP">Profitable</option><option value="SL">Loss</option></select>
-                </div>
-                <div class="col-12">
-                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Symbol</label>
-                    <select id="filterSymbol" class="form-select"><option value="">All Symbols</option></select>
-                </div>
-            </div>
-            <button class="btn btn-primary w-100 mt-3 fw-bold" style="padding:8px; border-radius:4px;" data-bs-dismiss="offcanvas" onclick="applyFilters()">Apply</button>
-        </div>
-    </div>
-
-    <div class="modal fade" id="pushReminderModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
-            <div class="modal-content text-center p-3">
-                <div class="modal-header border-0 pb-0 justify-content-center">
-                    <span class="material-icons-round text-primary" style="font-size: 48px;">notifications_active</span>
-                </div>
-                <div class="modal-body px-4 pb-2 pt-3">
-                    <h5 class="fw-bold mb-2" id="pushModalTitle">Never Miss a Trade!</h5>
-                    <p class="text-muted small mb-3" style="font-size: 13px; line-height: 1.4;" id="pushModalDesc">
-                        Get instant alerts for new signals, setups, and profit booking directly on your device.
-                    </p>
-                    
-                    <div id="pushBlockedInstructions" style="display: none; background: #fff3cd; color: #856404; padding: 10px; border-radius: 8px; font-size: 11px; text-align: left; margin-bottom: 15px;">
-                        <strong>Notifications are blocked.</strong><br>
-                        1. Click the 🔒 padlock icon next to our URL at the top of your browser.<br>
-                        2. Change "Notifications" to <strong>Allow</strong>.<br>
-                        3. Refresh this page.
-                    </div>
-
-                    <button type="button" class="btn btn-primary w-100 fw-bold mb-2" id="btnEnablePush" onclick="handlePushEnableClick()">Enable Notifications</button>
-                    <button type="button" class="btn btn-light w-100 fw-bold text-muted" data-bs-dismiss="modal" onclick="dismissPushPrompt()">Maybe Later</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="installAppModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
-            <div class="modal-content text-center p-3">
-                <div class="modal-header border-0 pb-0 justify-content-center">
-                    <span class="material-icons-round text-success" style="font-size: 48px;">download_for_offline</span>
-                </div>
-                <div class="modal-body px-4 pb-2 pt-3">
-                    <h5 class="fw-bold mb-2">Install RD Algo App</h5>
-                    <p class="text-muted small mb-3" style="font-size: 13px; line-height: 1.4;">
-                        Install our app on your device for a faster, full-screen trading experience and quick access.
-                    </p>
-                    <button type="button" class="btn btn-success w-100 fw-bold mb-2" id="btnEnableInstall" onclick="handleInstallAppClick()">Install App</button>
-                    <button type="button" class="btn btn-light w-100 fw-bold text-muted" data-bs-dismiss="modal" onclick="dismissInstallPrompt()">Maybe Later</button>
                 </div>
             </div>
         </div>
