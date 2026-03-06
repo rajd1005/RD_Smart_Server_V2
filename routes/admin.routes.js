@@ -21,7 +21,6 @@ const thumbDir = path.join(__dirname, '../public', 'hls', 'thumbnails');
 const DELETE_PASSWORD = (process.env.DELETE_PASSWORD || "admin123").trim(); 
 
 // --- SETTINGS ---
-// --- SETTINGS ---
 router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
     const { 
         accordion_state, hide_trade_tab, show_gallery, show_call_widget, homepage_layout,
