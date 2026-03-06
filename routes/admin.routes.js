@@ -22,19 +22,14 @@ const DELETE_PASSWORD = (process.env.DELETE_PASSWORD || "admin123").trim();
 
 // --- SETTINGS ---
 router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
-    const { 
-        accordion_state, hide_trade_tab, show_gallery, show_call_widget, homepage_layout,
-        show_sticky_footer, sticky_btn1_text, sticky_btn1_link, sticky_btn1_icon,
-        sticky_btn2_text, sticky_btn2_link, sticky_btn2_icon,
-        show_disclaimer, register_link, push_trade_alerts
-    } = req.body;
+    // ... Settings logic remains exactly the same
+    const { accordion_state, hide_trade_tab, show_gallery, show_call_widget, homepage_layout, show_sticky_footer, sticky_btn1_text, sticky_btn1_link, sticky_btn1_icon, sticky_btn2_text, sticky_btn2_link, sticky_btn2_icon, show_disclaimer, register_link, push_trade_alerts } = req.body;
     try {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state || 'first']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('hide_trade_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [hide_trade_tab || 'false']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_gallery', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_gallery || 'true']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_call_widget', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_call_widget || 'true']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('push_trade_alerts', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [push_trade_alerts || 'true']);
-        
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_sticky_footer', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_sticky_footer || 'false']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('sticky_btn1_text', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [sticky_btn1_text || '']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('sticky_btn1_link', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [sticky_btn1_link || '']);
@@ -42,13 +37,9 @@ router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('sticky_btn2_text', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [sticky_btn2_text || '']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('sticky_btn2_link', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [sticky_btn2_link || '']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('sticky_btn2_icon', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [sticky_btn2_icon || 'send']);
-        
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_disclaimer', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_disclaimer || 'true']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('register_link', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [register_link || '']);
-
-        if (homepage_layout) {
-            await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('homepage_layout', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [homepage_layout]);
-        }
+        if (homepage_layout) await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('homepage_layout', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [homepage_layout]);
         
         await redisClient.del('system_settings').catch(()=>{});
         res.json({ success: true });
@@ -69,12 +60,7 @@ router.put('/settings/symbols', authenticateToken, isAdmin, async (req, res) => 
 
 router.get('/video/progress', authenticateToken, isAdmin, async (req, res) => {
     try {
-        const result = await pool.query(`
-            SELECT vp.email, vp.watched_seconds, vp.last_watched, lv.title 
-            FROM video_progress vp 
-            JOIN lesson_videos lv ON vp.lesson_id = lv.id 
-            ORDER BY vp.last_watched DESC LIMIT 100
-        `);
+        const result = await pool.query(`SELECT vp.email, vp.watched_seconds, vp.last_watched, lv.title FROM video_progress vp JOIN lesson_videos lv ON vp.lesson_id = lv.id ORDER BY vp.last_watched DESC LIMIT 100`);
         res.json(result.rows);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -83,10 +69,7 @@ router.get('/video/progress', authenticateToken, isAdmin, async (req, res) => {
 router.post('/modules', authenticateToken, isAdmin, async (req, res) => {
     const { title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility } = req.body;
     try {
-        await pool.query(
-            "INSERT INTO learning_modules (title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
-            [title, description, required_level, display_order || 0, lock_notice || '', show_on_home, dashboard_visibility || 'all']
-        );
+        await pool.query("INSERT INTO learning_modules (title, description, required_level, display_order, lock_notice, show_on_home, dashboard_visibility) VALUES ($1, $2, $3, $4, $5, $6, $7)", [title, description, required_level, display_order || 0, lock_notice || '', show_on_home, dashboard_visibility || 'all']);
         await redisClient.del('public_courses').catch(()=>{});
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
@@ -95,10 +78,7 @@ router.post('/modules', authenticateToken, isAdmin, async (req, res) => {
 router.put('/modules/:id', authenticateToken, isAdmin, async (req, res) => {
     const { title, description, required_level, lock_notice, display_order, show_on_home, dashboard_visibility } = req.body;
     try {
-        await pool.query(
-            "UPDATE learning_modules SET title = $1, description = $2, required_level = $3, lock_notice = $4, display_order = $5, show_on_home = $6, dashboard_visibility = $7 WHERE id = $8", 
-            [title, description, required_level, lock_notice || '', display_order || 0, show_on_home, dashboard_visibility || 'all', req.params.id]
-        );
+        await pool.query("UPDATE learning_modules SET title = $1, description = $2, required_level = $3, lock_notice = $4, display_order = $5, show_on_home = $6, dashboard_visibility = $7 WHERE id = $8", [title, description, required_level, lock_notice || '', display_order || 0, show_on_home, dashboard_visibility || 'all', req.params.id]);
         await redisClient.del('public_courses').catch(()=>{});
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
@@ -106,8 +86,7 @@ router.put('/modules/:id', authenticateToken, isAdmin, async (req, res) => {
 
 router.delete('/modules/:id', authenticateToken, isAdmin, async (req, res) => {
     const { password } = req.body;
-    if (password !== DELETE_PASSWORD) { return res.status(401).json({ success: false, msg: "❌ Incorrect Password!" }); }
-    
+    if (password !== DELETE_PASSWORD) return res.status(401).json({ success: false, msg: "❌ Incorrect Password!" });
     try { 
         const videos = await pool.query("SELECT hls_manifest_url FROM lesson_videos WHERE module_id = $1", [req.params.id]);
         videos.rows.forEach(row => {
@@ -115,7 +94,7 @@ router.delete('/modules/:id', authenticateToken, isAdmin, async (req, res) => {
                 const parts = row.hls_manifest_url.split('/');
                 if (parts.length >= 3) {
                     const folderPath = path.join(hlsDir, parts[2]);
-                    if (fs.existsSync(folderPath)) { fs.rmSync(folderPath, { recursive: true, force: true }); }
+                    if (fs.existsSync(folderPath)) fs.rmSync(folderPath, { recursive: true, force: true });
                 }
             }
         });
@@ -129,9 +108,7 @@ router.post('/modules/reorder', authenticateToken, isAdmin, async (req, res) => 
     const { orderedIds } = req.body;
     try {
         if (orderedIds && Array.isArray(orderedIds)) {
-            for (let i = 0; i < orderedIds.length; i++) {
-                await pool.query("UPDATE learning_modules SET display_order = $1 WHERE id = $2", [i, orderedIds[i]]);
-            }
+            for (let i = 0; i < orderedIds.length; i++) await pool.query("UPDATE learning_modules SET display_order = $1 WHERE id = $2", [i, orderedIds[i]]);
         }
         await redisClient.del('public_courses').catch(()=>{});
         res.json({ success: true });
@@ -141,18 +118,12 @@ router.post('/modules/reorder', authenticateToken, isAdmin, async (req, res) => 
 // --- LESSONS ---
 router.post('/lessons', authenticateToken, isAdmin, upload.fields([{ name: 'video_file', maxCount: 1 }, { name: 'thumbnail_file', maxCount: 1 }]), async (req, res) => {
     const { module_id, title, description, display_order } = req.body;
-    
     if (!req.files || !req.files['video_file']) {
         try {
-            await pool.query(
-                "INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6)", 
-                [module_id, title, description || '', '', display_order || 0, '']
-            );
+            await pool.query("INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6)", [module_id, title, description || '', '', display_order || 0, '']);
             await redisClient.del('public_courses').catch(()=>{});
             return res.json({ success: true, msg: "Text Document Lesson Added Successfully." });
-        } catch(e) {
-            return res.status(500).json({ success: false, msg: e.message });
-        }
+        } catch(e) { return res.status(500).json({ success: false, msg: e.message }); }
     }
 
     const videoFile = req.files['video_file'][0];
@@ -169,30 +140,18 @@ router.post('/lessons', authenticateToken, isAdmin, upload.fields([{ name: 'vide
     } else {
         const thumbName = crypto.randomUUID() + '.jpg';
         try {
-            await new Promise((resolve, reject) => {
-                ffmpeg(videoFile.path)
-                    .screenshots({ timestamps: ['00:00:01.000'], filename: thumbName, folder: thumbDir })
-                    .on('end', resolve).on('error', reject);
-            });
+            await new Promise((resolve, reject) => { ffmpeg(videoFile.path).screenshots({ timestamps: ['00:00:01.000'], filename: thumbName, folder: thumbDir }).on('end', resolve).on('error', reject); });
             thumbUrl = '/hls/thumbnails/' + thumbName;
         } catch (err) { console.error("Auto-thumbnail failed, skipping."); }
     }
 
     try {
-        const dbResult = await pool.query(
-            "INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id", 
-            [module_id, title, description || '', 'PROCESSING', display_order || 0, thumbUrl]
-        );
+        const dbResult = await pool.query("INSERT INTO lesson_videos (module_id, title, description, hls_manifest_url, display_order, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id", [module_id, title, description || '', 'PROCESSING', display_order || 0, thumbUrl]);
         const newLessonId = dbResult.rows[0].id;
         await redisClient.del('public_courses').catch(()=>{});
 
-        await videoQueue.add('encode', {
-            lessonDbId: newLessonId,
-            videoPath: videoFile.path,
-            hlsDirStr: hlsDir
-        });
-
-        res.json({ success: true, msg: "Video Uploaded. System is now converting it in the background. It will be available shortly." });
+        await videoQueue.add('encode', { lessonDbId: newLessonId, videoPath: videoFile.path, hlsDirStr: hlsDir });
+        res.json({ success: true, msg: "Video Uploaded. System is now converting it in the background." });
     } catch (e) {
         if (fs.existsSync(videoFile.path)) fs.unlinkSync(videoFile.path);
         res.status(500).json({ success: false, msg: e.message });
@@ -220,15 +179,14 @@ router.put('/lessons/:id', authenticateToken, isAdmin, upload.single('thumbnail_
 
 router.delete('/lessons/:id', authenticateToken, isAdmin, async (req, res) => {
     const { password } = req.body;
-    if (password !== DELETE_PASSWORD) { return res.status(401).json({ success: false, msg: "❌ Incorrect Password!" }); }
-
+    if (password !== DELETE_PASSWORD) return res.status(401).json({ success: false, msg: "❌ Incorrect Password!" });
     try { 
         const result = await pool.query("SELECT hls_manifest_url FROM lesson_videos WHERE id = $1", [req.params.id]);
         if (result.rows.length > 0 && result.rows[0].hls_manifest_url && result.rows[0].hls_manifest_url !== 'PROCESSING') {
             const parts = result.rows[0].hls_manifest_url.split('/');
             if (parts.length >= 3) {
                 const folderPath = path.join(hlsDir, parts[2]);
-                if (fs.existsSync(folderPath)) { fs.rmSync(folderPath, { recursive: true, force: true }); }
+                if (fs.existsSync(folderPath)) fs.rmSync(folderPath, { recursive: true, force: true });
             }
         }
         await pool.query("DELETE FROM lesson_videos WHERE id = $1", [req.params.id]); 
@@ -241,9 +199,7 @@ router.post('/lessons/reorder', authenticateToken, isAdmin, async (req, res) => 
     const { orderedIds } = req.body;
     try {
         if (orderedIds && Array.isArray(orderedIds)) {
-            for (let i = 0; i < orderedIds.length; i++) {
-                await pool.query("UPDATE lesson_videos SET display_order = $1 WHERE id = $2", [i, orderedIds[i]]);
-            }
+            for (let i = 0; i < orderedIds.length; i++) await pool.query("UPDATE lesson_videos SET display_order = $1 WHERE id = $2", [i, orderedIds[i]]);
         }
         await redisClient.del('public_courses').catch(()=>{});
         res.json({ success: true });
@@ -274,7 +230,7 @@ router.post('/notifications', authenticateToken, isAdmin, upload.single('push_im
 
     try {
         let parsedScheduleTime = null;
-        if (schedule_time) {
+        if (schedule_time && schedule_time.trim() !== '') {
             if (!schedule_time.includes('+') && !schedule_time.endsWith('Z')) {
                 const istString = schedule_time.length === 16 ? schedule_time + ":00+05:30" : schedule_time + "+05:30";
                 parsedScheduleTime = new Date(istString).toISOString(); 
@@ -293,23 +249,32 @@ router.post('/notifications', authenticateToken, isAdmin, upload.single('push_im
             const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience || 'both');
             const payload = { title, body, url: url || '/', image: imagePath };
             
+            // 🔥 FAIL-SAFE ADDED: Try/Catch wrapper to prevent sync crash on bad subs
             uniqueSubs.forEach(sub => { 
-                webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
-                    if(e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
-                }); 
+                try {
+                    webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
+                        if(e.statusCode === 410) pool.query("DELETE FROM push_subscriptions WHERE sub_data->>'endpoint' = $1", [sub.endpoint]).catch(()=>{});
+                    }); 
+                } catch(pushErr) { console.error("Bad Subscription Object Skipped"); }
             });
             req.app.get('io').emit('new_notification');
 
+            // 🔥 FAIL-SAFE ADDED: Safe file deletion 
             if (absoluteImagePath && fs.existsSync(absoluteImagePath)) {
-                fs.unlinkSync(absoluteImagePath);
-                await pool.query("UPDATE scheduled_notifications SET image_path = NULL WHERE id = $1", [notificationId]);
+                try {
+                    fs.unlinkSync(absoluteImagePath);
+                    await pool.query("UPDATE scheduled_notifications SET image_path = NULL WHERE id = $1", [notificationId]);
+                } catch(fsErr) { console.error("FS Unlink Error:", fsErr.message); }
             }
         } else {
             const delay = new Date(parsedScheduleTime).getTime() - Date.now();
             await pushQueue.add('send-push', { notificationId }, { delay: Math.max(delay, 0), jobId: `push_${notificationId}_${Date.now()}` });
         }
         res.json({ success: true, msg: "Notification saved!" });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+    } catch (err) { 
+        console.error("Push Error:", err);
+        res.status(500).json({ success: false, msg: err.message }); 
+    }
 });
 
 router.put('/notifications/:id', authenticateToken, isAdmin, upload.single('push_image'), async (req, res) => {
@@ -318,7 +283,7 @@ router.put('/notifications/:id', authenticateToken, isAdmin, upload.single('push
 
     try {
         let parsedScheduleTime = null;
-        if (schedule_time) {
+        if (schedule_time && schedule_time.trim() !== '') {
             if (!schedule_time.includes('+') && !schedule_time.endsWith('Z')) {
                 const istString = schedule_time.length === 16 ? schedule_time + ":00+05:30" : schedule_time + "+05:30";
                 parsedScheduleTime = new Date(istString).toISOString(); 
@@ -330,25 +295,16 @@ router.put('/notifications/:id', authenticateToken, isAdmin, upload.single('push
         if (newImagePath) {
             const { rows } = await pool.query("SELECT image_path FROM scheduled_notifications WHERE id = $1", [req.params.id]);
             if (rows.length > 0 && rows[0].image_path) {
-                const oldPath = path.join(__dirname, '..', rows[0].image_path);
+                const oldPath = path.join(__dirname, '..', rows[0].image_path.replace(/^\//, ''));
                 if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
             }
-
-            await pool.query(
-                "UPDATE scheduled_notifications SET title = $1, body = $2, url = $3, scheduled_for = $4, target_audience = $5, recurrence = $6, status = $7, image_path = $8 WHERE id = $9",
-                [title, body, url || '/', parsedScheduleTime || null, target_audience || 'both', recurrence || 'none', parsedScheduleTime ? 'pending' : 'sent', newImagePath, req.params.id]
-            );
+            await pool.query("UPDATE scheduled_notifications SET title = $1, body = $2, url = $3, scheduled_for = $4, target_audience = $5, recurrence = $6, status = $7, image_path = $8 WHERE id = $9", [title, body, url || '/', parsedScheduleTime || null, target_audience || 'both', recurrence || 'none', parsedScheduleTime ? 'pending' : 'sent', newImagePath, req.params.id]);
         } else {
-            await pool.query(
-                "UPDATE scheduled_notifications SET title = $1, body = $2, url = $3, scheduled_for = $4, target_audience = $5, recurrence = $6, status = $7 WHERE id = $8",
-                [title, body, url || '/', parsedScheduleTime || null, target_audience || 'both', recurrence || 'none', parsedScheduleTime ? 'pending' : 'sent', req.params.id]
-            );
+            await pool.query("UPDATE scheduled_notifications SET title = $1, body = $2, url = $3, scheduled_for = $4, target_audience = $5, recurrence = $6, status = $7 WHERE id = $8", [title, body, url || '/', parsedScheduleTime || null, target_audience || 'both', recurrence || 'none', parsedScheduleTime ? 'pending' : 'sent', req.params.id]);
         }
 
         const jobs = await pushQueue.getDelayed();
-        for (let job of jobs) {
-            if (job.data.notificationId === parseInt(req.params.id)) await job.remove();
-        }
+        for (let job of jobs) if (job.data.notificationId === parseInt(req.params.id)) await job.remove();
 
         if (parsedScheduleTime) {
             const delay = new Date(parsedScheduleTime).getTime() - Date.now();
@@ -359,16 +315,19 @@ router.put('/notifications/:id', authenticateToken, isAdmin, upload.single('push
             const currentImagePath = rows.length > 0 ? rows[0].image_path : null;
 
             const payload = { title, body, url: url || '/', image: currentImagePath };
-            uniqueSubs.forEach(sub => { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); });
+            uniqueSubs.forEach(sub => { 
+                try { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); } catch(e){} 
+            });
             req.app.get('io').emit('new_notification');
             
             if (currentImagePath) {
-                const filePath = path.join(__dirname, '..', currentImagePath);
-                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-                await pool.query("UPDATE scheduled_notifications SET image_path = NULL WHERE id = $1", [req.params.id]);
+                const filePath = path.join(__dirname, '..', currentImagePath.replace(/^\//, ''));
+                try {
+                    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                    await pool.query("UPDATE scheduled_notifications SET image_path = NULL WHERE id = $1", [req.params.id]);
+                } catch(e) {}
             }
         }
-
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -377,16 +336,13 @@ router.delete('/notifications/:id', authenticateToken, isAdmin, async (req, res)
     try {
         const { rows } = await pool.query("SELECT image_path FROM scheduled_notifications WHERE id = $1", [req.params.id]);
         if (rows.length > 0 && rows[0].image_path) {
-            const filePath = path.join(__dirname, '..', rows[0].image_path);
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            const filePath = path.join(__dirname, '..', rows[0].image_path.replace(/^\//, ''));
+            try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch(e){}
         }
 
         await pool.query("DELETE FROM scheduled_notifications WHERE id = $1", [req.params.id]);
-        
         const jobs = await pushQueue.getDelayed();
-        for (let job of jobs) {
-            if (job.data.notificationId === parseInt(req.params.id)) await job.remove();
-        }
+        for (let job of jobs) if (job.data.notificationId === parseInt(req.params.id)) await job.remove();
 
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
