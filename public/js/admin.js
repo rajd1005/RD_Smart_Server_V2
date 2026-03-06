@@ -7,7 +7,7 @@ function applyRoleRestrictions() {
         document.getElementById('btnSelect').style.display = 'flex';
         document.getElementById('btnDelete').style.display = 'flex';
         const btnAdminCourseManager = document.getElementById('btnAdminCourseManager');
-        if (btnAdminCourseManager) btnAdminCourseManager.style.display = 'inline-block';
+        if (btnAdminCourseManager) btnAdminCourseManager.style.display = 'flex';
         const adminAccordionControls = document.getElementById('adminAccordionControls');
         if (adminAccordionControls) adminAccordionControls.style.display = 'block';
 
