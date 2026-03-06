@@ -337,12 +337,10 @@
     <span class="nav-text">Learn</span>
 </button>
 
-<button id="navChannelsBtn" class="nav-btn" onclick="switchSection('channels')" style="display: none;">
-    <span class="material-icons-round position-relative">
-        campaign
-        <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle" id="channelsUnreadBadge" style="display:none; width: 10px; height: 10px;"></span>
-    </span>
+<button id="navChannelsBtn" class="nav-btn position-relative" onclick="switchSection('channels')" style="display: none;">
+    <span class="material-icons-round">campaign</span>
     <span class="nav-text">Channels</span>
+    <span class="position-absolute bg-danger border border-light rounded-circle" id="channelsUnreadBadge" style="display:none; width: 10px; height: 10px; top: 5px; right: 25%;"></span>
 </button>
 
             <button class="b-btn" id="btnRefresh" onclick="fetchTrades()" style="display:none;"><span class="material-icons-round">refresh</span>Refresh</button>
