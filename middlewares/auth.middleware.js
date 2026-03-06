@@ -25,4 +25,10 @@ const isAdmin = (req, res, next) => {
     next();
 };
 
-module.exports = { authenticateToken, isAdmin };
+// NEW: Allows both Manager and Admin
+const isManagerOrAdmin = (req, res, next) => {
+    if (req.user.role !== 'admin' && req.user.role !== 'manager') return res.status(403).json({ success: false, msg: "Manager access required." });
+    next();
+};
+
+module.exports = { authenticateToken, isAdmin, isManagerOrAdmin };
