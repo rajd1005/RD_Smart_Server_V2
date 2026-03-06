@@ -50,7 +50,7 @@ router.post('/login', async (req, res) => {
             userPhone = "Demo Account";
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
             
-        } else {
+} else {
             const localCreds = await pool.query("SELECT * FROM user_credentials WHERE email = $1", [email]);
             if (localCreds.rows.length > 0) {
                 const { salt, hash } = localCreds.rows[0];
@@ -75,6 +75,17 @@ router.post('/login', async (req, res) => {
             userEmail = String(studentRecord.student_email).toLowerCase().trim();
             userPhone = studentRecord.student_phone; 
             accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
+
+            // --- NEW: CHECK IF USER IS A MANAGER ---
+            const settingsRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'manager_emails'");
+            const managerEmailsStr = settingsRes.rows.length > 0 ? settingsRes.rows[0].setting_value : '';
+            const managerEmails = managerEmailsStr.split(',').map(e => e.trim().toLowerCase());
+            
+            if (managerEmails.includes(userEmail)) {
+                userRole = "manager";
+                // Automatically unlock all courses for managers
+                accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
+            }
         }
 
         const sessionId = crypto.randomUUID();
