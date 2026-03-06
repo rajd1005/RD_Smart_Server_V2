@@ -1,60 +1,83 @@
 // --- NEW SMART PUSH NOTIFICATION LOGIC ---
+window.pushCheckCompleted = false; // Flag to coordinate with PWA script
 
 function checkAndPromptPushSubscription() {
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+        window.pushCheckCompleted = true;
+        if(typeof window.showInstallModal === 'function') window.showInstallModal();
+        return;
+    }
 
-    // We use sessionStorage so we don't annoy the user on every single page refresh.
-    // It will ask them once per browsing session.
     const hasBeenPrompted = sessionStorage.getItem('pushPromptDismissed');
 
     if (Notification.permission === 'granted') {
-        // They already allowed it in the past. Just register silently in the background.
         registerServiceWorker();
+        
+        // Push is already granted! Proceed immediately to check App Install
+        window.pushCheckCompleted = true;
+        if(typeof window.showInstallModal === 'function') window.showInstallModal();
     } 
     else if (Notification.permission === 'denied') {
-        // They explicitly blocked it. Show instructions on how to unblock.
         if (!hasBeenPrompted) {
             document.getElementById('pushModalTitle').innerText = 'Notifications Blocked';
             document.getElementById('pushModalDesc').innerText = 'You are missing out on live trade alerts.';
             document.getElementById('pushBlockedInstructions').style.display = 'block';
-            document.getElementById('btnEnablePush').style.display = 'none'; // Hide the button because we can't trigger it via code anymore
-            
-            const modal = new bootstrap.Modal(document.getElementById('pushReminderModal'));
-            modal.show();
+            document.getElementById('btnEnablePush').style.display = 'none';
+            new bootstrap.Modal(document.getElementById('pushReminderModal')).show();
+        } else {
+            // Already prompted in this session, skip to App Install
+            window.pushCheckCompleted = true;
+            if(typeof window.showInstallModal === 'function') window.showInstallModal();
         }
     } 
     else {
-        // Status is 'default' (They haven't been asked yet, or they cleared cookies).
         if (!hasBeenPrompted) {
             document.getElementById('pushModalTitle').innerText = 'Never Miss a Trade!';
             document.getElementById('pushModalDesc').innerText = 'Get instant alerts for new signals, setups, and profit booking directly on your device.';
             document.getElementById('pushBlockedInstructions').style.display = 'none';
             document.getElementById('btnEnablePush').style.display = 'block';
-            
-            const modal = new bootstrap.Modal(document.getElementById('pushReminderModal'));
-            modal.show();
+            new bootstrap.Modal(document.getElementById('pushReminderModal')).show();
+        } else {
+             // Already prompted in this session, skip to App Install
+            window.pushCheckCompleted = true;
+            if(typeof window.showInstallModal === 'function') window.showInstallModal();
         }
     }
 }
 
-// Triggered when they click "Enable Notifications" in the custom modal
 function handlePushEnableClick() {
     const btn = document.getElementById('btnEnablePush');
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Allowing...';
     btn.disabled = true;
 
-    // This actually triggers the browser's native popup!
     Notification.requestPermission().then(permission => {
         const modalEl = document.getElementById('pushReminderModal');
         const modal = bootstrap.Modal.getInstance(modalEl);
         if (modal) modal.hide();
 
-        if (permission === 'granted') {
-            registerServiceWorker();
-        } else {
-            sessionStorage.setItem('pushPromptDismissed', 'true');
-        }
+        if (permission === 'granted') registerServiceWorker();
+        else sessionStorage.setItem('pushPromptDismissed', 'true');
+
+        // Reset button state just in case
+        btn.innerHTML = 'Enable Notifications';
+        btn.disabled = false;
+
+        // Sequence: Now that Push is handled, trigger the App Install check with a 500ms delay so modals don't overlap awkwardly
+        setTimeout(() => {
+            window.pushCheckCompleted = true;
+            if(typeof window.showInstallModal === 'function') window.showInstallModal();
+        }, 500);
     });
+}
+
+function dismissPushPrompt() {
+    sessionStorage.setItem('pushPromptDismissed', 'true');
+    
+    // Sequence: They said Maybe Later to Push, so now ask about the App Install
+    setTimeout(() => {
+        window.pushCheckCompleted = true;
+        if(typeof window.showInstallModal === 'function') window.showInstallModal();
+    }, 500);
 }
 
 function dismissPushPrompt() {
