@@ -6,7 +6,7 @@ const fs = require('fs');
 const { pool } = require('../config/database');
 const { authenticateToken, isAdmin, isManagerOrAdmin } = require('../middlewares/auth.middleware');
 const tgService = require('../services/telegram.service');
-const { pushQueue } = require('../workers/push.worker'); // <-- Import the Push Notification Queue
+const { pushQueue } = require('../workers/push.worker');
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -52,25 +52,42 @@ router.post('/', authenticateToken, isAdmin, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// GET MESSAGES WITH REPLY TEXT JOIN
+router.put('/:id', authenticateToken, isAdmin, async (req, res) => {
+    const { name, description, required_level, telegram_chat_id } = req.body;
+    try {
+        await pool.query(
+            "UPDATE channels SET name = $1, description = $2, required_level = $3, telegram_chat_id = $4 WHERE id = $5",
+            [name, description || '', required_level || 'demo', telegram_chat_id || null, req.params.id]
+        );
+        res.json({ success: true, msg: "Channel updated!" });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+router.delete('/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        await pool.query("DELETE FROM channels WHERE id = $1", [req.params.id]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
 router.get('/:id/messages', authenticateToken, async (req, res) => {
     const limit = parseInt(req.query.limit) || 100;
+    const afterId = parseInt(req.query.after) || 0;
     try {
         const query = `
             SELECT c1.*, c2.message_text AS reply_text, c2.sender_name AS reply_sender 
             FROM channel_messages c1 
             LEFT JOIN channel_messages c2 ON c1.reply_to_id = c2.id 
-            WHERE c1.channel_id = $1 AND c1.status = 'sent'
-            ORDER BY c1.created_at DESC LIMIT $2`;
+            WHERE c1.channel_id = $1 AND c1.status = 'sent' AND c1.id > $2
+            ORDER BY c1.created_at DESC LIMIT $3`;
             
-        const { rows } = await pool.query(query, [req.params.id, limit]);
+        const { rows } = await pool.query(query, [req.params.id, afterId, limit]);
         await pool.query("INSERT INTO user_channel_reads (email, channel_id, last_read_timestamp) VALUES ($1, $2, NOW()) ON CONFLICT (email, channel_id) DO UPDATE SET last_read_timestamp = NOW()", [req.user.email, req.params.id]);
         
         res.json({ success: true, data: rows.reverse() });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// POST A NEW MESSAGE (With Reply, Schedule, and Push Notifications)
 router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single('media'), async (req, res) => {
     const { message_text, reply_to_id, scheduled_for, recurrence } = req.body;
     const channelId = req.params.id;
@@ -79,19 +96,16 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
     let status = scheduled_for ? 'scheduled' : 'sent';
 
     try {
-        // Fetch Channel Details for Notification Targets
         const chRes = await pool.query("SELECT * FROM channels WHERE id = $1", [channelId]);
         if (chRes.rows.length === 0) throw new Error("Channel not found");
         const channel = chRes.rows[0];
 
-        // Save Message
         const dbRes = await pool.query(
             "INSERT INTO channel_messages (channel_id, sender_email, sender_name, message_text, media_url, reply_to_id, scheduled_for, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING *",
             [channelId, req.user.email, req.user.role === 'admin' ? 'Admin' : 'Manager', message_text || '', mediaUrl, reply_to_id || null, scheduled_for || null, status]
         );
         let newMessage = dbRes.rows[0];
 
-        // Fetch Reply Info for Realtime broadcast
         if (reply_to_id) {
             const replyRes = await pool.query("SELECT message_text, sender_name FROM channel_messages WHERE id = $1", [reply_to_id]);
             if (replyRes.rows.length > 0) {
@@ -101,17 +115,14 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
         }
 
         if (status === 'sent') {
-            // 1. Broadcast to Website via Socket
             req.app.get('io').emit('new_channel_message', newMessage);
 
-            // 2. Telegram 2-Way Sync
             const syncSet = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'tg_2way_sync'");
             if (syncSet.rows.length > 0 && syncSet.rows[0].setting_value === 'true' && channel.telegram_chat_id) {
                 const tgMsgId = await tgService.sendChannelMessage(channel.telegram_chat_id, message_text, absoluteMediaPath, reply_to_id);
                 if (tgMsgId) await pool.query("UPDATE channel_messages SET telegram_msg_id = $1 WHERE id = $2", [tgMsgId, newMessage.id]);
             }
 
-            // 3. Trigger Automatic Push Notification to Users based on Channel Access
             let pushTarget = 'both';
             if (channel.required_level === 'level_2') pushTarget = 'login_with_level_2';
             else if (channel.required_level === 'level_3') pushTarget = 'login_with_level_3';
@@ -128,7 +139,6 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
             });
         } 
         else if (status === 'scheduled') {
-            // If recurring, we inject into the standard scheduled_notifications logic via cron later
             if (recurrence && recurrence !== 'none') {
                  await pool.query("UPDATE channel_messages SET status = $1 WHERE id = $2", [recurrence, newMessage.id]);
             }
@@ -138,7 +148,6 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// EDIT A MESSAGE
 router.put('/messages/:msgId', authenticateToken, isManagerOrAdmin, async (req, res) => {
     const { message_text } = req.body;
     try {
@@ -154,7 +163,6 @@ router.put('/messages/:msgId', authenticateToken, isManagerOrAdmin, async (req, 
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// PIN / UNPIN
 router.put('/messages/:msgId/pin', authenticateToken, isManagerOrAdmin, async (req, res) => {
     const { is_pinned } = req.body;
     try {
@@ -164,7 +172,6 @@ router.put('/messages/:msgId/pin', authenticateToken, isManagerOrAdmin, async (r
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// DELETE
 router.delete('/messages/:msgId', authenticateToken, isManagerOrAdmin, async (req, res) => {
     try {
         const { rows } = await pool.query("SELECT media_url, channel_id FROM channel_messages WHERE id = $1", [req.params.msgId]);
