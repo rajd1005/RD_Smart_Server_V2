@@ -3,14 +3,14 @@ const { pool } = require('../config/database');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
-const { pushQueue } = require('../workers/push.worker'); //
+const { pushQueue } = require('../workers/push.worker');
 
 const token = process.env.TG_BOT_TOKEN;
 let bot = null;
 
 if (token) {
     bot = new TelegramBot(token, { polling: true });
-    console.log("✅ Telegram Bot initialized for 2-Way Channel Sync (with Replies).");
+    console.log("✅ Telegram Bot initialized for 2-Way Channel Sync.");
 
     bot.on('channel_post', async (msg) => {
         try {
@@ -28,7 +28,6 @@ if (token) {
             let mediaUrl = null;
             let replyToLocalId = null;
 
-            // HANDLE TELEGRAM REPLIES natively
             if (msg.reply_to_message) {
                 const tgReplyId = msg.reply_to_message.message_id;
                 const localMsgCheck = await pool.query("SELECT id FROM channel_messages WHERE telegram_msg_id = $1 LIMIT 1", [tgReplyId]);
@@ -59,7 +58,6 @@ if (token) {
                 [channel.id, tgMsgId, 'telegram_sync', 'Telegram Admin', messageText, mediaUrl, replyToLocalId]
             );
 
-            // Trigger Push Notification
             let pushTarget = 'both';
             if (channel.required_level === 'level_2') pushTarget = 'login_with_level_2';
             else if (channel.required_level === 'level_3') pushTarget = 'login_with_level_3';
@@ -68,22 +66,16 @@ if (token) {
             const pushTitle = `New post in ${channel.name}`;
             const pushBody = messageText ? (messageText.length > 50 ? messageText.substring(0, 50) + '...' : messageText) : 'Media attachment uploaded.';
             
-            await pushQueue.add('send-push', { 
-                title: pushTitle, body: pushBody, targetAudience: pushTarget, url: `${process.env.BASE_URL || ''}/home.html` 
-            });
+            await pushQueue.add('send-push', { title: pushTitle, body: pushBody, targetAudience: pushTarget, url: `/home.html` });
 
-            console.log(`🔄 TG->Web Sync: Saved replyTo=${replyToLocalId} in Channel: ${channel.id}`);
         } catch (error) { console.error("❌ TG Sync Error:", error); }
     });
 }
 
-// SEND TO TELEGRAM WITH REPLY CAPABILITY
 const sendChannelMessage = async (chatId, text, imagePath, replyToLocalId = null) => {
     if (!bot) return null;
     try {
         const opts = { parse_mode: 'HTML' }; 
-        
-        // Find the Telegram Message ID if replying
         if (replyToLocalId) {
             const repCheck = await pool.query("SELECT telegram_msg_id FROM channel_messages WHERE id = $1", [replyToLocalId]);
             if (repCheck.rows.length > 0 && repCheck.rows[0].telegram_msg_id) {
