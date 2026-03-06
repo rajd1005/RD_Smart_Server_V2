@@ -860,31 +860,88 @@
         fetchPublicCourses();
         fetchSystemSettings(); // Fetch registration link and update DOM
     </script>
-    <script>
-        async function registerPublicServiceWorker() {
-            if ('serviceWorker' in navigator && 'PushManager' in window) {
-                try {
-                    const keyRes = await fetch('/api/push/public_key');
-                    const keyData = await keyRes.json();
-                    if (!keyData.success) return;
+<script>
+    // --- SMART PUSH LOGIC FOR PUBLIC USERS ---
+    function checkAndPromptPushSubscription() {
+        if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
 
-                    const registration = await navigator.serviceWorker.register('/sw.js');
-                    const subscription = await registration.pushManager.subscribe({
-                        userVisibleOnly: true,
-                        applicationServerKey: keyData.publicKey
-                    });
-                    
-                    await fetch('/api/push/subscribe', {
-                        method: 'POST',
-                        body: JSON.stringify(subscription),
-                        headers: { 'content-type': 'application/json' }
-                    });
-                } catch (error) { console.log('Public Push Registration failed'); }
+        // Using a unique session key for public users
+        const hasBeenPrompted = sessionStorage.getItem('publicPushPromptDismissed');
+
+        if (Notification.permission === 'granted') {
+            registerPublicServiceWorker(); // Silently connect
+        } 
+        else if (Notification.permission === 'denied') {
+            if (!hasBeenPrompted) {
+                document.getElementById('pushModalTitle').innerText = 'Notifications Blocked';
+                document.getElementById('pushModalDesc').innerText = 'You are missing out on free trade alerts.';
+                document.getElementById('pushBlockedInstructions').style.display = 'block';
+                document.getElementById('btnEnablePush').style.display = 'none';
+                
+                const modal = new bootstrap.Modal(document.getElementById('pushReminderModal'));
+                modal.show();
+            }
+        } 
+        else {
+            if (!hasBeenPrompted) {
+                document.getElementById('pushModalTitle').innerText = 'Get Free Trade Alerts!';
+                document.getElementById('pushModalDesc').innerText = 'Enable notifications to get instant updates on market signals and profit bookings.';
+                document.getElementById('pushBlockedInstructions').style.display = 'none';
+                document.getElementById('btnEnablePush').style.display = 'block';
+                
+                const modal = new bootstrap.Modal(document.getElementById('pushReminderModal'));
+                modal.show();
             }
         }
-        // Give the page 3 seconds to load before prompting the user
-        setTimeout(registerPublicServiceWorker, 3000);
-    </script>
+    }
+
+    function handlePushEnableClick() {
+        const btn = document.getElementById('btnEnablePush');
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Allowing...';
+        btn.disabled = true;
+
+        Notification.requestPermission().then(permission => {
+            const modalEl = document.getElementById('pushReminderModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+
+            if (permission === 'granted') {
+                registerPublicServiceWorker();
+            } else {
+                sessionStorage.setItem('publicPushPromptDismissed', 'true');
+            }
+        });
+    }
+
+    function dismissPushPrompt() {
+        sessionStorage.setItem('publicPushPromptDismissed', 'true');
+    }
+
+    async function registerPublicServiceWorker() {
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+            try {
+                const keyRes = await fetch('/api/push/public_key');
+                const keyData = await keyRes.json();
+                if (!keyData.success) return;
+
+                const registration = await navigator.serviceWorker.register('/sw.js');
+                const subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: keyData.publicKey
+                });
+                
+                await fetch('/api/push/subscribe', {
+                    method: 'POST',
+                    body: JSON.stringify(subscription),
+                    headers: { 'content-type': 'application/json' }
+                });
+            } catch (error) { console.log('Public Push Registration failed'); }
+        }
+    }
+
+    // Trigger the soft prompt 3 seconds after the landing page loads
+    setTimeout(checkAndPromptPushSubscription, 3000);
+</script>
     <div class="modal fade" id="pushReminderModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
         <div class="modal-content text-center p-3">
