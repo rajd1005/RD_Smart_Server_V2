@@ -29,12 +29,27 @@ async function getValidPushSubscribers(audienceType) {
     }
 
     const emailsToCheck = [...new Set(subs.rows.filter(r => r.email !== 'public').map(r => String(r.email).toLowerCase().trim()))];
-    const actuallyValidEmails = new Set([ADMIN_EMAIL, ...DEMO_USERS.map(u => u.email), 'public']);
+const actuallyValidEmails = new Set([ADMIN_EMAIL, ...DEMO_USERS.map(u => u.email), 'public']);
     const expiredEmails = new Set();
     const userLevels = new Map();
 
     userLevels.set(ADMIN_EMAIL, { level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' });
     DEMO_USERS.forEach(u => userLevels.set(u.email, { level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' }));
+
+    // --- NEW: FETCH MANAGERS SO THEY RECEIVE ALL TEST PUSHES ---
+    try {
+        const mgrRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'manager_emails'");
+        if (mgrRes.rows.length > 0 && mgrRes.rows[0].setting_value) {
+            const managers = mgrRes.rows[0].setting_value.split(',').map(e => e.trim().toLowerCase());
+            managers.forEach(mgrEmail => {
+                if (mgrEmail) {
+                    actuallyValidEmails.add(mgrEmail);
+                    userLevels.set(mgrEmail, { level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' });
+                }
+            });
+        }
+    } catch(e) {}
+    // -------------------------------------------------------------
 
     if (emailsToCheck.length > 0) {
         const placeholders = emailsToCheck.map(() => '?').join(',');
