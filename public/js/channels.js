@@ -13,9 +13,11 @@ async function loadChannels() {
             // Check global settings to hide/show the tab
             const settingsRes = await fetch('/api/settings');
             const settings = await settingsRes.json();
+            const role = localStorage.getItem('userRole'); // <--- CRASH FIX
+            
             if (settings.show_channels_tab === 'true') {
                 document.getElementById('navChannelsBtn').style.display = 'flex';
-            } else if (userData.role === 'admin') {
+            } else if (role === 'admin') {
                 document.getElementById('navChannelsBtn').style.display = 'flex'; // Admins always see it
             }
             
@@ -68,8 +70,11 @@ async function openChannel(id, name, desc) {
     document.getElementById('channelChatWrapper').classList.remove('d-none');
     
     // Show input box ONLY if Manager or Admin
-    if (userData.role === 'admin' || userData.role === 'manager') {
+    const role = localStorage.getItem('userRole'); // <--- CRASH FIX
+    if (role === 'admin' || role === 'manager') {
         document.getElementById('chatInputArea').style.display = 'block';
+    } else {
+        document.getElementById('chatInputArea').style.display = 'none';
     }
 
     const chatArea = document.getElementById('chatMessagesArea');
@@ -94,6 +99,11 @@ async function openChannel(id, name, desc) {
         if (ch) ch.unread_count = 0;
         renderChannelsList();
 
+        // Update Global Badge
+        const totalUnread = channelsList.reduce((acc, ch) => acc + (ch.unread_count || 0), 0);
+        const badge = document.getElementById('channelsUnreadBadge');
+        if (badge) badge.style.display = totalUnread > 0 ? 'block' : 'none';
+
     } catch (e) { chatArea.innerHTML = '<div class="text-danger text-center mt-4">Failed to load messages.</div>'; }
 }
 
@@ -102,10 +112,11 @@ function closeMobileChat() {
     document.getElementById('channelChatWrapper').classList.add('d-none');
 }
 
-// 3. Render a Message Bubble (Full Width Telegram Style)
+// 3. Render a Message Bubble
 function appendMessage(msg) {
     const chatArea = document.getElementById('chatMessagesArea');
     if (chatArea.querySelector('#chatEmptyState')) chatArea.innerHTML = '';
+    if (chatArea.innerHTML.includes('spinner-border')) chatArea.innerHTML = ''; // Remove loading spinner
 
     const timeString = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const formattedText = formatTelegramMarkdown(msg.message_text || '');
@@ -115,8 +126,9 @@ function appendMessage(msg) {
         mediaHtml = `<img src="${msg.media_url}" class="img-fluid rounded mb-2 w-100" style="max-height: 400px; object-fit: contain; background: #000; cursor:pointer;" onclick="window.open('${msg.media_url}', '_blank')">`;
     }
 
-    const deleteBtn = (userData.role === 'admin' || userData.role === 'manager') 
-        ? `<span class="material-icons-round text-danger float-end" style="font-size: 14px; cursor:pointer; opacity: 0.5;" onclick="deleteChannelMsg(${msg.id})">delete</span>` 
+    const role = localStorage.getItem('userRole'); // <--- CRASH FIX
+    const deleteBtn = (role === 'admin' || role === 'manager') 
+        ? `<span class="material-icons-round text-danger float-end" style="font-size: 16px; cursor:pointer; opacity: 0.5;" onclick="deleteChannelMsg(${msg.id})">delete</span>` 
         : '';
 
     const msgHtml = `
@@ -141,14 +153,13 @@ function appendMessage(msg) {
 function formatTelegramMarkdown(text) {
     if (!text) return '';
     let html = text
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold **text**
-        .replace(/\*(.*?)\*/g, '<strong>$1</strong>')       // Bold *text*
-        .replace(/__(.*?)__/g, '<em>$1</em>')             // Italic __text__
-        .replace(/_(.*?)_/g, '<em>$1</em>')                 // Italic _text_
-        .replace(/~~(.*?)~~/g, '<del>$1</del>')             // Strikethrough ~~text~~
-        .replace(/~(.*?)~/g, '<del>$1</del>');              // Strikethrough ~text~
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+        .replace(/\*(.*?)\*/g, '<strong>$1</strong>')       
+        .replace(/__(.*?)__/g, '<em>$1</em>')             
+        .replace(/_(.*?)_/g, '<em>$1</em>')                 
+        .replace(/~~(.*?)~~/g, '<del>$1</del>')             
+        .replace(/~(.*?)~/g, '<del>$1</del>');              
     
-    // Convert URLs to clickable links
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     return html.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: var(--blue); text-decoration: underline;">$1</a>');
 }
@@ -249,17 +260,20 @@ document.getElementById('formCreateChannel')?.addEventListener('submit', async (
 });
 
 // 9. Socket Listeners for Real-Time Updates
-socket.on('new_channel_message', (msg) => {
-    if (currentChannelId === msg.channel_id) {
-        appendMessage(msg);
-        scrollToBottom();
-    } else {
-        // Show unread dot if not in the channel
-        loadChannels(); 
-    }
-});
+if (typeof io !== 'undefined') {
+    const chanSocket = typeof socket !== 'undefined' ? socket : io();
+    
+    chanSocket.on('new_channel_message', (msg) => {
+        if (currentChannelId === msg.channel_id) {
+            appendMessage(msg);
+            scrollToBottom();
+        } else {
+            loadChannels(); 
+        }
+    });
 
-socket.on('channel_message_deleted', (data) => {
-    const msgEl = document.getElementById(`chanMsg-${data.id}`);
-    if (msgEl) msgEl.remove();
-});
+    chanSocket.on('channel_message_deleted', (data) => {
+        const msgEl = document.getElementById(`chanMsg-${data.id}`);
+        if (msgEl) msgEl.remove();
+    });
+}
