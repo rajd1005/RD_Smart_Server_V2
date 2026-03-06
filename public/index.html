@@ -800,5 +800,22 @@
         </div>
     </div>
 </div>
+    <div class="modal fade" id="installAppModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
+        <div class="modal-content text-center p-3">
+            <div class="modal-header border-0 pb-0 justify-content-center">
+                <span class="material-icons-round text-success" style="font-size: 48px;">download_for_offline</span>
+            </div>
+            <div class="modal-body px-4 pb-2 pt-3">
+                <h5 class="fw-bold mb-2">Install RD Algo App</h5>
+                <p class="text-muted small mb-3" style="font-size: 13px; line-height: 1.4;">
+                    Install our app on your device for a faster, full-screen trading experience and quick access.
+                </p>
+                <button type="button" class="btn btn-success w-100 fw-bold mb-2" id="btnEnableInstall" onclick="handleInstallAppClick()">Install App</button>
+                <button type="button" class="btn btn-light w-100 fw-bold text-muted" data-bs-dismiss="modal" onclick="dismissInstallPrompt()">Maybe Later</button>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>
