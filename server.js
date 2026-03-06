@@ -180,14 +180,18 @@ app.get('/api/user/notifications', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// === DAILY AUTOMATED LOGOUT & NOTIFICATION CLEANUP ===
+// === DAILY AUTOMATED LOGOUT, NOTIFICATION & CHANNELS CLEANUP ===
 cron.schedule('30 6 * * *', async () => {
     try {
         await pool.query("DELETE FROM login_logs");
         await pool.query("DELETE FROM scheduled_notifications WHERE created_at < NOW() - INTERVAL '30 days' AND (recurrence = 'none' OR recurrence IS NULL) AND status = 'sent'");
-        console.log("✅ Daily Reset: All user sessions cleared and non-recurring notifications older than 30 days deleted at 6:30 AM.");
+        
+        // --- NEW: 7-DAY CHANNELS CLEANUP ---
+        const deletedChannels = await pool.query("DELETE FROM channel_messages WHERE created_at < NOW() - INTERVAL '7 days'");
+        
+        console.log(`✅ Daily Reset (6:30 AM): Sessions cleared, old notifications deleted, and ${deletedChannels.rowCount} old channel messages removed.`);
     } catch (err) {
-        console.error("❌ Error clearing daily sessions/notifications:", err);
+        console.error("❌ Error clearing daily sessions/notifications/channels:", err);
     }
 }, {
     scheduled: true,
