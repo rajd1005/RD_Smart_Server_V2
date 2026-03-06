@@ -7,6 +7,7 @@ const pool = new Pool({
 });
 
 const initDb = async () => {
+    // --- EXISTING TABLES ---
     const queryTrades = `
     CREATE TABLE IF NOT EXISTS trades (
         id SERIAL PRIMARY KEY, trade_id VARCHAR(50) UNIQUE NOT NULL, symbol VARCHAR(20) NOT NULL, type VARCHAR(10) NOT NULL,
@@ -24,7 +25,8 @@ const initDb = async () => {
     const queryLearningModules = `
     CREATE TABLE IF NOT EXISTS learning_modules (
         id SERIAL PRIMARY KEY, title VARCHAR(255) UNIQUE NOT NULL, description TEXT,
-        required_level VARCHAR(20) NOT NULL, display_order INT DEFAULT 0, lock_notice TEXT
+        required_level VARCHAR(20) NOT NULL, display_order INT DEFAULT 0, lock_notice TEXT,
+        show_on_home BOOLEAN DEFAULT TRUE, dashboard_visibility VARCHAR(20) DEFAULT 'all'
     );`;
 
     const queryLessonVideos = `
@@ -37,51 +39,76 @@ const initDb = async () => {
     const querySettings = `
     CREATE TABLE IF NOT EXISTS system_settings (
         setting_key VARCHAR(50) PRIMARY KEY,
-        setting_value VARCHAR(255)
+        setting_value TEXT
     );`;
 
     const queryUserCreds = `
     CREATE TABLE IF NOT EXISTS user_credentials (
-        email VARCHAR(255) PRIMARY KEY,
-        salt VARCHAR(255) NOT NULL,
-        hash VARCHAR(255) NOT NULL
+        email VARCHAR(255) PRIMARY KEY, salt VARCHAR(255) NOT NULL, hash VARCHAR(255) NOT NULL
     );`;
 
     const queryPasswordResets = `
     CREATE TABLE IF NOT EXISTS password_resets (
-        email VARCHAR(255) PRIMARY KEY,
-        otp VARCHAR(10) NOT NULL,
-        expires_at TIMESTAMP NOT NULL
+        email VARCHAR(255) PRIMARY KEY, otp VARCHAR(10) NOT NULL, expires_at TIMESTAMP NOT NULL
     );`;
 
     const queryProgress = `
     CREATE TABLE IF NOT EXISTS video_progress (
-        email VARCHAR(255) NOT NULL,
-        lesson_id INT REFERENCES lesson_videos(id) ON DELETE CASCADE,
-        watched_seconds INT DEFAULT 0,
-        last_watched TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        email VARCHAR(255) NOT NULL, lesson_id INT REFERENCES lesson_videos(id) ON DELETE CASCADE,
+        watched_seconds INT DEFAULT 0, last_watched TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (email, lesson_id)
     );`;
 
     const queryPushSubscriptions = `
     CREATE TABLE IF NOT EXISTS push_subscriptions (
-        id SERIAL PRIMARY KEY, 
-        email VARCHAR(255) NOT NULL, 
-        sub_data JSON NOT NULL
+        id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL, sub_data JSON NOT NULL
     );`;
 
     const queryScheduledNotifications = `
     CREATE TABLE IF NOT EXISTS scheduled_notifications (
+        id SERIAL PRIMARY KEY, title VARCHAR(255) NOT NULL, body TEXT NOT NULL, url VARCHAR(255),
+        scheduled_for TIMESTAMP, status VARCHAR(20) DEFAULT 'pending', target_audience VARCHAR(50) DEFAULT 'both',
+        recurrence VARCHAR(20) DEFAULT 'none', image_path TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`;
+
+    // --- NEW CHANNELS TABLES ---
+    
+    // 1. Stores the broadcast channels (like "General", "Pro Signals")
+    const queryChannels = `
+    CREATE TABLE IF NOT EXISTS channels (
         id SERIAL PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        body TEXT NOT NULL,
-        url VARCHAR(255),
-        scheduled_for TIMESTAMP,
-        status VARCHAR(20) DEFAULT 'pending',
-        target_audience VARCHAR(50) DEFAULT 'both',
-        recurrence VARCHAR(20) DEFAULT 'none',
-        image_path TEXT,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        required_level VARCHAR(20) DEFAULT 'demo',
+        telegram_chat_id VARCHAR(100),
+        display_order INT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`;
+
+    // 2. Stores the actual messages sent in the channels
+    const queryChannelMessages = `
+    CREATE TABLE IF NOT EXISTS channel_messages (
+        id SERIAL PRIMARY KEY,
+        channel_id INT REFERENCES channels(id) ON DELETE CASCADE,
+        telegram_msg_id BIGINT,
+        sender_email VARCHAR(255) NOT NULL,
+        sender_name VARCHAR(255) NOT NULL,
+        message_text TEXT,
+        media_url TEXT,
+        is_pinned BOOLEAN DEFAULT FALSE,
+        reply_to_id INT REFERENCES channel_messages(id) ON DELETE SET NULL,
+        scheduled_for TIMESTAMP,
+        status VARCHAR(20) DEFAULT 'sent',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`;
+
+    // 3. Tracks when a user last checked a channel to show the "Unread Dot"
+    const queryUserChannelReads = `
+    CREATE TABLE IF NOT EXISTS user_channel_reads (
+        email VARCHAR(255) NOT NULL,
+        channel_id INT REFERENCES channels(id) ON DELETE CASCADE,
+        last_read_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (email, channel_id)
     );`;
 
     const populateDefaultSettings = `
@@ -103,7 +130,9 @@ const initDb = async () => {
     ('cat_stock', ''),
     ('cat_index', ''),
     ('cat_mcx', ''),
-    ('push_trade_alerts', 'true')
+    ('push_trade_alerts', 'true'),
+    ('show_channels_tab', 'true'), 
+    ('tg_2way_sync', 'true') 
     ON CONFLICT (setting_key) DO NOTHING;`;
 
     try {
@@ -117,6 +146,12 @@ const initDb = async () => {
         await pool.query(queryProgress);
         await pool.query(queryPushSubscriptions);
         await pool.query(queryScheduledNotifications);
+        
+        // Execute new Channels tables
+        await pool.query(queryChannels);
+        await pool.query(queryChannelMessages);
+        await pool.query(queryUserChannelReads);
+        
         await pool.query(populateDefaultSettings);
 
         // Run ALTER statements safely to update existing tables
@@ -126,11 +161,16 @@ const initDb = async () => {
         try { await pool.query(`ALTER TABLE lesson_videos ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;`); } catch(e){}
         try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS target_audience VARCHAR(50) DEFAULT 'both';`); } catch(e){}
         try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS recurrence VARCHAR(20) DEFAULT 'none';`); } catch(e){}
-        
-        // NEW FIX: Add image_path to the existing table
         try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS image_path TEXT;`); } catch(e){}
 
-        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push + Notifications)");
+        // --- NEW: 7-DAY RETENTION CLEANUP ---
+        // Every time the server starts, it deletes messages older than 7 days to keep the database light
+        const deletedRows = await pool.query(`DELETE FROM channel_messages WHERE created_at < NOW() - INTERVAL '7 days'`);
+        if (deletedRows.rowCount > 0) {
+            console.log(`🧹 Auto-Cleanup: Deleted ${deletedRows.rowCount} channel messages older than 7 days.`);
+        }
+
+        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push + Notifications + Channels)");
     } catch (err) {
         console.error("❌ Database Error:", err);
     }
