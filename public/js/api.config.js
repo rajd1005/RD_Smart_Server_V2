@@ -78,3 +78,27 @@ function switchSection(section) {
         if (typeof fetchCourses === 'function') fetchCourses();
     }
 }
+// --- PWA INSTALLATION LOGIC ---
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    const installBtn = document.getElementById('installAppBtn');
+    if (installBtn) installBtn.style.display = 'flex'; // Show button
+});
+
+window.installPWA = function() {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choiceResult) => {
+        deferredPrompt = null;
+        const installBtn = document.getElementById('installAppBtn');
+        if (installBtn) installBtn.style.display = 'none';
+    });
+};
+
+window.addEventListener('appinstalled', (evt) => {
+    const installBtn = document.getElementById('installAppBtn');
+    if (installBtn) installBtn.style.display = 'none';
+});
