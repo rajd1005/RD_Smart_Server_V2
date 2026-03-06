@@ -189,22 +189,22 @@
             </div>
         </div>
 
-        <div id="channelsSection" class="content-section" style="display:none; background: var(--bg-color); flex-direction: column;">
-            <div class="row g-0 bg-white shadow-sm" style="flex: 1; min-height: 0; overflow: hidden; max-width: 100%;">
+        <div id="channelsSection" class="content-section" style="display:none; flex-direction: column; background: var(--bg-color); height: 100%; overflow: hidden; margin: -15px;">
+            <div class="row g-0 h-100 bg-white" style="margin: 0; overflow: hidden;">
                 
-                <div class="col-md-4 col-12 border-end h-100 d-flex flex-column bg-white" id="channelListWrapper" style="overflow: hidden;">
-                    <div class="p-2 border-bottom d-flex justify-content-between align-items-center bg-light flex-shrink-0">
+                <div class="col-md-4 col-12 border-end d-flex flex-column h-100 bg-white" id="channelListWrapper">
+                    <div class="p-2 border-bottom flex-shrink-0 bg-light d-flex justify-content-between align-items-center">
                         <h6 class="mb-0 fw-bold px-1" style="font-size: 14px;">Channels</h6>
                         <button id="btnCreateChannel" class="btn btn-sm btn-primary" style="display:none; padding: 2px 6px;" data-bs-toggle="modal" data-bs-target="#createChannelModal">
                             <span class="material-icons-round" style="font-size: 16px;">add</span>
                         </button>
                     </div>
-                    <div id="channelsList" class="overflow-auto flex-grow-1 p-2"></div>
+                    <div id="channelsList" class="flex-grow-1 overflow-auto p-2"></div>
                 </div>
 
-                <div class="col-md-8 col-12 h-100 d-flex flex-column d-none d-md-flex position-relative" id="channelChatWrapper" style="background: #eef2f5; overflow: hidden;">
+                <div class="col-md-8 col-12 d-flex flex-column h-100 bg-light position-relative d-none d-md-flex" id="channelChatWrapper">
                     
-                    <div class="p-2 border-bottom d-flex align-items-center bg-white shadow-sm flex-shrink-0" style="z-index: 10;">
+                    <div class="p-2 border-bottom flex-shrink-0 bg-white shadow-sm z-2 d-flex align-items-center">
                         <button class="btn btn-sm btn-light d-md-none me-2 p-1" onclick="closeMobileChat()">
                             <span class="material-icons-round" style="font-size: 18px;">arrow_back</span>
                         </button>
@@ -214,21 +214,20 @@
                         </div>
                     </div>
 
-                    <div id="pinnedMessageBanner" class="bg-white border-bottom p-2 d-flex align-items-center flex-shrink-0 shadow-sm" style="display:none !important; cursor:pointer; border-left: 3px solid var(--blue); z-index: 9;">
+                    <div id="pinnedMessageBanner" class="flex-shrink-0 bg-white border-bottom p-2 d-flex align-items-center shadow-sm" style="display:none !important; cursor:pointer; border-left: 3px solid var(--blue); z-index: 9;">
                         <span class="material-icons-round text-primary me-2" style="font-size: 16px;">push_pin</span>
                         <div class="flex-grow-1 overflow-hidden" onclick="scrollToPinned()">
                             <div class="fw-bold text-primary" style="font-size: 10px;">Pinned Message</div>
                             <div class="text-truncate text-muted" id="pinnedMessageText" style="font-size: 12px;"></div>
                         </div>
-                        <button class="btn btn-sm text-muted p-0 ms-2 admin-only-btn" style="display:none;" onclick="unpinMessage()"><span class="material-icons-round" style="font-size:16px;">close</span></button>
+                        <button class="btn btn-sm text-muted p-0 ms-2 admin-only-btn" style="display:none;" onclick="unpinMessage(event)"><span class="material-icons-round" style="font-size:16px;">close</span></button>
                     </div>
 
-                    <div id="chatMessagesArea" class="flex-grow-1 overflow-auto p-2 d-flex flex-column" style="background: #eef2f5;">
+                    <div id="chatMessagesArea" class="flex-grow-1 overflow-auto p-3 d-flex flex-column" style="background: #eef2f5;">
                         <div class="text-center text-muted mt-5 m-auto" id="chatEmptyState" style="font-size: 12px;">Select a channel from the left menu.</div>
                     </div>
 
-                    <div class="p-2 border-top bg-white flex-shrink-0" id="chatInputArea" style="display:none; z-index: 10;">
-                        
+                    <div id="chatInputArea" class="flex-shrink-0 p-2 border-top bg-white z-2" style="display:none;">
                         <div id="chatActionBanner" class="bg-light p-2 mb-2 rounded d-flex justify-content-between align-items-center" style="display:none !important; border-left: 3px solid var(--blue);">
                             <div class="overflow-hidden">
                                 <div class="fw-bold text-primary" id="chatActionTitle" style="font-size: 10px;">Replying to...</div>
@@ -505,85 +504,6 @@
                         </div>
                         <button type="submit" class="btn btn-primary w-100 mt-2 fw-bold" id="btnEditPushSubmit">Save Changes</button>
                     </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="offcanvas offcanvas-end" tabindex="-1" id="notificationSheet" style="width: 320px; max-width: 100vw;">
-        <div class="offcanvas-header pb-0 border-bottom">
-            <h6 class="offcanvas-title fw-bold"><span class="material-icons-round text-primary me-2 align-middle">notifications_active</span>Alerts</h6>
-            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
-        </div>
-        <div class="offcanvas-body pt-2" id="userNotificationList" style="background-color: #efeae2; overflow-y: auto;">
-            <div class="text-center text-muted mt-3" style="font-size:12px;">Loading alerts...</div>
-        </div>
-    </div>
-
-    <div class="offcanvas offcanvas-bottom" tabindex="-1" id="filterSheet">
-        <div class="offcanvas-header pb-0"><h6 class="offcanvas-title fw-bold">Filter Options</h6><button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button></div>
-        <div class="offcanvas-body pt-2">
-            <div class="row g-2">
-                <div class="col-12">
-                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Date / Range</label>
-                    <input type="text" id="filterDateRange" class="form-control" placeholder="Select Date(s)..." style="background-color: #fff;">
-                </div>
-                <div class="col-6">
-                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Type</label>
-                    <select id="filterType" class="form-select"><option value="ALL">All</option><option value="BUY">Buy</option><option value="SELL">Sell</option></select>
-                </div>
-                <div class="col-6">
-                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Status</label>
-                    <select id="filterStatus" class="form-select"><option value="ALL">All</option><option value="OPEN">Running</option><option value="TP">Profitable</option><option value="SL">Loss</option></select>
-                </div>
-                <div class="col-12">
-                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Symbol</label>
-                    <select id="filterSymbol" class="form-select"><option value="">All Symbols</option></select>
-                </div>
-            </div>
-            <button class="btn btn-primary w-100 mt-3 fw-bold" style="padding:8px; border-radius:4px;" data-bs-dismiss="offcanvas" onclick="applyFilters()">Apply</button>
-        </div>
-    </div>
-
-    <div class="modal fade" id="pushReminderModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
-            <div class="modal-content text-center p-3">
-                <div class="modal-header border-0 pb-0 justify-content-center">
-                    <span class="material-icons-round text-primary" style="font-size: 48px;">notifications_active</span>
-                </div>
-                <div class="modal-body px-4 pb-2 pt-3">
-                    <h5 class="fw-bold mb-2" id="pushModalTitle">Never Miss a Trade!</h5>
-                    <p class="text-muted small mb-3" style="font-size: 13px; line-height: 1.4;" id="pushModalDesc">
-                        Get instant alerts for new signals, setups, and profit booking directly on your device.
-                    </p>
-                    
-                    <div id="pushBlockedInstructions" style="display: none; background: #fff3cd; color: #856404; padding: 10px; border-radius: 8px; font-size: 11px; text-align: left; margin-bottom: 15px;">
-                        <strong>Notifications are blocked.</strong><br>
-                        1. Click the 🔒 padlock icon next to our URL at the top of your browser.<br>
-                        2. Change "Notifications" to <strong>Allow</strong>.<br>
-                        3. Refresh this page.
-                    </div>
-
-                    <button type="button" class="btn btn-primary w-100 fw-bold mb-2" id="btnEnablePush" onclick="handlePushEnableClick()">Enable Notifications</button>
-                    <button type="button" class="btn btn-light w-100 fw-bold text-muted" data-bs-dismiss="modal" onclick="dismissPushPrompt()">Maybe Later</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="installAppModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
-            <div class="modal-content text-center p-3">
-                <div class="modal-header border-0 pb-0 justify-content-center">
-                    <span class="material-icons-round text-success" style="font-size: 48px;">download_for_offline</span>
-                </div>
-                <div class="modal-body px-4 pb-2 pt-3">
-                    <h5 class="fw-bold mb-2">Install RD Algo App</h5>
-                    <p class="text-muted small mb-3" style="font-size: 13px; line-height: 1.4;">
-                        Install our app on your device for a faster, full-screen trading experience and quick access.
-                    </p>
-                    <button type="button" class="btn btn-success w-100 fw-bold mb-2" id="btnEnableInstall" onclick="handleInstallAppClick()">Install App</button>
-                    <button type="button" class="btn btn-light w-100 fw-bold text-muted" data-bs-dismiss="modal" onclick="dismissInstallPrompt()">Maybe Later</button>
                 </div>
             </div>
         </div>
