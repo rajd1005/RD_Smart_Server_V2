@@ -1,6 +1,8 @@
 let currentChannelId = null;
 let channelsList = [];
 let pinnedMsgId = null;
+let lastMessageId = 0;
+let pullInterval = null;
 
 async function loadChannels() {
     try {
@@ -51,19 +53,40 @@ function renderChannelsList() {
     });
 }
 
+// --- PULL METHOD (Instant Polling) ---
+async function pullNewMessages() {
+    if (!currentChannelId) return;
+    try {
+        const res = await fetch(`/api/channels/${currentChannelId}/messages?after=${lastMessageId}`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (data.success && data.data.length > 0) {
+            const chatArea = document.getElementById('chatMessagesArea');
+            if (chatArea.querySelector('#chatEmptyState')) chatArea.innerHTML = '';
+            
+            data.data.forEach(msg => {
+                if(msg.is_pinned) showPinnedBanner(msg.id, msg.message_text);
+                const existing = document.getElementById(`chanMsg-${msg.id}`);
+                if (existing && msg.is_edited) { existing.outerHTML = renderMessageHTML(msg); } 
+                else if (!existing) { chatArea.insertAdjacentHTML('beforeend', renderMessageHTML(msg)); }
+                if (msg.id > lastMessageId) lastMessageId = msg.id;
+            });
+            scrollToBottom();
+        }
+    } catch(e){}
+}
+
 async function openChannel(id, name, desc) {
     currentChannelId = id;
     pinnedMsgId = null;
+    lastMessageId = 0;
+    
     document.getElementById('activeChannelName').innerText = name;
     document.getElementById('activeChannelDesc').innerText = desc || 'Broadcast Channel';
-    
     document.getElementById('channelListWrapper').classList.add('d-none', 'd-md-flex');
     document.getElementById('channelChatWrapper').classList.remove('d-none');
     
     const role = localStorage.getItem('userRole'); 
     document.getElementById('chatInputArea').style.display = (role === 'admin' || role === 'manager') ? 'block' : 'none';
-    
-    // Show admin pin clear button if admin
     document.querySelectorAll('.admin-only-btn').forEach(el => el.style.display = (role === 'admin' || role === 'manager') ? 'block' : 'none');
 
     const chatArea = document.getElementById('chatMessagesArea');
@@ -71,6 +94,7 @@ async function openChannel(id, name, desc) {
     
     hidePinnedBanner();
     cancelChatAction();
+    if(pullInterval) clearInterval(pullInterval);
 
     try {
         const res = await fetch(`/api/channels/${id}/messages`, { credentials: 'same-origin' });
@@ -78,11 +102,12 @@ async function openChannel(id, name, desc) {
         
         chatArea.innerHTML = '';
         if (data.data.length === 0) {
-            chatArea.innerHTML = '<div class="text-center text-muted m-auto" style="font-size: 12px;">No messages yet.</div>';
+            chatArea.innerHTML = '<div class="text-center text-muted m-auto" style="font-size: 12px;" id="chatEmptyState">No messages yet.</div>';
         } else {
             data.data.forEach(msg => {
-                appendMessage(msg);
+                if(msg.id > lastMessageId) lastMessageId = msg.id;
                 if(msg.is_pinned) showPinnedBanner(msg.id, msg.message_text);
+                chatArea.insertAdjacentHTML('beforeend', renderMessageHTML(msg));
             });
             setTimeout(scrollToBottom, 100);
         }
@@ -91,9 +116,8 @@ async function openChannel(id, name, desc) {
         if (ch) ch.unread_count = 0;
         renderChannelsList();
 
-        const totalUnread = channelsList.reduce((acc, c) => acc + (c.unread_count || 0), 0);
-        const badge = document.getElementById('channelsUnreadBadge');
-        if (badge) badge.style.display = totalUnread > 0 ? 'block' : 'none';
+        // Start Pull Method
+        pullInterval = setInterval(pullNewMessages, 3000); 
 
     } catch (e) { chatArea.innerHTML = '<div class="text-danger m-auto">Failed to load.</div>'; }
 }
@@ -101,9 +125,9 @@ async function openChannel(id, name, desc) {
 function closeMobileChat() {
     document.getElementById('channelListWrapper').classList.remove('d-none');
     document.getElementById('channelChatWrapper').classList.add('d-none');
+    if(pullInterval) clearInterval(pullInterval);
 }
 
-// UI Banners
 function showPinnedBanner(id, text) {
     pinnedMsgId = id;
     document.getElementById('pinnedMessageBanner').style.setProperty('display', 'flex', 'important');
@@ -113,16 +137,10 @@ function hidePinnedBanner() {
     pinnedMsgId = null;
     document.getElementById('pinnedMessageBanner').style.setProperty('display', 'none', 'important');
 }
-function unpinMessage() {
-    if(pinnedMsgId) fetch(`/api/channels/messages/${pinnedMsgId}/pin`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({is_pinned: false}) });
-}
+function unpinMessage() { if(pinnedMsgId) fetch(`/api/channels/messages/${pinnedMsgId}/pin`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({is_pinned: false}) }); }
+function scrollToPinned() { if(pinnedMsgId) document.getElementById(`chanMsg-${pinnedMsgId}`)?.scrollIntoView({behavior:'smooth'}); }
+function toggleScheduleControls() { const el = document.getElementById('chatScheduleControls'); el.style.setProperty('display', el.style.display === 'none' ? 'flex' : 'none', 'important'); }
 
-function toggleScheduleControls() {
-    const el = document.getElementById('chatScheduleControls');
-    el.style.setProperty('display', el.style.display === 'none' ? 'flex' : 'none', 'important');
-}
-
-// Message Actions
 function replyToMsg(id, text) {
     document.getElementById('chatReplyMsgId').value = id;
     document.getElementById('chatEditMsgId').value = '';
@@ -143,9 +161,7 @@ function editMsg(id, text) {
     document.getElementById('chatTextInput').focus();
 }
 
-function pinMsg(id) {
-    fetch(`/api/channels/messages/${id}/pin`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({is_pinned: true}) });
-}
+function pinMsg(id) { fetch(`/api/channels/messages/${id}/pin`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({is_pinned: true}) }); }
 
 function cancelChatAction() {
     document.getElementById('chatReplyMsgId').value = '';
@@ -155,20 +171,15 @@ function cancelChatAction() {
     document.getElementById('chatTextInput').value = '';
 }
 
-function appendMessage(msg) {
-    const chatArea = document.getElementById('chatMessagesArea');
-    if (chatArea.querySelector('#chatEmptyState')) chatArea.innerHTML = '';
-    if (document.getElementById(`chanMsg-${msg.id}`)) document.getElementById(`chanMsg-${msg.id}`).remove(); // Remove if editing
-
+function renderMessageHTML(msg) {
     const timeString = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const formattedText = formatTelegramMarkdown(msg.message_text || '');
     
     let mediaHtml = msg.media_url ? `<img src="${msg.media_url}" class="img-fluid rounded mb-2 w-100" style="max-height: 250px; object-fit: cover; cursor:pointer;" onclick="window.open('${msg.media_url}', '_blank')">` : '';
-    
     let replyHtml = '';
-    if (msg.reply_to_id && msg.reply_text) {
+    if (msg.reply_to_id && msg.reply_text !== undefined) {
         replyHtml = `<div class="bg-light p-2 mb-2 rounded" style="border-left: 3px solid var(--blue); font-size:11px; cursor:pointer;" onclick="document.getElementById('chanMsg-${msg.reply_to_id}')?.scrollIntoView({behavior:'smooth'})">
-            <div class="fw-bold text-primary">${msg.reply_sender}</div>
+            <div class="fw-bold text-primary">${msg.reply_sender || 'User'}</div>
             <div class="text-truncate text-muted">${msg.reply_text || 'Media'}</div>
         </div>`;
     }
@@ -190,7 +201,7 @@ function appendMessage(msg) {
         </div>`;
     }
 
-    const msgHtml = `
+    return `
         <div class="card mb-2 border-0 shadow-sm w-100 flex-shrink-0" id="chanMsg-${msg.id}" style="border-radius: 12px; border-bottom-left-radius: 2px;">
             <div class="card-body p-2 px-3">
                 <div class="d-flex justify-content-between align-items-start mb-1">
@@ -207,7 +218,6 @@ function appendMessage(msg) {
             </div>
         </div>
     `;
-    chatArea.insertAdjacentHTML('beforeend', msgHtml);
 }
 
 function formatTelegramMarkdown(text) {
@@ -236,16 +246,8 @@ function previewChatImage(input) {
         reader.readAsDataURL(input.files[0]);
     }
 }
-
-function clearChatImage() {
-    document.getElementById('chatImageInput').value = '';
-    document.getElementById('chatImagePreviewContainer').style.display = 'none';
-}
-
-function scrollToBottom() {
-    const area = document.getElementById('chatMessagesArea');
-    area.scrollTop = area.scrollHeight;
-}
+function clearChatImage() { document.getElementById('chatImageInput').value = ''; document.getElementById('chatImagePreviewContainer').style.display = 'none'; }
+function scrollToBottom() { const area = document.getElementById('chatMessagesArea'); area.scrollTop = area.scrollHeight; }
 
 document.getElementById('formSendChannelMsg')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -255,7 +257,6 @@ document.getElementById('formSendChannelMsg')?.addEventListener('submit', async 
     const fileInput = document.getElementById('chatImageInput');
     const replyId = document.getElementById('chatReplyMsgId').value;
     const editId = document.getElementById('chatEditMsgId').value;
-    
     const scheduleTime = document.getElementById('chanScheduleTime').value;
     const recurrence = document.getElementById('chanScheduleRecurrence').value;
 
@@ -267,18 +268,13 @@ document.getElementById('formSendChannelMsg')?.addEventListener('submit', async 
 
     try {
         if (editId) {
-            // EDIT MESSAGE
-            await fetch(`/api/channels/messages/${editId}`, { 
-                method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ message_text: text }) 
-            });
+            await fetch(`/api/channels/messages/${editId}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ message_text: text }) });
         } else {
-            // SEND NEW MESSAGE (with optional Reply/Schedule)
             const formData = new FormData();
             formData.append('message_text', text);
             if (replyId) formData.append('reply_to_id', replyId);
             if (scheduleTime) { formData.append('scheduled_for', scheduleTime); formData.append('recurrence', recurrence); }
             if (fileInput.files[0]) formData.append('media', fileInput.files[0]);
-
             await fetch(`/api/channels/${currentChannelId}/messages`, { method: 'POST', body: formData });
         }
         
@@ -286,18 +282,16 @@ document.getElementById('formSendChannelMsg')?.addEventListener('submit', async 
         document.getElementById('chatTextInput').style.height = 'auto';
         document.getElementById('chanScheduleTime').value = '';
         document.getElementById('chatScheduleControls').style.setProperty('display', 'none', 'important');
-        clearChatImage();
-        cancelChatAction();
+        clearChatImage(); cancelChatAction(); pullNewMessages(); // Instant pull after send
     } catch (err) { alert("Failed to process message."); }
-    finally {
-        btn.innerHTML = '<span class="material-icons-round" style="margin-left:2px; font-size:18px;">send</span>';
-        btn.disabled = false;
-    }
+    finally { btn.innerHTML = '<span class="material-icons-round" style="margin-left:2px; font-size:18px;">send</span>'; btn.disabled = false; }
 });
 
 async function deleteChannelMsg(msgId) {
     if (!confirm("Delete this message for everyone?")) return;
-    try { await fetch(`/api/channels/messages/${msgId}`, { method: 'DELETE' }); } catch (e) {}
+    try { await fetch(`/api/channels/messages/${msgId}`, { method: 'DELETE' }); 
+        document.getElementById(`chanMsg-${msgId}`)?.remove();
+    } catch (e) {}
 }
 
 document.getElementById('formCreateChannel')?.addEventListener('submit', async (e) => {
@@ -315,29 +309,23 @@ document.getElementById('formCreateChannel')?.addEventListener('submit', async (
         const res = await fetch('/api/channels', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         if (res.ok) {
             const m = bootstrap.Modal.getInstance(document.getElementById('createChannelModal'));
-            if(m) m.hide();
-            e.target.reset();
-            loadChannels();
+            if(m) m.hide(); e.target.reset(); loadChannels();
         }
     } catch(e) {} finally { btn.innerText = "Create Channel"; btn.disabled = false; }
 });
 
+// Socket fallback
 if (typeof io !== 'undefined') {
     const chanSocket = typeof socket !== 'undefined' ? socket : io();
     chanSocket.on('new_channel_message', (msg) => {
-        if (currentChannelId === msg.channel_id) { appendMessage(msg); scrollToBottom(); } 
-        else { loadChannels(); }
+        if (currentChannelId === msg.channel_id) pullNewMessages();
+        else loadChannels();
     });
     chanSocket.on('channel_message_updated', (data) => {
-        if (currentChannelId === data.channel_id && data.message_text) { appendMessage(data); } // Re-render for edit
-        else if (currentChannelId === data.channel_id) { 
-            if(data.is_pinned) showPinnedBanner(data.id, data.message_text); 
-            else if(data.is_pinned === false) hidePinnedBanner(); 
-        }
+        if (currentChannelId === data.channel_id) pullNewMessages();
     });
     chanSocket.on('channel_message_deleted', (data) => {
-        const msgEl = document.getElementById(`chanMsg-${data.id}`);
-        if (msgEl) msgEl.remove();
+        document.getElementById(`chanMsg-${data.id}`)?.remove();
         if (pinnedMsgId === data.id) hidePinnedBanner();
     });
 }
