@@ -202,7 +202,10 @@ async function fetchCourses() {
 
             const layoutDraggable = document.getElementById('homepageLayoutDraggable');
             if (layoutDraggable) {
-                new Sortable(layoutDraggable, { animation: 150, ghostClass: 'bg-light' });
+                new Sortable(layoutDraggable, {
+                    animation: 150,
+                    ghostClass: 'bg-light'
+                });
             }
         }
         
@@ -247,11 +250,7 @@ async function fetchCourses() {
             const adminDisclaimerCheck = document.getElementById('adminShowDisclaimer');
             if (adminDisclaimerCheck) adminDisclaimerCheck.checked = showDisclaimer;
             safeSetVal('adminRegisterLink', settings.register_link);
-            safeSetVal('adminManagerEmails', settings.manager_emails);
-            
-            // --- NEW: Load Channels Toggle ---
-            const chChk = document.getElementById('adminShowChannelsTab');
-            if(chChk) chChk.checked = (settings.show_channels_tab === 'true');
+            safeSetVal('adminManagerEmails', settings.manager_emails); // NEW LINE
 
             const catForex = settings.cat_forex_crypto || '';
             const catStock = settings.cat_stock || '';
@@ -283,6 +282,7 @@ async function fetchCourses() {
 
             const navTradeBtn = document.getElementById('navTradeBtn');
             if (navTradeBtn) {
+                // Modified to allow manager access
                 if (hideTradeTab && userData.role !== 'admin' && userData.role !== 'manager') navTradeBtn.style.display = 'none';
                 else navTradeBtn.style.display = 'flex';
             }
@@ -309,9 +309,14 @@ async function openSecureVideo(lessonId) {
             
             if (screen.orientation && screen.orientation.lock) {
                 try { 
-                    if (vw > vh) { await screen.orientation.lock("landscape"); } 
-                    else { await screen.orientation.lock("portrait"); } 
-                } catch (e) {}
+                    if (vw > vh) { 
+                        await screen.orientation.lock("landscape"); 
+                    } else { 
+                        await screen.orientation.lock("portrait"); 
+                    } 
+                } catch (e) {
+                    console.log("Orientation lock failed", e);
+                }
             } else {
                 if (vw > vh && window.innerHeight > window.innerWidth) {
                     alert("For the best experience, please rotate your device horizontally.");

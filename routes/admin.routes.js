@@ -26,7 +26,7 @@ router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
         accordion_state, hide_trade_tab, show_gallery, show_call_widget, homepage_layout,
         show_sticky_footer, sticky_btn1_text, sticky_btn1_link, sticky_btn1_icon,
         sticky_btn2_text, sticky_btn2_link, sticky_btn2_icon,
-        show_disclaimer, register_link, push_trade_alerts, manager_emails, show_channels_tab
+        show_disclaimer, register_link, push_trade_alerts, manager_emails // <--- Added manager_emails here
     } = req.body;
     
     try {
@@ -44,8 +44,9 @@ router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('sticky_btn2_icon', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [sticky_btn2_icon || 'send']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_disclaimer', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_disclaimer || 'true']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('register_link', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [register_link || '']);
+        
+        // --- NEW: THIS IS THE FIX! Correctly saves manager emails to the database ---
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('manager_emails', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [manager_emails || '']);
-        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_channels_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_channels_tab || 'false']);
         
         if (homepage_layout) await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('homepage_layout', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [homepage_layout]);
         
@@ -258,6 +259,7 @@ router.post('/notifications', authenticateToken, isManagerOrAdmin, upload.single
             const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience || 'both');
             const payload = { title, body, url: url || '/', image: imagePath };
             
+            // 🔥 FAIL-SAFE ADDED: Try/Catch wrapper to prevent sync crash on bad subs
             uniqueSubs.forEach(sub => { 
                 try {
                     webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
@@ -267,6 +269,7 @@ router.post('/notifications', authenticateToken, isManagerOrAdmin, upload.single
             });
             req.app.get('io').emit('new_notification');
 
+            // 🔥 FAIL-SAFE ADDED: Safe file deletion 
             if (absoluteImagePath && fs.existsSync(absoluteImagePath)) {
                 try {
                     fs.unlinkSync(absoluteImagePath);

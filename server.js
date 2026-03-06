@@ -99,7 +99,6 @@ const tradeRoutes = require('./routes/trades.routes');
 const courseRoutes = require('./routes/courses.routes');
 const adminRoutes = require('./routes/admin.routes');
 const pushRoutes = require('./routes/push.routes');
-const channelsRoutes = require('./routes/channels.routes');
 const { authenticateToken } = require('./middlewares/auth.middleware');
 
 // === MOUNT MODULAR ROUTES ===
@@ -109,7 +108,6 @@ app.use('/api/courses', courseRoutes);
 app.use('/api', courseRoutes); // Map for public courses backward compatibility
 app.use('/api/admin', adminRoutes);
 app.use('/api/push', pushRoutes);
-app.use('/api/channels', channelsRoutes);
 
 // === REMAINING PUBLIC / EXTERNAL INTEGRATION APIs ===
 app.get('/api/public/call-report', async (req, res) => {
@@ -182,68 +180,14 @@ app.get('/api/user/notifications', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// === MINUTE-BY-MINUTE SCHEDULER (Channels) ===
-cron.schedule('* * * * *', async () => {
-    try {
-        const { rows: pendingChanMsgs } = await pool.query("SELECT * FROM channel_messages WHERE (status = 'scheduled' OR status IN ('daily', 'weekly')) AND scheduled_for <= NOW()");
-        
-        for (const msg of pendingChanMsgs) {
-            // Mark as sent
-            await pool.query("UPDATE channel_messages SET status = 'sent', created_at = NOW() WHERE id = $1", [msg.id]);
-            
-            // Broadcast live to connected users
-            io.emit('new_channel_message', msg);
-            
-            // Fetch channel to trigger telegram sync & push notification
-            const chRes = await pool.query("SELECT * FROM channels WHERE id = $1", [msg.channel_id]);
-            if (chRes.rows.length > 0) {
-                const channel = chRes.rows[0];
-                const syncSet = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'tg_2way_sync'");
-                
-                if (syncSet.rows.length > 0 && syncSet.rows[0].setting_value === 'true' && channel.telegram_chat_id) {
-                    const tgService = require('./services/telegram.service');
-                    let absPath = msg.media_url ? path.join(__dirname, msg.media_url) : null;
-                    const tgMsgId = await tgService.sendChannelMessage(channel.telegram_chat_id, msg.message_text, absPath, msg.reply_to_id);
-                    if (tgMsgId) await pool.query("UPDATE channel_messages SET telegram_msg_id = $1 WHERE id = $2", [tgMsgId, msg.id]);
-                }
-
-                // Send Push Notification
-                const { pushQueue } = require('./workers/push.worker');
-                let pushTarget = 'both';
-                if (channel.required_level === 'level_2') pushTarget = 'login_with_level_2';
-                else if (channel.required_level === 'level_3') pushTarget = 'login_with_level_3';
-                else if (channel.required_level === 'level_4') pushTarget = 'login_with_level_4';
-
-                const pushTitle = `New post in ${channel.name}`;
-                const pushBody = msg.message_text ? (msg.message_text.length > 50 ? msg.message_text.substring(0, 50) + '...' : msg.message_text) : 'Media attachment uploaded.';
-                await pushQueue.add('send-push', { title: pushTitle, body: pushBody, targetAudience: pushTarget, url: `/home.html` });
-            }
-
-            // Handle Recurring (Reschedule for tomorrow/next week)
-            if (msg.status === 'daily' || msg.status === 'weekly') {
-                const interval = msg.status === 'daily' ? "INTERVAL '1 day'" : "INTERVAL '1 week'";
-                await pool.query(`INSERT INTO channel_messages (channel_id, sender_email, sender_name, message_text, media_url, reply_to_id, scheduled_for, status) 
-                                  VALUES ($1, $2, $3, $4, $5, $6, NOW() + ${interval}, $7)`, 
-                                  [msg.channel_id, msg.sender_email, msg.sender_name, msg.message_text, msg.media_url, msg.reply_to_id, msg.status]);
-            }
-        }
-    } catch (err) {
-        console.error("Scheduler Error:", err);
-    }
-});
-
-// === DAILY AUTOMATED LOGOUT, NOTIFICATION & CHANNELS CLEANUP ===
+// === DAILY AUTOMATED LOGOUT & NOTIFICATION CLEANUP ===
 cron.schedule('30 6 * * *', async () => {
     try {
         await pool.query("DELETE FROM login_logs");
         await pool.query("DELETE FROM scheduled_notifications WHERE created_at < NOW() - INTERVAL '30 days' AND (recurrence = 'none' OR recurrence IS NULL) AND status = 'sent'");
-        
-        // --- NEW: 7-DAY CHANNELS CLEANUP ---
-        const deletedChannels = await pool.query("DELETE FROM channel_messages WHERE created_at < NOW() - INTERVAL '7 days'");
-        
-        console.log(`✅ Daily Reset (6:30 AM): Sessions cleared, old notifications deleted, and ${deletedChannels.rowCount} old channel messages removed.`);
+        console.log("✅ Daily Reset: All user sessions cleared and non-recurring notifications older than 30 days deleted at 6:30 AM.");
     } catch (err) {
-        console.error("❌ Error clearing daily sessions/notifications/channels:", err);
+        console.error("❌ Error clearing daily sessions/notifications:", err);
     }
 }, {
     scheduled: true,
