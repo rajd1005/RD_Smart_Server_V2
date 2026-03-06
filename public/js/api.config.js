@@ -28,7 +28,7 @@ window.onload = function() {
     switchSection('learning'); 
     
     if (typeof checkDisclaimer === 'function') checkDisclaimer();
-    if (typeof registerServiceWorker === 'function') registerServiceWorker(); 
+    if (typeof checkAndPromptPushSubscription === 'function') checkAndPromptPushSubscription(); 
     
     const notifSheet = document.getElementById('notificationSheet');
     if (notifSheet) {
