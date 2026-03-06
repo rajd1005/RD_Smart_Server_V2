@@ -1,7 +1,7 @@
 let currentChannelId = null;
 let channelsList = [];
+let pinnedMsgId = null;
 
-// 1. Fetch & Render Channels
 async function loadChannels() {
     try {
         const res = await fetch('/api/channels', { credentials: 'same-origin' });
@@ -10,48 +10,40 @@ async function loadChannels() {
             channelsList = data.data;
             renderChannelsList();
             
-            // Check global settings to hide/show the tab
             const settingsRes = await fetch('/api/settings');
             const settings = await settingsRes.json();
-            const role = localStorage.getItem('userRole'); // <--- CRASH FIX
+            const role = localStorage.getItem('userRole'); 
             
-            if (settings.show_channels_tab === 'true') {
+            if (settings.show_channels_tab === 'true' || role === 'admin') {
                 document.getElementById('navChannelsBtn').style.display = 'flex';
-            } else if (role === 'admin') {
-                document.getElementById('navChannelsBtn').style.display = 'flex'; // Admins always see it
             }
             
-            // Update Global Notification Badge
             const totalUnread = channelsList.reduce((acc, ch) => acc + (ch.unread_count || 0), 0);
             const badge = document.getElementById('channelsUnreadBadge');
             if (badge) badge.style.display = totalUnread > 0 ? 'block' : 'none';
         }
-    } catch (e) { console.error("Error loading channels:", e); }
+    } catch (e) { console.error(e); }
 }
 
 function renderChannelsList() {
     const container = document.getElementById('channelsList');
     container.innerHTML = '';
-
-    if (channelsList.length === 0) {
-        container.innerHTML = '<div class="text-muted text-center mt-4" style="font-size: 12px;">No channels available.</div>';
-        return;
-    }
+    if (channelsList.length === 0) return container.innerHTML = '<div class="text-muted text-center mt-4" style="font-size: 12px;">No channels available.</div>';
 
     channelsList.forEach(ch => {
-        const unreadBadge = ch.unread_count > 0 ? `<span class="badge bg-primary rounded-pill ms-2">${ch.unread_count}</span>` : '';
-        const isActive = ch.id === currentChannelId ? 'bg-light border-primary border-start border-4' : 'border-start border-4 border-transparent';
+        const unreadBadge = ch.unread_count > 0 ? `<span class="badge bg-primary rounded-pill ms-2" style="font-size:10px;">${ch.unread_count}</span>` : '';
+        const isActive = ch.id === currentChannelId ? 'bg-light border-primary' : 'border-transparent';
         
         container.innerHTML += `
-            <div class="channel-item p-3 mb-2 rounded shadow-sm d-flex align-items-center" 
-                 style="cursor: pointer; transition: 0.2s; background: #fff; ${isActive.includes('bg-light') ? 'border-left-color: var(--blue) !important;' : 'border-left-color: transparent;'}"
+            <div class="p-2 mb-1 rounded d-flex align-items-center border-start border-3 ${isActive}" 
+                 style="cursor: pointer; transition: 0.2s; background: #fff;"
                  onclick="openChannel(${ch.id}, '${ch.name.replace(/'/g, "\\'")}', '${(ch.description || '').replace(/'/g, "\\'")}')">
-                <div class="bg-primary text-white rounded-circle d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 45px; height: 45px; font-size: 18px;">
+                <div class="bg-primary text-white rounded-circle d-flex justify-content-center align-items-center fw-bold shadow-sm flex-shrink-0" style="width: 38px; height: 38px; font-size: 16px;">
                     ${ch.name.charAt(0).toUpperCase()}
                 </div>
-                <div class="ms-3 flex-grow-1 overflow-hidden">
-                    <h6 class="mb-0 fw-bold text-truncate" style="font-size: 14px;">${ch.name}</h6>
-                    <small class="text-muted text-truncate d-block" style="font-size: 11px;">${ch.description || 'Broadcast Channel'}</small>
+                <div class="ms-2 flex-grow-1 overflow-hidden">
+                    <h6 class="mb-0 fw-bold text-truncate" style="font-size: 13px;">${ch.name}</h6>
+                    <small class="text-muted text-truncate d-block" style="font-size: 10px;">${ch.description || 'Broadcast'}</small>
                 </div>
                 ${unreadBadge}
             </div>
@@ -59,26 +51,26 @@ function renderChannelsList() {
     });
 }
 
-// 2. Open Channel & Load Messages
 async function openChannel(id, name, desc) {
     currentChannelId = id;
+    pinnedMsgId = null;
     document.getElementById('activeChannelName').innerText = name;
     document.getElementById('activeChannelDesc').innerText = desc || 'Broadcast Channel';
     
-    // Mobile View Switching
     document.getElementById('channelListWrapper').classList.add('d-none', 'd-md-flex');
     document.getElementById('channelChatWrapper').classList.remove('d-none');
     
-    // Show input box ONLY if Manager or Admin
-    const role = localStorage.getItem('userRole'); // <--- CRASH FIX
-    if (role === 'admin' || role === 'manager') {
-        document.getElementById('chatInputArea').style.display = 'block';
-    } else {
-        document.getElementById('chatInputArea').style.display = 'none';
-    }
+    const role = localStorage.getItem('userRole'); 
+    document.getElementById('chatInputArea').style.display = (role === 'admin' || role === 'manager') ? 'block' : 'none';
+    
+    // Show admin pin clear button if admin
+    document.querySelectorAll('.admin-only-btn').forEach(el => el.style.display = (role === 'admin' || role === 'manager') ? 'block' : 'none');
 
     const chatArea = document.getElementById('chatMessagesArea');
-    chatArea.innerHTML = '<div class="text-center mt-4"><div class="spinner-border text-primary spinner-border-sm"></div></div>';
+    chatArea.innerHTML = '<div class="text-center mt-4 m-auto"><div class="spinner-border text-primary spinner-border-sm"></div></div>';
+    
+    hidePinnedBanner();
+    cancelChatAction();
 
     try {
         const res = await fetch(`/api/channels/${id}/messages`, { credentials: 'same-origin' });
@@ -86,25 +78,24 @@ async function openChannel(id, name, desc) {
         
         chatArea.innerHTML = '';
         if (data.data.length === 0) {
-            chatArea.innerHTML = '<div class="text-center text-muted mt-5" style="font-size: 12px; background: rgba(0,0,0,0.05); padding: 10px; border-radius: 20px; display: inline-block; margin: 0 auto;">No messages yet.</div>';
-            chatArea.style.textAlign = 'center';
+            chatArea.innerHTML = '<div class="text-center text-muted m-auto" style="font-size: 12px;">No messages yet.</div>';
         } else {
-            chatArea.style.textAlign = 'left';
-            data.data.forEach(msg => appendMessage(msg));
-            scrollToBottom();
+            data.data.forEach(msg => {
+                appendMessage(msg);
+                if(msg.is_pinned) showPinnedBanner(msg.id, msg.message_text);
+            });
+            setTimeout(scrollToBottom, 100);
         }
 
-        // Clear local unread badge
         const ch = channelsList.find(c => c.id === id);
         if (ch) ch.unread_count = 0;
         renderChannelsList();
 
-        // Update Global Badge
-        const totalUnread = channelsList.reduce((acc, ch) => acc + (ch.unread_count || 0), 0);
+        const totalUnread = channelsList.reduce((acc, c) => acc + (c.unread_count || 0), 0);
         const badge = document.getElementById('channelsUnreadBadge');
         if (badge) badge.style.display = totalUnread > 0 ? 'block' : 'none';
 
-    } catch (e) { chatArea.innerHTML = '<div class="text-danger text-center mt-4">Failed to load messages.</div>'; }
+    } catch (e) { chatArea.innerHTML = '<div class="text-danger m-auto">Failed to load.</div>'; }
 }
 
 function closeMobileChat() {
@@ -112,36 +103,106 @@ function closeMobileChat() {
     document.getElementById('channelChatWrapper').classList.add('d-none');
 }
 
-// 3. Render a Message Bubble
+// UI Banners
+function showPinnedBanner(id, text) {
+    pinnedMsgId = id;
+    document.getElementById('pinnedMessageBanner').style.setProperty('display', 'flex', 'important');
+    document.getElementById('pinnedMessageText').innerText = text || 'Media Message';
+}
+function hidePinnedBanner() {
+    pinnedMsgId = null;
+    document.getElementById('pinnedMessageBanner').style.setProperty('display', 'none', 'important');
+}
+function unpinMessage() {
+    if(pinnedMsgId) fetch(`/api/channels/messages/${pinnedMsgId}/pin`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({is_pinned: false}) });
+}
+
+function toggleScheduleControls() {
+    const el = document.getElementById('chatScheduleControls');
+    el.style.setProperty('display', el.style.display === 'none' ? 'flex' : 'none', 'important');
+}
+
+// Message Actions
+function replyToMsg(id, text) {
+    document.getElementById('chatReplyMsgId').value = id;
+    document.getElementById('chatEditMsgId').value = '';
+    document.getElementById('chatActionBanner').style.setProperty('display', 'flex', 'important');
+    document.getElementById('chatActionTitle').innerText = 'Replying to...';
+    document.getElementById('chatActionText').innerText = text || 'Media';
+    document.getElementById('chatTextInput').focus();
+}
+
+function editMsg(id, text) {
+    document.getElementById('chatEditMsgId').value = id;
+    document.getElementById('chatReplyMsgId').value = '';
+    document.getElementById('chatActionBanner').style.setProperty('display', 'flex', 'important');
+    document.getElementById('chatActionTitle').innerText = 'Editing message...';
+    document.getElementById('chatActionTitle').classList.replace('text-primary', 'text-warning');
+    document.getElementById('chatActionText').innerText = text || '';
+    document.getElementById('chatTextInput').value = text || '';
+    document.getElementById('chatTextInput').focus();
+}
+
+function pinMsg(id) {
+    fetch(`/api/channels/messages/${id}/pin`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({is_pinned: true}) });
+}
+
+function cancelChatAction() {
+    document.getElementById('chatReplyMsgId').value = '';
+    document.getElementById('chatEditMsgId').value = '';
+    document.getElementById('chatActionBanner').style.setProperty('display', 'none', 'important');
+    document.getElementById('chatActionTitle').classList.replace('text-warning', 'text-primary');
+    document.getElementById('chatTextInput').value = '';
+}
+
 function appendMessage(msg) {
     const chatArea = document.getElementById('chatMessagesArea');
     if (chatArea.querySelector('#chatEmptyState')) chatArea.innerHTML = '';
-    if (chatArea.innerHTML.includes('spinner-border')) chatArea.innerHTML = ''; // Remove loading spinner
+    if (document.getElementById(`chanMsg-${msg.id}`)) document.getElementById(`chanMsg-${msg.id}`).remove(); // Remove if editing
 
     const timeString = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const formattedText = formatTelegramMarkdown(msg.message_text || '');
     
-    let mediaHtml = '';
-    if (msg.media_url) {
-        mediaHtml = `<img src="${msg.media_url}" class="img-fluid rounded mb-2 w-100" style="max-height: 400px; object-fit: contain; background: #000; cursor:pointer;" onclick="window.open('${msg.media_url}', '_blank')">`;
+    let mediaHtml = msg.media_url ? `<img src="${msg.media_url}" class="img-fluid rounded mb-2 w-100" style="max-height: 250px; object-fit: cover; cursor:pointer;" onclick="window.open('${msg.media_url}', '_blank')">` : '';
+    
+    let replyHtml = '';
+    if (msg.reply_to_id && msg.reply_text) {
+        replyHtml = `<div class="bg-light p-2 mb-2 rounded" style="border-left: 3px solid var(--blue); font-size:11px; cursor:pointer;" onclick="document.getElementById('chanMsg-${msg.reply_to_id}')?.scrollIntoView({behavior:'smooth'})">
+            <div class="fw-bold text-primary">${msg.reply_sender}</div>
+            <div class="text-truncate text-muted">${msg.reply_text || 'Media'}</div>
+        </div>`;
     }
 
-    const role = localStorage.getItem('userRole'); // <--- CRASH FIX
-    const deleteBtn = (role === 'admin' || role === 'manager') 
-        ? `<span class="material-icons-round text-danger float-end" style="font-size: 16px; cursor:pointer; opacity: 0.5;" onclick="deleteChannelMsg(${msg.id})">delete</span>` 
-        : '';
+    const role = localStorage.getItem('userRole'); 
+    let actionMenu = '';
+    if (role === 'admin' || role === 'manager') {
+        const safeText = (msg.message_text || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        actionMenu = `
+        <div class="dropdown float-end ms-2">
+            <span class="material-icons-round text-muted" data-bs-toggle="dropdown" style="font-size: 16px; cursor:pointer;">more_vert</span>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 12px; min-width: 120px;">
+                <li><a class="dropdown-item py-1" href="#" onclick="replyToMsg(${msg.id}, '${safeText}')">Reply</a></li>
+                <li><a class="dropdown-item py-1" href="#" onclick="editMsg(${msg.id}, '${safeText}')">Edit</a></li>
+                <li><a class="dropdown-item py-1" href="#" onclick="pinMsg(${msg.id})">Pin</a></li>
+                <li><hr class="dropdown-divider my-1"></li>
+                <li><a class="dropdown-item py-1 text-danger" href="#" onclick="deleteChannelMsg(${msg.id})">Delete</a></li>
+            </ul>
+        </div>`;
+    }
 
     const msgHtml = `
-        <div class="card mb-3 border-0 shadow-sm w-100" id="chanMsg-${msg.id}" style="border-radius: 12px; overflow: hidden;">
-            <div class="card-body p-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="fw-bold text-primary" style="font-size: 13px;">${msg.sender_name}</span>
-                    ${deleteBtn}
+        <div class="card mb-2 border-0 shadow-sm w-100 flex-shrink-0" id="chanMsg-${msg.id}" style="border-radius: 12px; border-bottom-left-radius: 2px;">
+            <div class="card-body p-2 px-3">
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <span class="fw-bold text-primary" style="font-size: 12px;">${msg.sender_name}</span>
+                    ${actionMenu}
                 </div>
+                ${replyHtml}
                 ${mediaHtml}
-                <div class="text-dark" style="font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;">${formattedText}</div>
-                <div class="text-end text-muted mt-2" style="font-size: 10px;">
-                    ${timeString}
+                <div class="text-dark" style="font-size: 13px; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word;">${formattedText}</div>
+                <div class="text-end text-muted mt-1" style="font-size: 10px;">
+                    ${msg.status === 'scheduled' ? '<span class="text-warning me-1">Scheduled</span>' : ''} ${timeString}
+                    ${msg.is_edited ? '<span class="fst-italic ms-1">(edited)</span>' : ''}
                 </div>
             </div>
         </div>
@@ -149,28 +210,19 @@ function appendMessage(msg) {
     chatArea.insertAdjacentHTML('beforeend', msgHtml);
 }
 
-// 4. Telegram Markdown Formatter
 function formatTelegramMarkdown(text) {
     if (!text) return '';
-    let html = text
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
-        .replace(/\*(.*?)\*/g, '<strong>$1</strong>')       
-        .replace(/__(.*?)__/g, '<em>$1</em>')             
-        .replace(/_(.*?)_/g, '<em>$1</em>')                 
-        .replace(/~~(.*?)~~/g, '<del>$1</del>')             
-        .replace(/~(.*?)~/g, '<del>$1</del>');              
-    
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    return html.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: var(--blue); text-decoration: underline;">$1</a>');
+    let html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<strong>$1</strong>')       
+                   .replace(/__(.*?)__/g, '<em>$1</em>').replace(/_(.*?)_/g, '<em>$1</em>')                 
+                   .replace(/~~(.*?)~~/g, '<del>$1</del>').replace(/~(.*?)~/g, '<del>$1</del>');              
+    return html.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: var(--blue); text-decoration: underline;">$1</a>');
 }
 
-// 5. Smart Input Box (Auto-expand) & Attachments
 const chatInput = document.getElementById('chatTextInput');
 if (chatInput) {
     chatInput.addEventListener('input', function() {
         this.style.height = 'auto';
-        this.style.height = (this.scrollHeight < 120 ? this.scrollHeight : 120) + 'px';
-        if(this.value === '') this.style.height = 'auto';
+        this.style.height = (this.scrollHeight < 100 ? this.scrollHeight : 100) + 'px';
     });
 }
 
@@ -195,47 +247,59 @@ function scrollToBottom() {
     area.scrollTop = area.scrollHeight;
 }
 
-// 6. Send Message
 document.getElementById('formSendChannelMsg')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!currentChannelId) return;
 
     const text = document.getElementById('chatTextInput').value;
     const fileInput = document.getElementById('chatImageInput');
+    const replyId = document.getElementById('chatReplyMsgId').value;
+    const editId = document.getElementById('chatEditMsgId').value;
     
+    const scheduleTime = document.getElementById('chanScheduleTime').value;
+    const recurrence = document.getElementById('chanScheduleRecurrence').value;
+
     if (!text.trim() && (!fileInput.files || fileInput.files.length === 0)) return;
 
     const btn = document.getElementById('btnSendChat');
     btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:1rem;height:1rem;"></span>';
     btn.disabled = true;
 
-    const formData = new FormData();
-    formData.append('message_text', text);
-    if (fileInput.files[0]) formData.append('media', fileInput.files[0]);
-
     try {
-        const res = await fetch(`/api/channels/${currentChannelId}/messages`, { method: 'POST', body: formData, credentials: 'same-origin' });
-        if (res.ok) {
-            document.getElementById('chatTextInput').value = '';
-            document.getElementById('chatTextInput').style.height = 'auto';
-            clearChatImage();
+        if (editId) {
+            // EDIT MESSAGE
+            await fetch(`/api/channels/messages/${editId}`, { 
+                method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ message_text: text }) 
+            });
+        } else {
+            // SEND NEW MESSAGE (with optional Reply/Schedule)
+            const formData = new FormData();
+            formData.append('message_text', text);
+            if (replyId) formData.append('reply_to_id', replyId);
+            if (scheduleTime) { formData.append('scheduled_for', scheduleTime); formData.append('recurrence', recurrence); }
+            if (fileInput.files[0]) formData.append('media', fileInput.files[0]);
+
+            await fetch(`/api/channels/${currentChannelId}/messages`, { method: 'POST', body: formData });
         }
-    } catch (err) { alert("Failed to send message."); }
+        
+        document.getElementById('chatTextInput').value = '';
+        document.getElementById('chatTextInput').style.height = 'auto';
+        document.getElementById('chanScheduleTime').value = '';
+        document.getElementById('chatScheduleControls').style.setProperty('display', 'none', 'important');
+        clearChatImage();
+        cancelChatAction();
+    } catch (err) { alert("Failed to process message."); }
     finally {
-        btn.innerHTML = '<span class="material-icons-round" style="margin-left:3px;">send</span>';
+        btn.innerHTML = '<span class="material-icons-round" style="margin-left:2px; font-size:18px;">send</span>';
         btn.disabled = false;
     }
 });
 
-// 7. Delete Message
 async function deleteChannelMsg(msgId) {
     if (!confirm("Delete this message for everyone?")) return;
-    try {
-        await fetch(`/api/channels/messages/${msgId}`, { method: 'DELETE', credentials: 'same-origin' });
-    } catch (e) {}
+    try { await fetch(`/api/channels/messages/${msgId}`, { method: 'DELETE' }); } catch (e) {}
 }
 
-// 8. Create Channel (Admin)
 document.getElementById('formCreateChannel')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector('button'); btn.innerText = "Creating..."; btn.disabled = true;
@@ -248,32 +312,32 @@ document.getElementById('formCreateChannel')?.addEventListener('submit', async (
     };
 
     try {
-        const res = await fetch('/api/channels', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data), credentials: 'same-origin' });
+        const res = await fetch('/api/channels', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         if (res.ok) {
             const m = bootstrap.Modal.getInstance(document.getElementById('createChannelModal'));
             if(m) m.hide();
             e.target.reset();
             loadChannels();
-        } else { alert("Failed to create channel."); }
-    } catch(e) {}
-    finally { btn.innerText = "Create Channel"; btn.disabled = false; }
+        }
+    } catch(e) {} finally { btn.innerText = "Create Channel"; btn.disabled = false; }
 });
 
-// 9. Socket Listeners for Real-Time Updates
 if (typeof io !== 'undefined') {
     const chanSocket = typeof socket !== 'undefined' ? socket : io();
-    
     chanSocket.on('new_channel_message', (msg) => {
-        if (currentChannelId === msg.channel_id) {
-            appendMessage(msg);
-            scrollToBottom();
-        } else {
-            loadChannels(); 
+        if (currentChannelId === msg.channel_id) { appendMessage(msg); scrollToBottom(); } 
+        else { loadChannels(); }
+    });
+    chanSocket.on('channel_message_updated', (data) => {
+        if (currentChannelId === data.channel_id && data.message_text) { appendMessage(data); } // Re-render for edit
+        else if (currentChannelId === data.channel_id) { 
+            if(data.is_pinned) showPinnedBanner(data.id, data.message_text); 
+            else if(data.is_pinned === false) hidePinnedBanner(); 
         }
     });
-
     chanSocket.on('channel_message_deleted', (data) => {
         const msgEl = document.getElementById(`chanMsg-${data.id}`);
         if (msgEl) msgEl.remove();
+        if (pinnedMsgId === data.id) hidePinnedBanner();
     });
 }
