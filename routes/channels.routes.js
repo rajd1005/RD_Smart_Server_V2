@@ -52,6 +52,45 @@ router.post('/', authenticateToken, isAdmin, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+// --- MESSAGE ROUTES (Must be before /:id routes) ---
+router.put('/messages/:msgId', authenticateToken, isManagerOrAdmin, async (req, res) => {
+    const { message_text } = req.body;
+    try {
+        const { rows } = await pool.query(
+            "UPDATE channel_messages SET message_text = $1, created_at = NOW() WHERE id = $2 RETURNING *",
+            [message_text, req.params.msgId]
+        );
+        if (rows.length > 0) {
+            rows[0].is_edited = true;
+            req.app.get('io').emit('channel_message_updated', rows[0]);
+        }
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+router.put('/messages/:msgId/pin', authenticateToken, isManagerOrAdmin, async (req, res) => {
+    const { is_pinned } = req.body;
+    try {
+        const { rows } = await pool.query("UPDATE channel_messages SET is_pinned = $1 WHERE id = $2 RETURNING channel_id, message_text", [is_pinned, req.params.msgId]);
+        if(rows.length > 0) req.app.get('io').emit('channel_message_updated', { id: req.params.msgId, channel_id: rows[0].channel_id, is_pinned, message_text: rows[0].message_text });
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+router.delete('/messages/:msgId', authenticateToken, isManagerOrAdmin, async (req, res) => {
+    try {
+        const { rows } = await pool.query("SELECT media_url, channel_id FROM channel_messages WHERE id = $1", [req.params.msgId]);
+        if (rows.length > 0 && rows[0].media_url) {
+            const filePath = path.join(__dirname, '..', rows[0].media_url.replace(/^\//, ''));
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        }
+        await pool.query("DELETE FROM channel_messages WHERE id = $1", [req.params.msgId]);
+        req.app.get('io').emit('channel_message_deleted', { id: req.params.msgId, channel_id: rows[0] ? rows[0].channel_id : null });
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// --- CHANNEL CONFIG ROUTES ---
 router.put('/:id', authenticateToken, isAdmin, async (req, res) => {
     const { name, description, required_level, telegram_chat_id } = req.body;
     try {
@@ -145,43 +184,6 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
         }
 
         res.json({ success: true, data: newMessage });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
-router.put('/messages/:msgId', authenticateToken, isManagerOrAdmin, async (req, res) => {
-    const { message_text } = req.body;
-    try {
-        const { rows } = await pool.query(
-            "UPDATE channel_messages SET message_text = $1, created_at = NOW() WHERE id = $2 RETURNING *",
-            [message_text, req.params.msgId]
-        );
-        if (rows.length > 0) {
-            rows[0].is_edited = true;
-            req.app.get('io').emit('channel_message_updated', rows[0]);
-        }
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
-router.put('/messages/:msgId/pin', authenticateToken, isManagerOrAdmin, async (req, res) => {
-    const { is_pinned } = req.body;
-    try {
-        const { rows } = await pool.query("UPDATE channel_messages SET is_pinned = $1 WHERE id = $2 RETURNING channel_id, message_text", [is_pinned, req.params.msgId]);
-        req.app.get('io').emit('channel_message_updated', { id: req.params.msgId, channel_id: rows[0].channel_id, is_pinned, message_text: rows[0].message_text });
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
-});
-
-router.delete('/messages/:msgId', authenticateToken, isManagerOrAdmin, async (req, res) => {
-    try {
-        const { rows } = await pool.query("SELECT media_url, channel_id FROM channel_messages WHERE id = $1", [req.params.msgId]);
-        if (rows.length > 0 && rows[0].media_url) {
-            const filePath = path.join(__dirname, '..', rows[0].media_url.replace(/^\//, ''));
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        }
-        await pool.query("DELETE FROM channel_messages WHERE id = $1", [req.params.msgId]);
-        req.app.get('io').emit('channel_message_deleted', { id: req.params.msgId, channel_id: rows[0].channel_id });
-        res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
