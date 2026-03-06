@@ -80,10 +80,6 @@ function dismissPushPrompt() {
     }, 500);
 }
 
-function dismissPushPrompt() {
-    sessionStorage.setItem('pushPromptDismissed', 'true');
-}
-
 async function registerServiceWorker() {
     try {
         const keyRes = await fetch('/api/push/public_key');
