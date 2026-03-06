@@ -36,6 +36,17 @@ function renderChannelsList() {
         const unreadBadge = ch.unread_count > 0 ? `<span class="badge bg-primary rounded-pill ms-2" style="font-size:10px;">${ch.unread_count}</span>` : '';
         const isActive = ch.id === currentChannelId ? 'bg-light border-primary' : 'border-transparent';
         
+        const role = localStorage.getItem('userRole'); 
+        const adminControls = (role === 'admin') ?
+            `<div class="dropdown ms-auto">
+                <span class="material-icons-round text-muted p-1" data-bs-toggle="dropdown" style="font-size:18px; cursor:pointer;" onclick="event.stopPropagation()">more_vert</span>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 12px;">
+                    <li><a class="dropdown-item py-1" href="#" onclick="openEditChannelModal(${ch.id}, '${ch.name.replace(/'/g, "\\'")}', '${(ch.description || '').replace(/'/g, "\\'")}', '${ch.required_level}', '${ch.telegram_chat_id || ''}'); event.stopPropagation();">Edit Channel</a></li>
+                    <li><hr class="dropdown-divider my-1"></li>
+                    <li><a class="dropdown-item py-1 text-danger" href="#" onclick="deleteChannelAdmin(${ch.id}); event.stopPropagation();">Delete Channel</a></li>
+                </ul>
+            </div>` : '';
+
         container.innerHTML += `
             <div class="p-2 mb-1 rounded d-flex align-items-center border-start border-3 ${isActive}" 
                  style="cursor: pointer; transition: 0.2s; background: #fff;"
@@ -48,12 +59,12 @@ function renderChannelsList() {
                     <small class="text-muted text-truncate d-block" style="font-size: 10px;">${ch.description || 'Broadcast'}</small>
                 </div>
                 ${unreadBadge}
+                ${adminControls}
             </div>
         `;
     });
 }
 
-// --- PULL METHOD (Instant Polling) ---
 async function pullNewMessages() {
     if (!currentChannelId) return;
     try {
@@ -66,8 +77,7 @@ async function pullNewMessages() {
             data.data.forEach(msg => {
                 if(msg.is_pinned) showPinnedBanner(msg.id, msg.message_text);
                 const existing = document.getElementById(`chanMsg-${msg.id}`);
-                if (existing && msg.is_edited) { existing.outerHTML = renderMessageHTML(msg); } 
-                else if (!existing) { chatArea.insertAdjacentHTML('beforeend', renderMessageHTML(msg)); }
+                if (!existing) { chatArea.insertAdjacentHTML('beforeend', renderMessageHTML(msg)); }
                 if (msg.id > lastMessageId) lastMessageId = msg.id;
             });
             scrollToBottom();
@@ -116,7 +126,6 @@ async function openChannel(id, name, desc) {
         if (ch) ch.unread_count = 0;
         renderChannelsList();
 
-        // Start Pull Method
         pullInterval = setInterval(pullNewMessages, 3000); 
 
     } catch (e) { chatArea.innerHTML = '<div class="text-danger m-auto">Failed to load.</div>'; }
@@ -137,20 +146,23 @@ function hidePinnedBanner() {
     pinnedMsgId = null;
     document.getElementById('pinnedMessageBanner').style.setProperty('display', 'none', 'important');
 }
-function unpinMessage() { if(pinnedMsgId) fetch(`/api/channels/messages/${pinnedMsgId}/pin`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({is_pinned: false}) }); }
+window.unpinMessage = function(e) { 
+    if(e) e.stopPropagation(); 
+    if(pinnedMsgId) fetch(`/api/channels/messages/${pinnedMsgId}/pin`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({is_pinned: false}) }); 
+};
 function scrollToPinned() { if(pinnedMsgId) document.getElementById(`chanMsg-${pinnedMsgId}`)?.scrollIntoView({behavior:'smooth'}); }
 function toggleScheduleControls() { const el = document.getElementById('chatScheduleControls'); el.style.setProperty('display', el.style.display === 'none' ? 'flex' : 'none', 'important'); }
 
-function replyToMsg(id, text) {
+window.replyToMsg = function(id, text) {
     document.getElementById('chatReplyMsgId').value = id;
     document.getElementById('chatEditMsgId').value = '';
     document.getElementById('chatActionBanner').style.setProperty('display', 'flex', 'important');
     document.getElementById('chatActionTitle').innerText = 'Replying to...';
     document.getElementById('chatActionText').innerText = text || 'Media';
     document.getElementById('chatTextInput').focus();
-}
+};
 
-function editMsg(id, text) {
+window.editMsg = function(id, text) {
     document.getElementById('chatEditMsgId').value = id;
     document.getElementById('chatReplyMsgId').value = '';
     document.getElementById('chatActionBanner').style.setProperty('display', 'flex', 'important');
@@ -159,9 +171,9 @@ function editMsg(id, text) {
     document.getElementById('chatActionText').innerText = text || '';
     document.getElementById('chatTextInput').value = text || '';
     document.getElementById('chatTextInput').focus();
-}
+};
 
-function pinMsg(id) { fetch(`/api/channels/messages/${id}/pin`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({is_pinned: true}) }); }
+window.pinMsg = function(id, pinState) { fetch(`/api/channels/messages/${id}/pin`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({is_pinned: pinState}) }); };
 
 function cancelChatAction() {
     document.getElementById('chatReplyMsgId').value = '';
@@ -194,7 +206,7 @@ function renderMessageHTML(msg) {
             <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 12px; min-width: 120px;">
                 <li><a class="dropdown-item py-1" href="#" onclick="replyToMsg(${msg.id}, '${safeText}')">Reply</a></li>
                 <li><a class="dropdown-item py-1" href="#" onclick="editMsg(${msg.id}, '${safeText}')">Edit</a></li>
-                <li><a class="dropdown-item py-1" href="#" onclick="pinMsg(${msg.id})">Pin</a></li>
+                <li><a class="dropdown-item py-1" href="#" onclick="pinMsg(${msg.id}, ${msg.is_pinned ? 'false' : 'true'})">${msg.is_pinned ? 'Unpin' : 'Pin'}</a></li>
                 <li><hr class="dropdown-divider my-1"></li>
                 <li><a class="dropdown-item py-1 text-danger" href="#" onclick="deleteChannelMsg(${msg.id})">Delete</a></li>
             </ul>
@@ -282,17 +294,17 @@ document.getElementById('formSendChannelMsg')?.addEventListener('submit', async 
         document.getElementById('chatTextInput').style.height = 'auto';
         document.getElementById('chanScheduleTime').value = '';
         document.getElementById('chatScheduleControls').style.setProperty('display', 'none', 'important');
-        clearChatImage(); cancelChatAction(); pullNewMessages(); // Instant pull after send
+        clearChatImage(); cancelChatAction(); pullNewMessages(); 
     } catch (err) { alert("Failed to process message."); }
     finally { btn.innerHTML = '<span class="material-icons-round" style="margin-left:2px; font-size:18px;">send</span>'; btn.disabled = false; }
 });
 
-async function deleteChannelMsg(msgId) {
+window.deleteChannelMsg = async function(msgId) {
     if (!confirm("Delete this message for everyone?")) return;
     try { await fetch(`/api/channels/messages/${msgId}`, { method: 'DELETE' }); 
         document.getElementById(`chanMsg-${msgId}`)?.remove();
     } catch (e) {}
-}
+};
 
 document.getElementById('formCreateChannel')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -314,7 +326,51 @@ document.getElementById('formCreateChannel')?.addEventListener('submit', async (
     } catch(e) {} finally { btn.innerText = "Create Channel"; btn.disabled = false; }
 });
 
-// Socket fallback
+window.openEditChannelModal = function(id, name, desc, level, tgId) {
+    document.getElementById('editChanId').value = id;
+    document.getElementById('editChanName').value = name;
+    document.getElementById('editChanDesc').value = desc;
+    document.getElementById('editChanLevel').value = level;
+    document.getElementById('editChanTgId').value = tgId !== 'null' ? tgId : '';
+    new bootstrap.Modal(document.getElementById('editChannelModal')).show();
+};
+
+document.getElementById('formEditChannel')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('editChanId').value;
+    const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
+    
+    const data = {
+        name: document.getElementById('editChanName').value,
+        description: document.getElementById('editChanDesc').value,
+        required_level: document.getElementById('editChanLevel').value,
+        telegram_chat_id: document.getElementById('editChanTgId').value
+    };
+
+    try {
+        const res = await fetch(`/api/channels/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        if (res.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('editChannelModal')).hide();
+            loadChannels(); 
+        }
+    } catch(e) {} finally { btn.innerText = "Save Changes"; btn.disabled = false; }
+});
+
+window.deleteChannelAdmin = async function(id) {
+    if (!confirm("DANGER: Are you sure you want to permanently delete this channel and ALL its messages?")) return;
+    try {
+        const res = await fetch(`/api/channels/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+            if (currentChannelId === id) {
+                currentChannelId = null;
+                document.getElementById('chatMessagesArea').innerHTML = '<div class="text-center text-muted m-auto" style="font-size:12px;">Select a channel</div>';
+                document.getElementById('chatInputArea').style.display = 'none';
+            }
+            loadChannels();
+        }
+    } catch (e) {}
+};
+
 if (typeof io !== 'undefined') {
     const chanSocket = typeof socket !== 'undefined' ? socket : io();
     chanSocket.on('new_channel_message', (msg) => {
@@ -322,7 +378,15 @@ if (typeof io !== 'undefined') {
         else loadChannels();
     });
     chanSocket.on('channel_message_updated', (data) => {
-        if (currentChannelId === data.channel_id) pullNewMessages();
+        if (currentChannelId === data.channel_id) {
+            if (data.message_text !== undefined && data.is_pinned === undefined) {
+                const msgEl = document.getElementById(`chanMsg-${data.id}`);
+                if (msgEl) msgEl.outerHTML = renderMessageHTML(data);
+            } else if (data.is_pinned !== undefined) {
+                if(data.is_pinned) showPinnedBanner(data.id, data.message_text);
+                else hidePinnedBanner();
+            }
+        }
     });
     chanSocket.on('channel_message_deleted', (data) => {
         document.getElementById(`chanMsg-${data.id}`)?.remove();
