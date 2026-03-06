@@ -21,14 +21,15 @@ const thumbDir = path.join(__dirname, '../public', 'hls', 'thumbnails');
 const DELETE_PASSWORD = (process.env.DELETE_PASSWORD || "admin123").trim(); 
 
 // --- SETTINGS ---
+// --- SETTINGS ---
 router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
-    // ... Settings logic remains exactly the same
     const { 
         accordion_state, hide_trade_tab, show_gallery, show_call_widget, homepage_layout,
         show_sticky_footer, sticky_btn1_text, sticky_btn1_link, sticky_btn1_icon,
         sticky_btn2_text, sticky_btn2_link, sticky_btn2_icon,
-        show_disclaimer, register_link, push_trade_alerts, manager_emails // <--- Added manager_emails
+        show_disclaimer, register_link, push_trade_alerts, manager_emails // <--- Added manager_emails here
     } = req.body;
+    
     try {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state || 'first']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('hide_trade_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [hide_trade_tab || 'false']);
@@ -44,6 +45,10 @@ router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('sticky_btn2_icon', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [sticky_btn2_icon || 'send']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_disclaimer', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_disclaimer || 'true']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('register_link', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [register_link || '']);
+        
+        // --- NEW: THIS IS THE FIX! Correctly saves manager emails to the database ---
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('manager_emails', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [manager_emails || '']);
+        
         if (homepage_layout) await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('homepage_layout', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [homepage_layout]);
         
         await redisClient.del('system_settings').catch(()=>{});
@@ -58,7 +63,7 @@ router.put('/settings/symbols', authenticateToken, isAdmin, async (req, res) => 
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('cat_stock', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [cat_stock || '']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('cat_index', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [cat_index || '']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('cat_mcx', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [cat_mcx || '']);
-        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('manager_emails', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [manager_emails || '']);
+        
         await redisClient.del('system_settings').catch(()=>{});
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
