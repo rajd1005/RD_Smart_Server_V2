@@ -1,0 +1,21 @@
+<div id="tradeSection">
+    <div class="stats-bar align-items-center">
+        <div class="stat-item" id="statPoints" style="display:none;"><span class="stat-lbl">Points</span><span class="stat-val" id="totalPips">0.00</span></div>
+        <div class="stat-item"><span class="stat-lbl">Active</span><span class="stat-val" id="activeTrades">0</span></div>
+        <div class="stat-item" id="statWinRate" style="display:none;"><span class="stat-lbl">Win Rate</span><span class="stat-val" id="winRate">0%</span></div>
+        <div class="stat-item"><span class="stat-lbl">Signals</span><span class="stat-val" id="totalTrades">0</span></div>
+        
+        <div class="stat-item ms-auto">
+            <span class="stat-lbl">Market</span>
+            <select id="filterCategory" class="form-select border-1" onchange="applyFilters()">
+                <option value="ALL">All</option>
+                <option value="Forex/Crypto">Forex/Crypto</option>
+                <option value="Stock">Stock</option>
+                <option value="Index">Index</option>
+                <option value="Mcx">Mcx</option>
+            </select>
+        </div>
+    </div>
+    <div class="trade-list" id="tradeListContainer"></div>
+    <div id="noData" style="display:none;"><span class="material-icons-round">toc</span><div class="mt-2 text-muted small">No trades found</div></div>
+</div>
