@@ -80,6 +80,7 @@ const initDb = async () => {
         status VARCHAR(20) DEFAULT 'pending',
         target_audience VARCHAR(50) DEFAULT 'both',
         recurrence VARCHAR(20) DEFAULT 'none',
+        image_path TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`;
 
@@ -118,12 +119,16 @@ const initDb = async () => {
         await pool.query(queryScheduledNotifications);
         await pool.query(populateDefaultSettings);
 
+        // Run ALTER statements safely to update existing tables
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS lock_notice TEXT;`); } catch(e){}
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN DEFAULT TRUE;`); } catch(e){}
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS dashboard_visibility VARCHAR(20) DEFAULT 'all';`); } catch(e){}
         try { await pool.query(`ALTER TABLE lesson_videos ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;`); } catch(e){}
         try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS target_audience VARCHAR(50) DEFAULT 'both';`); } catch(e){}
         try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS recurrence VARCHAR(20) DEFAULT 'none';`); } catch(e){}
+        
+        // NEW FIX: Add image_path to the existing table
+        try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS image_path TEXT;`); } catch(e){}
 
         console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push + Notifications)");
     } catch (err) {
