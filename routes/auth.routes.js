@@ -36,9 +36,14 @@ router.post('/login', async (req, res) => {
     try {
         let userEmail = ""; let userRole = "student"; let userPhone = "";
         let accessLevels = { level_1_status: 'No', level_2_status: 'No', level_3_status: 'No', level_4_status: 'No' };
-        let studentRecord = null;
 
         const matchedDemo = DEMO_USERS.find(user => user.email === email && user.password === password);
+
+        // --- FETCH MANAGER EMAILS EARLY TO APPLY EXCEPTIONS ---
+        const settingsRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'manager_emails'");
+        const managerEmailsStr = settingsRes.rows.length > 0 ? settingsRes.rows[0].setting_value : '';
+        const managerEmails = managerEmailsStr.split(',').map(e => e.trim().toLowerCase());
+        const isManager = managerEmails.includes(email);
 
         if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
             userEmail = ADMIN_EMAIL; userRole = "admin"; userPhone = "Admin";
@@ -50,44 +55,57 @@ router.post('/login', async (req, res) => {
             userPhone = "Demo Account";
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
             
-} else {
+        } else {
             const localCreds = await pool.query("SELECT * FROM user_credentials WHERE email = $1", [email]);
+            
             if (localCreds.rows.length > 0) {
+                // USER HAS A CUSTOM PASSWORD SET
                 const { salt, hash } = localCreds.rows[0];
                 const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
                 if (verifyHash !== hash) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
-                const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
-                if (rows.length === 0) return res.status(401).json({ success: false, msg: "Account not found in registry." });
-                studentRecord = rows[0];
+                
+                if (isManager) {
+                    // Bypass WP DB Check entirely for Managers
+                    userEmail = email;
+                    userRole = "manager";
+                    userPhone = "Manager";
+                    accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
+                } else {
+                    // Regular Student WP Verification
+                    const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
+                    if (rows.length === 0) return res.status(401).json({ success: false, msg: "Account not found in registry." });
+                    
+                    const studentRecord = rows[0];
+                    const expiryDate = new Date(studentRecord.student_expiry_date);
+                    const getISTDate = () => { const d = new Date(); const utc = d.getTime() + (d.getTimezoneOffset() * 60000); return new Date(utc + (3600000 * 5.5)); };
+                    if (!isNaN(expiryDate.getTime()) && expiryDate < getISTDate()) { 
+                        return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." }); 
+                    }
+                    
+                    userEmail = String(studentRecord.student_email).toLowerCase().trim();
+                    userPhone = studentRecord.student_phone; 
+                    accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
+                }
             } else {
-                const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?", [email, password]);
-                if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
-                const setupToken = jwt.sign({ email: rows[0].student_email, phone: rows[0].student_phone }, JWT_SECRET, { expiresIn: '15m' });
-                return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
-            }
-            
-            const expiryDate = new Date(studentRecord.student_expiry_date);
-            const getISTDate = () => { const d = new Date(); const utc = d.getTime() + (d.getTimezoneOffset() * 60000); return new Date(utc + (3600000 * 5.5)); };
-            if (!isNaN(expiryDate.getTime()) && expiryDate < getISTDate()) { 
-                return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." }); 
-            }
-            
-            userEmail = String(studentRecord.student_email).toLowerCase().trim();
-            userPhone = studentRecord.student_phone; 
-            accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
-
-            // --- NEW: CHECK IF USER IS A MANAGER ---
-            const settingsRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'manager_emails'");
-            const managerEmailsStr = settingsRes.rows.length > 0 ? settingsRes.rows[0].setting_value : '';
-            const managerEmails = managerEmailsStr.split(',').map(e => e.trim().toLowerCase());
-            
-            if (managerEmails.includes(userEmail)) {
-                userRole = "manager";
-                // Automatically unlock all courses for managers
-                accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
+                // FIRST TIME LOGIN (NO CUSTOM PASSWORD YET)
+                if (isManager) {
+                    // Manager default password flow
+                    if (password !== 'rdalgo123') return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
+                    
+                    const setupToken = jwt.sign({ email: email, phone: "Manager" }, JWT_SECRET, { expiresIn: '15m' });
+                    return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "Manager login detected. Please create a secure password." });
+                } else {
+                    // Student default password flow (Checks WP DB for phone number match)
+                    const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?", [email, password]);
+                    if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
+                    
+                    const setupToken = jwt.sign({ email: rows[0].student_email, phone: rows[0].student_phone }, JWT_SECRET, { expiresIn: '15m' });
+                    return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
+                }
             }
         }
 
+        // Initialize secure session
         const sessionId = crypto.randomUUID();
         await pool.query("INSERT INTO login_logs (email, session_id, ip_address) VALUES ($1, $2, $3)", [userEmail, sessionId, clientIp]);
         await pool.query("DELETE FROM login_logs WHERE login_time < NOW() - INTERVAL '30 days'");
@@ -98,7 +116,10 @@ router.post('/login', async (req, res) => {
         
         req.app.get('io').emit('force_logout', { email: userEmail, newSessionId: sessionId });
         res.json({ success: true, msg: "Login successful", email: userEmail, phone: userPhone, role: userRole, accessLevels: accessLevels, sessionId: sessionId });
-    } catch (error) { res.status(500).json({ success: false, msg: "Database connection error" }); }
+    } catch (error) { 
+        console.error("Login Error:", error);
+        res.status(500).json({ success: false, msg: "Database connection error" }); 
+    }
 });
 
 router.post('/set_password', async (req, res) => {
@@ -117,8 +138,17 @@ router.post('/forgot_password', async (req, res) => {
     try {
         const isDemoEmail = DEMO_USERS.some(user => user.email === email);
         if (email === ADMIN_EMAIL || isDemoEmail) return res.status(400).json({ success: false, msg: "This account password cannot be reset here." });
-        const [rows] = await authPool.query("SELECT student_email FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
-        if (rows.length === 0) return res.status(404).json({ success: false, msg: "Email not found in registry." });
+        
+        // CHECK IF USER IS A MANAGER
+        const settingsRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'manager_emails'");
+        const managerEmailsStr = settingsRes.rows.length > 0 ? settingsRes.rows[0].setting_value : '';
+        const isManager = managerEmailsStr.split(',').map(e => e.trim().toLowerCase()).includes(email);
+
+        // ONLY CHECK WP DB IF NOT A MANAGER
+        if (!isManager) {
+            const [rows] = await authPool.query("SELECT student_email FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
+            if (rows.length === 0) return res.status(404).json({ success: false, msg: "Email not found in registry." });
+        }
 
         const otp = Math.floor(100000 + Math.random() * 900000).toString(); 
         await pool.query("INSERT INTO password_resets (email, otp, expires_at) VALUES ($1, $2, NOW() + INTERVAL '15 minutes') ON CONFLICT (email) DO UPDATE SET otp = EXCLUDED.otp, expires_at = EXCLUDED.expires_at", [email, otp]);
