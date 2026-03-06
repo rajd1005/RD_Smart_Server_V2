@@ -250,6 +250,7 @@ async function fetchCourses() {
             const adminDisclaimerCheck = document.getElementById('adminShowDisclaimer');
             if (adminDisclaimerCheck) adminDisclaimerCheck.checked = showDisclaimer;
             safeSetVal('adminRegisterLink', settings.register_link);
+            safeSetVal('adminManagerEmails', settings.manager_emails); // NEW LINE
 
             const catForex = settings.cat_forex_crypto || '';
             const catStock = settings.cat_stock || '';
@@ -281,7 +282,8 @@ async function fetchCourses() {
 
             const navTradeBtn = document.getElementById('navTradeBtn');
             if (navTradeBtn) {
-                if (hideTradeTab && userData.role !== 'admin') navTradeBtn.style.display = 'none';
+                // Modified to allow manager access
+                if (hideTradeTab && userData.role !== 'admin' && userData.role !== 'manager') navTradeBtn.style.display = 'none';
                 else navTradeBtn.style.display = 'flex';
             }
 
