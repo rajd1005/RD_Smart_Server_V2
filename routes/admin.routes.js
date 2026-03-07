@@ -301,8 +301,9 @@ router.post('/notifications', authenticateToken, isManagerOrAdmin, upload.single
     }
 });
 
+// Replace the top line of the route:
 router.put('/notifications/:id', authenticateToken, isManagerOrAdmin, upload.single('push_image'), async (req, res) => {
-    const { title, body, url, schedule_time, target_audience, recurrence } = req.body;
+    const { title, body, url, schedule_time, target_audience, recurrence, silent_edit } = req.body;
     let newImagePath = req.file ? `/uploads/${req.file.filename}` : null;
 
     try {
@@ -330,27 +331,34 @@ router.put('/notifications/:id', authenticateToken, isManagerOrAdmin, upload.sin
         const jobs = await pushQueue.getDelayed();
         for (let job of jobs) if (job.data.notificationId === parseInt(req.params.id)) await job.remove();
 
+        // Replace the else block at the end of the PUT route with this:
         if (parsedScheduleTime) {
             const delay = new Date(parsedScheduleTime).getTime() - Date.now();
             await pushQueue.add('send-push', { notificationId: parseInt(req.params.id) }, { delay: Math.max(delay, 0), jobId: `push_${req.params.id}_${Date.now()}` });
         } else {
-            const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience || 'both');
             const { rows } = await pool.query("SELECT image_path FROM scheduled_notifications WHERE id = $1", [req.params.id]);
             const currentImagePath = rows.length > 0 ? rows[0].image_path : null;
 
-            const payload = { title, body, url: url || '/', image: currentImagePath };
-            uniqueSubs.forEach(sub => { 
-                try { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); } catch(e){} 
-            });
-            req.app.get('io').emit('new_notification');
-            
-            if (currentImagePath) {
-                const filePath = path.join(__dirname, '..', currentImagePath.replace(/^\//, ''));
-                try {
-                    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-                    await pool.query("UPDATE scheduled_notifications SET image_path = NULL WHERE id = $1", [req.params.id]);
-                } catch(e) {}
+            // Only resend the push to users if it's NOT a silent edit
+            if (silent_edit !== 'true') {
+                const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience || 'both');
+                const payload = { title, body, url: url || '/', image: currentImagePath };
+                uniqueSubs.forEach(sub => { 
+                    try { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); } catch(e){} 
+                });
+                
+                // Clear the image path after physical send, as per original logic
+                if (currentImagePath) {
+                    const filePath = path.join(__dirname, '..', currentImagePath.replace(/^\//, ''));
+                    try {
+                        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                        await pool.query("UPDATE scheduled_notifications SET image_path = NULL WHERE id = $1", [req.params.id]);
+                    } catch(e) {}
+                }
             }
+            
+            // This emits to socket.io instantly updating the UI for everyone without a reload
+            req.app.get('io').emit('new_notification');
         }
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
