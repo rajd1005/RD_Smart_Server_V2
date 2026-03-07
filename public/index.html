@@ -207,30 +207,33 @@
             
             <div class="p-2 bg-white border-top shadow-lg">
                 <form id="formChatPush" class="d-flex flex-column gap-2 mb-0">
-                        <select id="chatPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px; font-weight:bold; color:var(--blue);">
-                        </select>
-
+<select id="chatPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px; font-weight:bold; color:var(--blue);">
+                        <option value="both">🌍 Send to ALL Users (Login + Public)</option>
+                        <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
+                        <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
+                        <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
+                        <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
+                        <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
+                        <option value="login_with_level_2">🔒 Login User with Level 2</option>
+                        <option value="login_with_level_3">🔒 Login User with Level 3</option>
+                        <option value="login_with_level_4">🔒 Login User with Level 4</option>
+                    </select>
+                    
                     <div class="d-flex gap-2">
-                        <select id="chatPushTemplate" class="form-select form-select-sm bg-light text-success" style="font-size:12px; font-weight:bold;" onchange="applyPushTemplate()">
-                            <option value="">⚡ Load Quick Notification...</option>
+                        <input type="text" id="chatPushTitle" class="form-control bg-light flex-grow-1" placeholder="Title (e.g. 🚨 Strategy)" style="font-size:13px; font-weight:bold;" required>
+                        
+                        <select id="chatPushTemplate" class="form-select form-select-sm bg-light text-success" style="font-size:12px; font-weight:bold; width: 100px; flex-shrink: 0;" onchange="applyPushTemplate()">
+                            <option value="">⚡ Load...</option>
                         </select>
-                        <button type="button" class="btn btn-outline-success d-flex align-items-center justify-content-center px-2" onclick="savePushTemplate()" title="Save Current as Template" style="border-radius: 4px; padding: 4px;">
-                            <span class="material-icons-round" style="font-size:16px;">save</span>
+                        <button type="button" class="btn btn-outline-success d-flex align-items-center justify-content-center flex-shrink-0" onclick="savePushTemplate()" title="Save Template" style="border-radius: 4px; padding: 0; width: 34px; height: 34px;">
+                            <span class="material-icons-round" style="font-size:18px;">save</span>
                         </button>
-                        <button type="button" id="btnDelTemplate" class="btn btn-outline-danger d-flex align-items-center justify-content-center px-2" onclick="deletePushTemplate()" title="Delete Selected Template" style="border-radius: 4px; padding: 4px; display:none;">
-                            <span class="material-icons-round" style="font-size:16px;">delete</span>
+                        <button type="button" id="btnDelTemplate" class="btn btn-outline-danger d-flex align-items-center justify-content-center flex-shrink-0" onclick="deletePushTemplate()" title="Delete Template" style="border-radius: 4px; padding: 0; width: 34px; height: 34px; display:none;">
+                            <span class="material-icons-round" style="font-size:18px;">delete</span>
                         </button>
                     </div>
-    <option value="both">🌍 Send to ALL Users (Login + Public)</option>
-    <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
-    <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
-    <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
-    <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
-    <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
-    <option value="login_with_level_2">🔒 Login User with Level 2</option>
-    <option value="login_with_level_3">🔒 Login User with Level 3</option>
-    <option value="login_with_level_4">🔒 Login User with Level 4</option>
-</select>
+
+                    <textarea id="chatPushBody" class="form-control bg-light" rows="2" placeholder="Type your message description here..." style="font-size:13px;" required></textarea>
                     <input type="text" id="chatPushTitle" class="form-control bg-light" placeholder="Notification Title (e.g. 🚨 New Strategy)" style="font-size:13px; font-weight:bold;" required>
                     <textarea id="chatPushBody" class="form-control bg-light" rows="2" placeholder="Type your message description here..." style="font-size:13px;" required></textarea>
                     
