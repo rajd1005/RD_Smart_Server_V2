@@ -168,7 +168,7 @@ if (formChatPush) {
                     localStorage.setItem(`lastPushTarget_${userData.email}`, targetAudienceVal);
                 }
 
-                // Clear the form fields (but deliberately leave the target dropdown intact)
+                // ... inside the if (res.ok) block ...
                 document.getElementById('chatPushTitle').value = '';
                 document.getElementById('chatPushBody').value = '';
                 document.getElementById('chatPushUrl').value = '';
@@ -176,7 +176,14 @@ if (formChatPush) {
                 document.getElementById('chatPushRecurrence').value = 'none';
                 if (imageEl) imageEl.value = '';
                 
-                fetchChatNotifications(false); 
+                // --- ADD THESE NEW LINES ---
+                const templateSelect = document.getElementById('chatPushTemplate');
+                if (templateSelect) templateSelect.value = '';
+                const btnDelTemplate = document.getElementById('btnDelTemplate');
+                if (btnDelTemplate) btnDelTemplate.style.display = 'none';
+                // ---------------------------
+
+                fetchChatNotifications(false);
             } else {
                 alert("Error sending notification.");
             }
