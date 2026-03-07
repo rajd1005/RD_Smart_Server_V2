@@ -208,6 +208,19 @@
             <div class="p-2 bg-white border-top shadow-lg">
                 <form id="formChatPush" class="d-flex flex-column gap-2 mb-0">
                     <select id="chatPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px; font-weight:bold; color:var(--blue);">
+                        </select>
+
+                    <div class="d-flex gap-2">
+                        <select id="chatPushTemplate" class="form-select form-select-sm bg-light text-success" style="font-size:12px; font-weight:bold;" onchange="applyPushTemplate()">
+                            <option value="">⚡ Load Quick Notification...</option>
+                        </select>
+                        <button type="button" class="btn btn-outline-success d-flex align-items-center justify-content-center px-2" onclick="savePushTemplate()" title="Save Current as Template" style="border-radius: 4px; padding: 4px;">
+                            <span class="material-icons-round" style="font-size:16px;">save</span>
+                        </button>
+                        <button type="button" id="btnDelTemplate" class="btn btn-outline-danger d-flex align-items-center justify-content-center px-2" onclick="deletePushTemplate()" title="Delete Selected Template" style="border-radius: 4px; padding: 4px; display:none;">
+                            <span class="material-icons-round" style="font-size:16px;">delete</span>
+                        </button>
+                    </div>
     <option value="both">🌍 Send to ALL Users (Login + Public)</option>
     <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
     <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
