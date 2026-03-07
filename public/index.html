@@ -205,70 +205,53 @@
             <div class="flex-grow-1 p-3" id="chatHistory" style="overflow-y: auto; background-color: #efeae2; display: flex; flex-direction: column;">
                 </div>
             
-<div class="p-2 bg-white border-top shadow-sm z-2">
+            <div class="p-2 bg-white border-top shadow-lg">
                 <form id="formChatPush" class="d-flex flex-column gap-2 mb-0">
+<select id="chatPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px; font-weight:bold; color:var(--blue);">
+                        <option value="both">🌍 Send to ALL Users (Login + Public)</option>
+                        <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
+                        <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
+                        <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
+                        <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
+                        <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
+                        <option value="login_with_level_2">🔒 Login User with Level 2</option>
+                        <option value="login_with_level_3">🔒 Login User with Level 3</option>
+                        <option value="login_with_level_4">🔒 Login User with Level 4</option>
+                    </select>
                     
-                    <div class="d-flex gap-1 align-items-center">
-                        <select id="chatPushTarget" class="form-select form-select-sm bg-light border-0" style="font-size:10px; font-weight:bold; color:var(--text-secondary); padding: 4px 8px; height: 26px; border-radius: 6px;">
-                            <option value="both">🌍 Send to ALL Users</option>
-                            <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
-                            <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
-                            <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
-                            <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
-                            <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
-                            <option value="login_with_level_2">🔒 Login User with Level 2</option>
-                            <option value="login_with_level_3">🔒 Login User with Level 3</option>
-                            <option value="login_with_level_4">🔒 Login User with Level 4</option>
-                        </select>
-                        <select id="chatPushTemplate" class="form-select form-select-sm bg-light text-success border-0" style="font-size:10px; font-weight:bold; width: 90px; padding: 4px; height: 26px; border-radius: 6px;" onchange="applyPushTemplate()">
+                    <div class="d-flex gap-2">
+                        <input type="text" id="chatPushTitle" class="form-control bg-light flex-grow-1" placeholder="Title (e.g. 🚨 Strategy)" style="font-size:13px; font-weight:bold;" required>
+                        
+                        <select id="chatPushTemplate" class="form-select form-select-sm bg-light text-success" style="font-size:12px; font-weight:bold; width: 100px; flex-shrink: 0;" onchange="applyPushTemplate()">
                             <option value="">⚡ Load...</option>
                         </select>
-                        <button type="button" class="btn btn-light text-success p-0 d-flex align-items-center justify-content-center flex-shrink-0" onclick="savePushTemplate()" title="Save Template" style="width: 26px; height: 26px; border-radius: 6px;"><span class="material-icons-round" style="font-size:14px;">save</span></button>
-                        <button type="button" id="btnDelTemplate" class="btn btn-light text-danger p-0 d-flex align-items-center justify-content-center flex-shrink-0" onclick="deletePushTemplate()" title="Delete Template" style="width: 26px; height: 26px; border-radius: 6px; display:none !important;"><span class="material-icons-round" style="font-size:14px;">delete</span></button>
+                        <button type="button" class="btn btn-outline-success d-flex align-items-center justify-content-center flex-shrink-0" onclick="savePushTemplate()" title="Save Template" style="border-radius: 4px; padding: 0; width: 34px; height: 34px;">
+                            <span class="material-icons-round" style="font-size:18px;">save</span>
+                        </button>
+<button type="button" id="btnDelTemplate" class="btn btn-outline-danger d-flex align-items-center justify-content-center flex-shrink-0" onclick="deletePushTemplate()" title="Delete Template" style="border-radius: 4px; padding: 0; width: 34px; height: 34px; display:none !important;">
+    <span class="material-icons-round" style="font-size:18px;">delete</span>
+</button>
                     </div>
 
-                    <div class="d-flex align-items-end gap-2">
-                        <button type="button" class="btn btn-light p-0 flex-shrink-0 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; border-radius: 50%; color: var(--text-secondary);" data-bs-toggle="collapse" data-bs-target="#advancedPushOptions">
-                            <span class="material-icons-round" style="font-size:24px;">add</span>
-                        </button>
-
-                        <div class="flex-grow-1 bg-light d-flex flex-column" style="border-radius: 18px; padding: 4px 12px; border: 1px solid var(--border-color);">
-                            <input type="text" id="chatPushTitle" class="form-control bg-transparent border-0 p-0 shadow-none text-dark" placeholder="Title (e.g. 🚨 New Setup)" style="font-size:13px; font-weight:bold; height: 24px;" required>
-                            <textarea id="chatPushBody" class="form-control bg-transparent border-0 p-0 shadow-none mt-1" rows="1" placeholder="Message body..." style="font-size:13px; resize:none; overflow-y:auto; min-height: 24px; max-height: 100px;" required oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary p-0 flex-shrink-0 d-flex align-items-center justify-content-center shadow-sm" id="btnChatPushSubmit" style="width: 38px; height: 38px; border-radius: 50%;">
-                            <span class="material-icons-round" style="font-size:18px; margin-left:4px;">send</span>
-                        </button>
-                    </div>
-
-                    <div class="collapse" id="advancedPushOptions">
-                        <div class="p-2 bg-light border rounded mt-1 d-flex flex-column gap-2">
-                            <div class="d-flex gap-2">
-                                <div class="input-group input-group-sm flex-grow-1">
-                                    <span class="input-group-text bg-white border-end-0 text-muted px-2"><span class="material-icons-round" style="font-size:14px;">link</span></span>
-                                    <input type="text" id="chatPushUrl" class="form-control bg-white border-start-0 ps-0 shadow-none" placeholder="Attach URL Link" style="font-size:12px;">
-                                </div>
-                                <div class="input-group input-group-sm" style="width: 140px;">
-                                    <span class="input-group-text bg-white border-end-0 text-muted px-2" title="Image"><span class="material-icons-round" style="font-size:14px;">image</span></span>
-                                    <input type="file" id="chatPushImage" class="form-control bg-white border-start-0 ps-0 shadow-none" accept="image/*" style="font-size:11px;" title="Push Image">
-                                </div>
-                            </div>
-                            <div class="d-flex gap-2">
-                                <div class="input-group input-group-sm flex-grow-1">
-                                    <span class="input-group-text bg-white border-end-0 text-muted px-2"><span class="material-icons-round" style="font-size:14px;">schedule</span></span>
-                                    <input type="datetime-local" id="chatPushSchedule" class="form-control bg-white border-start-0 ps-0 shadow-none" style="font-size:11px;">
-                                </div>
-                                <select id="chatPushRecurrence" class="form-select form-select-sm bg-white shadow-none" style="font-size:11px; width: 85px;">
-                                    <option value="none">Once</option>
-                                    <option value="daily">Daily</option>
-                                    <option value="weekly">Weekly</option>
-                                </select>
-                            </div>
-                        </div>
+                    <textarea id="chatPushBody" class="form-control bg-light" rows="2" placeholder="Type your message description here..." style="font-size:13px;" required></textarea>
+                    
+                    <input type="file" id="chatPushImage" class="form-control form-control-sm bg-light" accept="image/*" style="font-size:12px;" title="Optional Push Image">
+                    
+                    <div class="d-flex gap-2">
+                        <input type="text" id="chatPushUrl" class="form-control form-control-sm bg-light" placeholder="Optional URL Link" style="font-size:12px;">
+                        <input type="datetime-local" id="chatPushSchedule" class="form-control form-control-sm bg-light" title="Schedule Time" style="font-size:12px; width: 140px;">
+                        
+                        <select id="chatPushRecurrence" class="form-select form-select-sm bg-light" style="font-size:12px; width: 85px;">
+                            <option value="none">Once</option>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                        </select>
+                        
+                        <button type="submit" class="btn btn-primary d-flex align-items-center justify-content-center flex-shrink-0" id="btnChatPushSubmit" style="border-radius: 50%; width: 34px; height: 34px; padding: 0;"><span class="material-icons-round" style="margin-left:4px; font-size:18px;">send</span></button>
                     </div>
                 </form>
             </div>
+        </div>
 
 <nav class="bottom-nav" id="navDefault">
             <button class="b-btn" id="navTradeBtn" onclick="switchSection('trade')" style="display:none;"><span class="material-icons-round">analytics</span>Trade</button>
