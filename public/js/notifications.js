@@ -416,3 +416,115 @@ async function fetchUserNotifications(loadMore = false) {
         if(!loadMore) list.innerHTML = '<div class="text-center text-danger mt-3" style="font-size:12px;">Error loading alerts.</div>';
     }
 }
+// --- NEW: Quick Notification Templates Logic ---
+function getPushTemplates() {
+    if (typeof userData === 'undefined' || !userData.email) return [];
+    const saved = localStorage.getItem(`pushTemplates_${userData.email}`);
+    return saved ? JSON.parse(saved) : [];
+}
+
+function savePushTemplates(templates) {
+    if (typeof userData === 'undefined' || !userData.email) return;
+    localStorage.setItem(`pushTemplates_${userData.email}`, JSON.stringify(templates));
+}
+
+window.loadPushTemplatesUI = function() {
+    const select = document.getElementById('chatPushTemplate');
+    if (!select) return;
+    const templates = getPushTemplates();
+    
+    select.innerHTML = '<option value="">⚡ Load Quick Notification...</option>';
+    templates.forEach((t, index) => {
+        select.innerHTML += `<option value="${index}">${t.name}</option>`;
+    });
+    
+    const btnDel = document.getElementById('btnDelTemplate');
+    if (btnDel) btnDel.style.display = 'none';
+};
+
+window.applyPushTemplate = function() {
+    const select = document.getElementById('chatPushTemplate');
+    if (!select) return;
+    const index = select.value;
+    const btnDel = document.getElementById('btnDelTemplate');
+    
+    if (index === '') {
+        if (btnDel) btnDel.style.display = 'none';
+        return;
+    }
+    
+    const templates = getPushTemplates();
+    const t = templates[index];
+    if (t) {
+        const titleInput = document.getElementById('chatPushTitle');
+        const bodyInput = document.getElementById('chatPushBody');
+        const urlInput = document.getElementById('chatPushUrl');
+        
+        if (titleInput) titleInput.value = t.title || '';
+        if (bodyInput) bodyInput.value = t.body || '';
+        if (urlInput) urlInput.value = t.url || '';
+        
+        if (btnDel) btnDel.style.display = 'block'; // Show delete button
+    }
+};
+
+window.savePushTemplate = function() {
+    const titleInput = document.getElementById('chatPushTitle');
+    const bodyInput = document.getElementById('chatPushBody');
+    const urlInput = document.getElementById('chatPushUrl');
+    
+    if (!titleInput || !bodyInput) return;
+
+    const title = titleInput.value.trim();
+    const body = bodyInput.value.trim();
+    const url = urlInput ? urlInput.value.trim() : '';
+
+    if (!title || !body) {
+        alert("Please enter at least a Title and Body to save a quick notification.");
+        return;
+    }
+
+    const name = prompt("Enter a short name for this Quick Notification (e.g., 'New Strategy', 'Profit Book'):");
+    if (!name) return;
+
+    const templates = getPushTemplates();
+    templates.push({ name, title, body, url });
+    savePushTemplates(templates);
+    
+    loadPushTemplatesUI();
+    
+    // Auto-select the newly added template
+    const select = document.getElementById('chatPushTemplate');
+    if (select) select.value = templates.length - 1;
+    
+    const btnDel = document.getElementById('btnDelTemplate');
+    if (btnDel) btnDel.style.display = 'block';
+};
+
+window.deletePushTemplate = function() {
+    const select = document.getElementById('chatPushTemplate');
+    if (!select) return;
+    
+    const index = select.value;
+    if (index === '') return;
+    
+    if (!confirm("Are you sure you want to delete this Quick Notification?")) return;
+
+    const templates = getPushTemplates();
+    templates.splice(index, 1);
+    savePushTemplates(templates);
+    
+    loadPushTemplatesUI();
+    
+    // Clear the form fields
+    const titleInput = document.getElementById('chatPushTitle');
+    const bodyInput = document.getElementById('chatPushBody');
+    const urlInput = document.getElementById('chatPushUrl');
+    
+    if (titleInput) titleInput.value = '';
+    if (bodyInput) bodyInput.value = '';
+    if (urlInput) urlInput.value = '';
+};
+
+// Initialize UI a half-second after script loads to ensure DOM is ready
+setTimeout(loadPushTemplatesUI, 500);
