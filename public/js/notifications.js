@@ -12,6 +12,20 @@ socket.on('new_notification', () => {
     tradeSound.play().catch(e => {});
 });
 
+// --- ADD THIS BLOCK: Listen for settings changes and refresh instantly ---
+socket.on('settings_updated', () => {
+    // Re-fetch the notifications immediately. 
+    // Since the server logic now filters out trades based on the live setting, 
+    // this will instantly remove them from the UI.
+    if (typeof fetchUserNotifications === 'function') {
+        fetchUserNotifications(false);
+    }
+    // Also re-fetch trades to clear them out if the setting was turned off
+    if (typeof fetchTrades === 'function') {
+        fetchTrades(); 
+    }
+});
+
 async function fetchChatNotifications(loadMore = false) {
     const history = document.getElementById('chatHistory');
     if(!history) return;
