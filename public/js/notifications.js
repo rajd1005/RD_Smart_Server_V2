@@ -112,6 +112,20 @@ else targetText = '🌍 All Users';
 }
 
 const formChatPush = document.getElementById('formChatPush');
+
+// --- NEW: Restore the last saved Target Audience for this specific user ---
+if (formChatPush && typeof userData !== 'undefined' && userData.email) {
+    const savedTarget = localStorage.getItem(`lastPushTarget_${userData.email}`);
+    if (savedTarget) {
+        const targetSelect = document.getElementById('chatPushTarget');
+        if (targetSelect) {
+            // Check if the saved option is still valid in the dropdown
+            const optionExists = Array.from(targetSelect.options).some(opt => opt.value === savedTarget);
+            if (optionExists) targetSelect.value = savedTarget;
+        }
+    }
+}
+
 if (formChatPush) {
     formChatPush.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -119,8 +133,10 @@ if (formChatPush) {
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
+        const targetAudienceVal = document.getElementById('chatPushTarget').value; // Capture selected target
+
         const formData = new FormData();
-        formData.append('target_audience', document.getElementById('chatPushTarget').value);
+        formData.append('target_audience', targetAudienceVal);
         formData.append('title', document.getElementById('chatPushTitle').value);
         formData.append('body', document.getElementById('chatPushBody').value);
         formData.append('url', document.getElementById('chatPushUrl').value);
@@ -143,12 +159,19 @@ if (formChatPush) {
             });
 
             if (res.ok) {
+                // --- NEW: Save the selected Target Audience for this user ---
+                if (typeof userData !== 'undefined' && userData.email) {
+                    localStorage.setItem(`lastPushTarget_${userData.email}`, targetAudienceVal);
+                }
+
+                // Clear the form fields (but deliberately leave the target dropdown intact)
                 document.getElementById('chatPushTitle').value = '';
                 document.getElementById('chatPushBody').value = '';
                 document.getElementById('chatPushUrl').value = '';
                 document.getElementById('chatPushSchedule').value = '';
                 document.getElementById('chatPushRecurrence').value = 'none';
                 if (imageEl) imageEl.value = '';
+                
                 fetchChatNotifications(false); 
             } else {
                 alert("Error sending notification.");
