@@ -423,24 +423,45 @@ async function fetchUserNotifications(loadMore = false) {
         if(!loadMore) list.innerHTML = '<div class="text-center text-danger mt-3" style="font-size:12px;">Error loading alerts.</div>';
     }
 }
-// --- NEW: Quick Notification Templates Logic ---
-function getPushTemplates() {
-    if (typeof userData === 'undefined' || !userData.email) return [];
-    const saved = localStorage.getItem(`pushTemplates_${userData.email}`);
-    return saved ? JSON.parse(saved) : [];
+// --- NEW: GLOBAL Quick Notification Templates Logic ---
+let globalPushTemplates = [];
+
+async function getPushTemplates() {
+    try {
+        const res = await fetch('/api/admin/push-templates', { credentials: 'same-origin' });
+        const data = await res.json();
+        if (data.success) {
+            globalPushTemplates = data.templates || [];
+            return globalPushTemplates;
+        }
+    } catch (e) {
+        console.error("Error fetching templates");
+    }
+    return [];
 }
 
-function savePushTemplates(templates) {
-    if (typeof userData === 'undefined' || !userData.email) return;
-    localStorage.setItem(`pushTemplates_${userData.email}`, JSON.stringify(templates));
+async function savePushTemplates(templates) {
+    try {
+        await fetch('/api/admin/push-templates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ templates }),
+            credentials: 'same-origin'
+        });
+        globalPushTemplates = templates;
+    } catch (e) {
+        console.error("Error saving templates");
+    }
 }
 
-window.loadPushTemplatesUI = function() {
+window.loadPushTemplatesUI = async function() {
     const select = document.getElementById('chatPushTemplate');
     if (!select) return;
-    const templates = getPushTemplates();
     
-    select.innerHTML = '<option value="">⚡ Load Quick Notification...</option>';
+    // Fetch from the server instead of local storage
+    const templates = await getPushTemplates();
+    
+    select.innerHTML = '<option value="">⚡ Load...</option>';
     templates.forEach((t, index) => {
         select.innerHTML += `<option value="${index}">${t.name}</option>`;
     });
@@ -460,8 +481,7 @@ window.applyPushTemplate = function() {
         return;
     }
     
-    const templates = getPushTemplates();
-    const t = templates[index];
+    const t = globalPushTemplates[index];
     if (t) {
         const titleInput = document.getElementById('chatPushTitle');
         const bodyInput = document.getElementById('chatPushBody');
@@ -471,11 +491,11 @@ window.applyPushTemplate = function() {
         if (bodyInput) bodyInput.value = t.body || '';
         if (urlInput) urlInput.value = t.url || '';
         
-        if (btnDel) btnDel.style.display = 'block'; // Show delete button
+        if (btnDel) btnDel.style.display = 'flex'; // Show delete button
     }
 };
 
-window.savePushTemplate = function() {
+window.savePushTemplate = async function() {
     const titleInput = document.getElementById('chatPushTitle');
     const bodyInput = document.getElementById('chatPushBody');
     const urlInput = document.getElementById('chatPushUrl');
@@ -494,21 +514,25 @@ window.savePushTemplate = function() {
     const name = prompt("Enter a short name for this Quick Notification (e.g., 'New Strategy', 'Profit Book'):");
     if (!name) return;
 
-    const templates = getPushTemplates();
-    templates.push({ name, title, body, url });
-    savePushTemplates(templates);
+    const btnSave = event.currentTarget;
+    btnSave.disabled = true;
+
+    globalPushTemplates.push({ name, title, body, url });
+    await savePushTemplates(globalPushTemplates);
     
-    loadPushTemplatesUI();
+    await loadPushTemplatesUI();
     
     // Auto-select the newly added template
     const select = document.getElementById('chatPushTemplate');
-    if (select) select.value = templates.length - 1;
+    if (select) select.value = globalPushTemplates.length - 1;
     
     const btnDel = document.getElementById('btnDelTemplate');
-    if (btnDel) btnDel.style.display = 'block';
+    if (btnDel) btnDel.style.display = 'flex';
+    
+    btnSave.disabled = false;
 };
 
-window.deletePushTemplate = function() {
+window.deletePushTemplate = async function() {
     const select = document.getElementById('chatPushTemplate');
     if (!select) return;
     
@@ -517,11 +541,13 @@ window.deletePushTemplate = function() {
     
     if (!confirm("Are you sure you want to delete this Quick Notification?")) return;
 
-    const templates = getPushTemplates();
-    templates.splice(index, 1);
-    savePushTemplates(templates);
+    const btnDel = document.getElementById('btnDelTemplate');
+    btnDel.disabled = true;
+
+    globalPushTemplates.splice(index, 1);
+    await savePushTemplates(globalPushTemplates);
     
-    loadPushTemplatesUI();
+    await loadPushTemplatesUI();
     
     // Clear the form fields
     const titleInput = document.getElementById('chatPushTitle');
@@ -531,7 +557,14 @@ window.deletePushTemplate = function() {
     if (titleInput) titleInput.value = '';
     if (bodyInput) bodyInput.value = '';
     if (urlInput) urlInput.value = '';
+    
+    btnDel.disabled = false;
 };
 
 // Initialize UI a half-second after script loads to ensure DOM is ready
-setTimeout(loadPushTemplatesUI, 500);
+setTimeout(() => {
+    // Only load the UI if the user has admin/manager rights
+    if (typeof userData !== 'undefined' && (userData.role === 'admin' || userData.role === 'manager')) {
+        loadPushTemplatesUI();
+    }
+}, 500);
