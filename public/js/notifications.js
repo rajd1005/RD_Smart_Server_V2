@@ -92,12 +92,16 @@ else targetText = '🌍 All Users';
                     <div class="chat-body">${n.body}</div>
                     ${n.url && n.url !== '/' ? `<a href="${n.url}" target="_blank" class="chat-link">${n.url}</a>` : ''}
                     <div class="chat-meta">
-                        <span class="badge bg-secondary me-auto" style="font-size:8px;">${targetText}${recurrenceText}</span>
-                        <span>${isScheduled ? 'Sched: ' : ''}${dateStr}</span>
-                        <span class="material-icons-round" style="font-size:14px; color:${iconColor};">${icon}</span>
-                        <span class="material-icons-round chat-del-btn ms-2" onclick="deleteChatPush(${n.id})">delete</span>
-                    </div>
-                </div>`;
+                    <span class="badge bg-secondary me-auto" style="font-size:8px;">${targetText}${recurrenceText}</span>
+                    <span>${isScheduled ? 'Sched: ' : ''}${dateStr}</span>
+                    <span class="material-icons-round" style="font-size:14px; color:${iconColor};">${icon}</span>
+                    
+                    <span class="material-icons-round chat-del-btn ms-2" style="color:var(--blue);" onclick='replyToPush(${JSON.stringify(n).replace(/'/g, "\\'")})' title="Reply">reply</span>
+                    <span class="material-icons-round chat-del-btn ms-2" style="color:#856404;" onclick='openEditPushModal(${JSON.stringify(n).replace(/'/g, "\\'")})' title="Edit">edit</span>
+                    
+                    <span class="material-icons-round chat-del-btn ms-2" onclick="deleteChatPush(${n.id})" title="Delete">delete</span>
+                </div>
+            </div>`;
             }).join('');
             
             const oldScrollHeight = history.scrollHeight;
@@ -184,12 +188,26 @@ if (formChatPush) {
     });
 }
 
-window.deleteChatPush = async function(id) {
-    if(!confirm("Are you sure you want to delete this notification?")) return;
-    try {
-        const res = await fetch(`/api/admin/notifications/${id}`, { method: 'DELETE', credentials: 'same-origin' });
-        if(res.ok) fetchChatNotifications(false);
-    } catch(e) { alert("Error deleting."); }
+window.replyToPush = function(n) {
+    const targetSelect = document.getElementById('chatPushTarget');
+    if (targetSelect) {
+        const optionExists = Array.from(targetSelect.options).some(opt => opt.value === n.target_audience);
+        if (optionExists) targetSelect.value = n.target_audience;
+    }
+    
+    const titleInput = document.getElementById('chatPushTitle');
+    if (titleInput) {
+        titleInput.value = n.title.startsWith('Re: ') ? n.title : `Re: ${n.title}`;
+    }
+    
+    const bodyInput = document.getElementById('chatPushBody');
+    if (bodyInput) {
+        bodyInput.focus();
+    }
+    
+    // Smooth scroll back to the creation form
+    const form = document.getElementById('formChatPush');
+    if (form) form.scrollIntoView({ behavior: 'smooth' });
 };
 
 async function fetchScheduledPushes() {
@@ -294,6 +312,9 @@ if (formEditPush) {
         if(scheduleTime) formData.append('schedule_time', scheduleTime);
         
         formData.append('recurrence', document.getElementById('editPushRecurrence').value || 'none');
+        
+        const silentEl = document.getElementById('editPushSilent');
+        if (silentEl) formData.append('silent_edit', silentEl.checked ? 'true' : 'false');
         
         const imageEl = document.getElementById('editPushImage');
         if (imageEl && imageEl.files[0]) {
