@@ -25,10 +25,12 @@ window.onload = function() {
     if (typeof fetchUserNotifications === 'function') fetchUserNotifications(false); 
     if (typeof applyRoleRestrictions === 'function') applyRoleRestrictions(); 
     
-    // --- NEW: Check URL for the Alerts Tab Request ---
+    // --- UPDATED: Check URL for the Alerts Tab Request ---
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('tab') === 'alerts') {
         switchSection('notification');
+        // Clean the URL so refreshing the page later doesn't force them back to alerts
+        window.history.replaceState({}, document.title, window.location.pathname);
     } else {
         switchSection('learning'); 
     }
