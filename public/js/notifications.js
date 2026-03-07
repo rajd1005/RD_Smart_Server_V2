@@ -283,6 +283,26 @@ window.openEditPushModal = function(n) {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('editPushModal')).show();
 };
 
+// --- NEW: Function to delete sent broadcasts ---
+window.deleteChatPush = async function(id) {
+    if(!confirm("Are you sure you want to delete this broadcast from the history?")) return;
+    try {
+        const res = await fetch(`/api/admin/notifications/${id}`, { 
+            method: 'DELETE', 
+            credentials: 'same-origin' 
+        });
+        
+        if(res.ok) {
+            // Refresh the history immediately
+            fetchChatNotifications(false);
+        } else {
+            alert("Error deleting notification.");
+        }
+    } catch(e) { 
+        alert("Network Error: Could not delete."); 
+    }
+};
+
 window.deleteScheduledPush = async function(id) {
     if(!confirm("Delete this scheduled notification?")) return;
     try {
