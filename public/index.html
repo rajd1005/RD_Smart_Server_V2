@@ -140,11 +140,6 @@
                 <button id="btnAdminCourseManager" class="position-relative" type="button" data-bs-toggle="modal" data-bs-target="#adminCourseModal" style="display:none; background:none; border:none; color:var(--blue); padding:0; align-items:center; margin-right: 15px;">
                     <span class="material-icons-round">settings</span>
                 </button>
-                
-                <button class="position-relative" type="button" data-bs-toggle="offcanvas" data-bs-target="#notificationSheet" style="background:none; border:none; color:var(--text-primary); padding:0; display:flex; align-items:center; margin-right: 15px;">
-                    <span class="material-icons-round">notifications</span>
-                    <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle" id="notifBadge" style="display:none;"><span class="visually-hidden">New alerts</span></span>
-                </button>
 
                 <button onclick="logout()" style="background:none; border:none; color:var(--red); padding:0; display:flex; align-items:center;">
                     <span class="material-icons-round">logout</span>
@@ -187,7 +182,14 @@
                 <div class="p-4 text-center text-muted">Loading courses...</div>
             </div>
         </div>
-
+<div id="notificationSection" style="display:none; flex-direction: column; height: calc(100vh - 110px);">
+            <div class="p-2 bg-white shadow-sm z-1 border-bottom">
+                <h6 class="mb-0 fw-bold px-2 py-1"><span class="material-icons-round text-primary me-2 align-middle">notifications_active</span>Alerts</h6>
+            </div>
+            <div class="flex-grow-1 p-3" id="userNotificationList" style="background-color: #efeae2; overflow-y: auto; padding-bottom: 70px;">
+                <div class="text-center text-muted mt-3" style="font-size:12px;">Loading alerts...</div>
+            </div>
+        </div>
         <div id="pushSection" style="display:none; flex-direction: column; height: calc(100vh - 110px);">
             <div class="p-2 bg-white shadow-sm z-1 d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center">
@@ -237,9 +239,14 @@
             </div>
         </div>
 
-        <nav class="bottom-nav" id="navDefault">
+<nav class="bottom-nav" id="navDefault">
             <button class="b-btn" id="navTradeBtn" onclick="switchSection('trade')"><span class="material-icons-round">analytics</span>Trade</button>
             <button class="b-btn b-active" id="navLearnBtn" onclick="switchSection('learning')"><span class="material-icons-round">school</span>Learn</button>
+            
+            <button class="b-btn position-relative" id="navNotificationBtn" onclick="switchSection('notification')">
+                <span class="material-icons-round">notifications</span>Alerts
+                <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle" id="notifBadge" style="display:none; margin-left: -5px; margin-top: 5px;"><span class="visually-hidden">New</span></span>
+            </button>
             
             <button class="b-btn" id="navPushBtn" onclick="switchSection('push')" style="display:none;"><span class="material-icons-round">campaign</span>Push</button>
 
@@ -698,16 +705,6 @@
                     </form>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <div class="offcanvas offcanvas-end" tabindex="-1" id="notificationSheet" style="width: 320px; max-width: 100vw;">
-        <div class="offcanvas-header pb-0 border-bottom">
-            <h6 class="offcanvas-title fw-bold"><span class="material-icons-round text-primary me-2 align-middle">notifications_active</span>Alerts</h6>
-            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
-        </div>
-        <div class="offcanvas-body pt-2" id="userNotificationList" style="background-color: #efeae2; overflow-y: auto;">
-            <div class="text-center text-muted mt-3" style="font-size:12px;">Loading alerts...</div>
         </div>
     </div>
 
