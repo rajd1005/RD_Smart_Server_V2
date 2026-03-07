@@ -376,6 +376,9 @@ router.delete('/notifications/:id', authenticateToken, isManagerOrAdmin, async (
         const jobs = await pushQueue.getDelayed();
         for (let job of jobs) if (job.data.notificationId === parseInt(req.params.id)) await job.remove();
 
+        // --- NEW: Emit to everyone that a notification was deleted ---
+        req.app.get('io').emit('new_notification');
+
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
