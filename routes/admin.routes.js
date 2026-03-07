@@ -51,6 +51,7 @@ router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
         if (homepage_layout) await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('homepage_layout', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [homepage_layout]);
         
         await redisClient.del('system_settings').catch(()=>{});
+        req.app.get('io').emit('settings_updated');
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
