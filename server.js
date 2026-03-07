@@ -171,10 +171,20 @@ app.get('/api/user/notifications', authenticateToken, async (req, res) => {
             else allowedAudiences.push('login_no_level_4');
         }
 
-        const result = await pool.query(
-            "SELECT * FROM scheduled_notifications WHERE status = 'sent' AND target_audience = ANY($1) ORDER BY COALESCE(scheduled_for, created_at) DESC LIMIT $2 OFFSET $3", 
-            [allowedAudiences, limit, offset]
-        );
+        // --- NEW LOGIC: Check if trade alerts are disabled ---
+        const settingRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'push_trade_alerts'");
+        const pushTradeAlerts = settingRes.rows.length > 0 ? settingRes.rows[0].setting_value : 'true';
+
+        let query = "SELECT * FROM scheduled_notifications WHERE status = 'sent' AND target_audience = ANY($1)";
+        
+        // Filter out trade notifications if the setting is disabled
+        if (pushTradeAlerts === 'false' || pushTradeAlerts === false || pushTradeAlerts === '0') {
+            query += " AND title NOT LIKE '✅ SETUP%' AND title NOT LIKE '⚡ %'";
+        }
+        
+        query += " ORDER BY COALESCE(scheduled_for, created_at) DESC LIMIT $2 OFFSET $3";
+
+        const result = await pool.query(query, [allowedAudiences, limit, offset]);
         
         res.json({ success: true, data: result.rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
