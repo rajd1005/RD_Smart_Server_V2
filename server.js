@@ -171,14 +171,14 @@ app.get('/api/user/notifications', authenticateToken, async (req, res) => {
             else allowedAudiences.push('login_no_level_4');
         }
 
-        // --- NEW LOGIC: Check if trade alerts are disabled ---
+        // --- NEW LOGIC: Check setting and filter out trades if disabled ---
         const settingRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'push_trade_alerts'");
         const pushTradeAlerts = settingRes.rows.length > 0 ? settingRes.rows[0].setting_value : 'true';
 
         let query = "SELECT * FROM scheduled_notifications WHERE status = 'sent' AND target_audience = ANY($1)";
         
-        // Filter out trade notifications if the setting is disabled
-        if (pushTradeAlerts === 'false' || pushTradeAlerts === false || pushTradeAlerts === '0') {
+        // Hide past Trade Alerts (✅ and ⚡) from the bell icon if setting is false
+        if (pushTradeAlerts === 'false' || pushTradeAlerts === '0') {
             query += " AND title NOT LIKE '✅ SETUP%' AND title NOT LIKE '⚡ %'";
         }
         
