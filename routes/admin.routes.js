@@ -221,7 +221,20 @@ router.get('/notifications', authenticateToken, isManagerOrAdmin, async (req, re
     try {
         const limit = parseInt(req.query.limit) || 15;
         const offset = parseInt(req.query.offset) || 0;
-        const result = await pool.query("SELECT * FROM scheduled_notifications ORDER BY COALESCE(scheduled_for, created_at) DESC LIMIT $1 OFFSET $2", [limit, offset]);
+        
+        // --- NEW LOGIC: Filter Admin Push History ---
+        const settingRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'push_trade_alerts'");
+        const pushTradeAlerts = settingRes.rows.length > 0 ? settingRes.rows[0].setting_value : 'true';
+
+        let query = "SELECT * FROM scheduled_notifications";
+        
+        if (pushTradeAlerts === 'false' || pushTradeAlerts === '0') {
+            query += " WHERE title NOT LIKE '✅ SETUP%' AND title NOT LIKE '⚡ %'";
+        }
+        
+        query += " ORDER BY COALESCE(scheduled_for, created_at) DESC LIMIT $1 OFFSET $2";
+
+        const result = await pool.query(query, [limit, offset]);
         res.json({ success: true, data: result.rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
