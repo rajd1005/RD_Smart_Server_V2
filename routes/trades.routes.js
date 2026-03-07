@@ -20,7 +20,17 @@ function calculatePoints(type, entry, currentPrice) {
 }
 
 router.get('/', authenticateToken, async (req, res) => {
-    try { 
+    try {
+        // --- NEW LOGIC: Check if trade alerts are enabled ---
+        const settingRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'push_trade_alerts'");
+        const pushTradeAlerts = settingRes.rows.length > 0 ? settingRes.rows[0].setting_value : 'true';
+
+        // If trade alerts are disabled, send an empty array so the frontend shows nothing for trades
+        if (pushTradeAlerts === 'false' || pushTradeAlerts === '0') {
+            return res.json([]); 
+        }
+
+        // If enabled, fetch trades as normal
         res.json((await pool.query(`SELECT * FROM trades WHERE CAST(created_at AS TIMESTAMP) >= NOW() - INTERVAL '30 days' ORDER BY id DESC`)).rows); 
     } catch (err) { 
         res.status(500).json({ error: err.message }); 
