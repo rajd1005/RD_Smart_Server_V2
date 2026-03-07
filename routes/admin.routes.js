@@ -383,4 +383,32 @@ router.delete('/notifications/:id', authenticateToken, isManagerOrAdmin, async (
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
+// --- NEW: QUICK TEMPLATES ROUTES ---
+router.get('/push-templates', authenticateToken, isManagerOrAdmin, async (req, res) => {
+    try {
+        // We save templates per user email so each manager gets their own list
+        const result = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = $1", [`templates_${req.user.email}`]);
+        let templates = [];
+        if (result.rows.length > 0) {
+            templates = JSON.parse(result.rows[0].setting_value);
+        }
+        res.json({ success: true, templates });
+    } catch (err) {
+        res.status(500).json({ success: false, msg: err.message });
+    }
+});
+
+router.post('/push-templates', authenticateToken, isManagerOrAdmin, async (req, res) => {
+    try {
+        const { templates } = req.body;
+        await pool.query(
+            "INSERT INTO system_settings (setting_key, setting_value) VALUES ($1, $2) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", 
+            [`templates_${req.user.email}`, JSON.stringify(templates)]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ success: false, msg: err.message });
+    }
+});
+
 module.exports = router;
