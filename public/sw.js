@@ -6,10 +6,10 @@ self.addEventListener('push', event => {
         data = { title: "New Notification", body: event.data.text() };
     }
 
-    // --- NEW: If no custom URL is provided, default to the Alerts tab
+    // --- UPDATED: Explicitly use index.html to ensure PWA app compatibility
     let targetUrl = data.url;
-    if (!targetUrl || targetUrl === '/' || targetUrl === '') {
-        targetUrl = '/?tab=alerts';
+    if (!targetUrl || targetUrl === '/' || targetUrl.trim() === '') {
+        targetUrl = '/index.html?tab=alerts';
     }
 
     const options = {
@@ -31,24 +31,30 @@ self.addEventListener('push', event => {
 self.addEventListener('notificationclick', event => {
     event.notification.close();
 
-    const urlToOpen = (event.notification.data && event.notification.data.url) ? event.notification.data.url : '/?tab=alerts';
+    const urlToOpen = (event.notification.data && event.notification.data.url) 
+        ? event.notification.data.url 
+        : '/index.html?tab=alerts';
 
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
             for (let i = 0; i < windowClients.length; i++) {
                 const client = windowClients[i];
                 
-                // --- NEW: If app is already open, focus it and switch tabs without reloading
+                // If the app is already open in the background
                 if (client.url.startsWith(self.registration.scope) && 'focus' in client) {
                     client.focus();
+                    
                     if (urlToOpen.includes('tab=alerts')) {
+                        // Silently tell the open app to switch to the Alerts tab
                         client.postMessage({ action: 'open_alerts' });
                     } else {
+                        // If it's a custom URL link, navigate to it
                         client.navigate(urlToOpen);
                     }
                     return;
                 }
             }
+            // If the app is completely closed, open a new window to the target
             if (clients.openWindow) {
                 return clients.openWindow(urlToOpen);
             }
