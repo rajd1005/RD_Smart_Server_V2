@@ -29,14 +29,6 @@ window.onload = function() {
     
     if (typeof checkDisclaimer === 'function') checkDisclaimer();
     if (typeof checkAndPromptPushSubscription === 'function') checkAndPromptPushSubscription(); 
-    
-    const notifSheet = document.getElementById('notificationSheet');
-    if (notifSheet) {
-        notifSheet.addEventListener('show.bs.offcanvas', function () {
-            const badge = document.getElementById('notifBadge');
-            if (badge) badge.style.display = 'none';
-        });
-    }
 
     const scheduledPushModalEl = document.getElementById('scheduledPushModal');
     if (scheduledPushModalEl) {
@@ -47,37 +39,62 @@ window.onload = function() {
 };
 
 function switchSection(section) {
+    // Hide all main sections
     document.getElementById('tradeSection').style.display = 'none';
     document.getElementById('learningSection').style.display = 'none';
+    
     const pushSec = document.getElementById('pushSection');
     if(pushSec) pushSec.style.display = 'none';
     
+    const notifSec = document.getElementById('notificationSection');
+    if(notifSec) notifSec.style.display = 'none';
+    
+    // Reset bottom nav active states
     document.getElementById('navTradeBtn').classList.remove('b-active');
     document.getElementById('navLearnBtn').classList.remove('b-active');
+    
     const navPushBtn = document.getElementById('navPushBtn');
     if(navPushBtn) navPushBtn.classList.remove('b-active');
+    
+    const navNotifBtn = document.getElementById('navNotificationBtn');
+    if(navNotifBtn) navNotifBtn.classList.remove('b-active');
 
+    // Hide context buttons by default
     document.getElementById('btnRefresh').style.display = 'none';
     document.getElementById('btnFilter').style.display = 'none';
     document.getElementById('btnSelect').style.display = 'none';
     document.getElementById('btnDelete').style.display = 'none';
 
+    // Show requested section and button styling
     if (section === 'trade') {
         document.getElementById('tradeSection').style.display = 'block';
         document.getElementById('navTradeBtn').classList.add('b-active');
         document.getElementById('btnRefresh').style.display = 'flex';
         document.getElementById('btnFilter').style.display = 'flex';
         if (typeof applyRoleRestrictions === 'function') applyRoleRestrictions(); 
+        
     } else if (section === 'push') {
         if(pushSec) pushSec.style.display = 'flex';
         if(navPushBtn) navPushBtn.classList.add('b-active');
         if (typeof fetchChatNotifications === 'function') fetchChatNotifications(false); 
+        
+    } else if (section === 'notification') {
+        if(notifSec) notifSec.style.display = 'flex';
+        if(navNotifBtn) navNotifBtn.classList.add('b-active');
+        
+        // Hide badge when user opens the tab
+        const badge = document.getElementById('notifBadge');
+        if (badge) badge.style.display = 'none';
+        
+        if (typeof fetchUserNotifications === 'function') fetchUserNotifications(false);
+        
     } else {
         document.getElementById('learningSection').style.display = 'block';
         document.getElementById('navLearnBtn').classList.add('b-active');
         if (typeof fetchCourses === 'function') fetchCourses();
     }
 }
+
 // --- PWA INSTALLATION & SEQUENCING LOGIC ---
 window.deferredPrompt = null;
 
