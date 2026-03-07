@@ -1,4 +1,22 @@
 const tradeSound = new Audio('/chaching.mp3');
+let tradeSoundEnabled = true; // Default to true
+
+// --- NEW: Fetch settings to see if trade alerts (and sound) are enabled ---
+async function updateTradeSoundSetting() {
+    try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        // Disable sound if push_trade_alerts is explicitly 'false'
+        tradeSoundEnabled = (data.push_trade_alerts !== 'false' && data.push_trade_alerts !== '0');
+    } catch (e) {
+        console.error("Could not fetch trade sound settings");
+    }
+}
+
+// Check settings on load and whenever an Admin updates them
+updateTradeSoundSetting();
+socket.on('settings_updated', updateTradeSoundSetting);
+// --------------------------------------------------------------------------
 
 setInterval(() => {
     const tradeSec = document.getElementById('tradeSection');
@@ -9,7 +27,10 @@ setInterval(() => {
 
 socket.on('trade_update', () => { 
     fetchTrades(); 
-    tradeSound.play().catch(e => { console.log("Browser blocked auto-play sound."); });
+    // --- NEW: Only play the sound if the setting is currently enabled ---
+    if (tradeSoundEnabled) {
+        tradeSound.play().catch(e => { console.log("Browser blocked auto-play sound."); });
+    }
 });
 
 function initDatePicker() {
