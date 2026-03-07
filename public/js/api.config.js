@@ -25,7 +25,22 @@ window.onload = function() {
     if (typeof fetchUserNotifications === 'function') fetchUserNotifications(false); 
     if (typeof applyRoleRestrictions === 'function') applyRoleRestrictions(); 
     
-    switchSection('learning'); 
+    // --- NEW: Check URL for the Alerts Tab Request ---
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('tab') === 'alerts') {
+        switchSection('notification');
+    } else {
+        switchSection('learning'); 
+    }
+
+    // --- NEW: Listen for background clicks if app is already open ---
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', event => {
+            if (event.data && event.data.action === 'open_alerts') {
+                if (typeof switchSection === 'function') switchSection('notification');
+            }
+        });
+    }
     
     if (typeof checkDisclaimer === 'function') checkDisclaimer();
     if (typeof checkAndPromptPushSubscription === 'function') checkAndPromptPushSubscription(); 
