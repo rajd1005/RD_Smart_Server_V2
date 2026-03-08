@@ -16,6 +16,7 @@ require('dotenv').config();
 // === IMPORT CONFIGURATIONS ===
 const { pool, initDb } = require('./config/database');
 const { redisClient, redisConnection } = require('./config/redis');
+const { initTelegramChannelsSync } = require('./services/telegram.service');
 
 // === INITIALIZE EXPRESS APP ===
 const app = express();
@@ -245,6 +246,9 @@ initDb().then(async () => {
     } catch (e) {
         console.error("❌ Failed to setup VAPID keys:", e.message);
     }
+
+    // START TELEGRAM LISTENER HERE
+    initTelegramChannelsSync(pool, app.get('io'));
 
     server.listen(PORT, () => console.log(`🚀 RD Broker Server running on ${PORT}`)); 
 });
