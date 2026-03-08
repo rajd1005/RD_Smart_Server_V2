@@ -228,5 +228,16 @@ router.put('/messages/:msgId/pin', authenticateToken, isManagerOrAdmin, async (r
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
+// Delete a Channel completely (Admin Only)
+router.delete('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        // Because database.js uses ON DELETE CASCADE, this will also automatically 
+        // delete all messages associated with this channel in the channel_messages table.
+        await pool.query("DELETE FROM channels WHERE id = $1", [req.params.id]);
+        res.json({ success: true });
+    } catch (err) { 
+        res.status(500).json({ success: false, msg: err.message }); 
+    }
+});
 
 module.exports = router;
