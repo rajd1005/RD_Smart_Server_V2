@@ -53,8 +53,11 @@ self.addEventListener('notificationclick', event => {
                     }
                     if (urlToOpen.includes('tab=alerts')) {
                         client.postMessage({ action: 'open_alerts' });
-                    } else if (urlToOpen.includes('tab=channels')) {
-                        client.postMessage({ action: 'open_channels' }); // ADD THIS
+                        } else if (urlToOpen.includes('tab=channels')) {
+                        // Extract the channel ID from the URL
+                        const match = urlToOpen.match(/id=([^&]*)/);
+                        const cId = match ? match[1] : null;
+                        client.postMessage({ action: 'open_channels', channelId: cId });
                     } else {
                         client.navigate(urlToOpen);
                     }
