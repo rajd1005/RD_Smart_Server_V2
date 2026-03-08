@@ -107,7 +107,7 @@ const initDb = async () => {
     ('show_channel_tab', 'true')
     ON CONFLICT (setting_key) DO NOTHING;`;
 
-const queryChannels = `
+    const queryChannels = `
     CREATE TABLE IF NOT EXISTS channels (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
@@ -116,7 +116,7 @@ const queryChannels = `
         show_on_home BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`;
-const alterChannelsShowHome = `ALTER TABLE channels ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN DEFAULT TRUE;`;
+
     const queryChannelMessages = `
     CREATE TABLE IF NOT EXISTS channel_messages (
         id SERIAL PRIMARY KEY,
@@ -128,7 +128,6 @@ const alterChannelsShowHome = `ALTER TABLE channels ADD COLUMN IF NOT EXISTS sho
         link_url VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`;
-const alterChannelsShowHome = `ALTER TABLE channels ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN DEFAULT TRUE;`;
 
     try {
         await pool.query(queryTrades);
@@ -142,7 +141,6 @@ const alterChannelsShowHome = `ALTER TABLE channels ADD COLUMN IF NOT EXISTS sho
         await pool.query(queryPushSubscriptions);
         await pool.query(queryScheduledNotifications);
         await pool.query(queryChannels);
-        await pool.query(alterChannelsShowHome);
         await pool.query(queryChannelMessages);
         await pool.query(populateDefaultSettings);
 
@@ -155,7 +153,8 @@ const alterChannelsShowHome = `ALTER TABLE channels ADD COLUMN IF NOT EXISTS sho
         try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS recurrence VARCHAR(20) DEFAULT 'none';`); } catch(e){}
         try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS image_path TEXT;`); } catch(e){}
         
-        // NEW FIX: Add Dashboard Visibility and Display Order to Channels
+        // Channels updates
+        try { await pool.query(`ALTER TABLE channels ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN DEFAULT TRUE;`); } catch(e){}
         try { await pool.query(`ALTER TABLE channels ADD COLUMN IF NOT EXISTS dashboard_visibility VARCHAR(20) DEFAULT 'all';`); } catch(e){}
         try { await pool.query(`ALTER TABLE channels ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0;`); } catch(e){}
 
