@@ -1,5 +1,7 @@
 let currentChannelId = null;
 window.appSettings = {};
+let channelMediaGallery = [];
+let currentGalleryIndex = 0;
 
 // Converts standard Markdown and URLs into clickable HTML (Bulletproofed)
 function parseMarkdownToHtml(text) {
@@ -24,18 +26,47 @@ function parseMarkdownToHtml(text) {
     return html;
 }
 
-// Function to show full-screen media popup
-window.viewMediaPopup = function(url, type) {
+// Function to show full-screen swipeable media gallery
+window.openSwipeGallery = function(index) {
+    currentGalleryIndex = index;
+    renderGalleryModal();
+};
+
+function renderGalleryModal() {
+    const existing = document.getElementById('mediaPopupModal');
+    if (existing) existing.remove();
+
+    const item = channelMediaGallery[currentGalleryIndex];
+    if (!item) return;
+    const isVideo = item.url.match(/\.(mp4|mov|webm|ogg)$/i);
+
     const modalHtml = `
-        <div id="mediaPopupModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; display:flex; align-items:center; justify-content:center; flex-direction:column;">
-            <span class="material-icons-round" style="position:absolute; top:20px; right:20px; color:#fff; font-size:32px; cursor:pointer;" onclick="document.getElementById('mediaPopupModal').remove()">close</span>
-            ${type === 'video' ? 
-                `<video src="${url}" controls autoplay style="max-width:95%; max-height:80vh;"></video>` : 
-                `<img src="${url}" style="max-width:95%; max-height:80vh; border-radius:8px;">`
-            }
-            <a href="${url}" download class="btn btn-light mt-3 fw-bold"><span class="material-icons-round align-middle me-1">download</span>Download</a>
+        <div id="mediaPopupModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:9999; display:flex; align-items:center; justify-content:center;">
+            <span class="material-icons-round" style="position:absolute; top:20px; right:20px; color:#fff; font-size:32px; cursor:pointer; z-index:10001;" onclick="document.getElementById('mediaPopupModal').remove()">close</span>
+            
+            <button onclick="changeGalleryItem(-1)" style="position:absolute; left:10px; background:none; border:none; color:white; z-index:10001;"><span class="material-icons-round" style="font-size:48px;">chevron_left</span></button>
+            <button onclick="changeGalleryItem(1)" style="position:absolute; right:10px; background:none; border:none; color:white; z-index:10001;"><span class="material-icons-round" style="font-size:48px;">chevron_right</span></button>
+
+            <div id="galleryContent" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
+                ${isVideo ? 
+                    `<video src="${item.url}" controls autoplay style="max-width:95%; max-height:90vh;"></video>` : 
+                    `<img src="${item.url}" style="max-width:95%; max-height:90vh; object-fit:contain; border-radius:4px;">`
+                }
+            </div>
+            
+            <div style="position:absolute; bottom:20px; color:white; font-size:12px; font-weight:bold;">
+                ${currentGalleryIndex + 1} / ${channelMediaGallery.length}
+            </div>
         </div>`;
+    
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+window.changeGalleryItem = function(direction) {
+    currentGalleryIndex += direction;
+    if (currentGalleryIndex < 0) currentGalleryIndex = channelMediaGallery.length - 1;
+    if (currentGalleryIndex >= channelMediaGallery.length) currentGalleryIndex = 0;
+    renderGalleryModal();
 };
 
 async function initChannelTab() {
@@ -139,6 +170,12 @@ async function fetchChannelMessages(id) {
     try {
         const res = await fetch(`/api/channels/${id}/messages`, { credentials: 'same-origin' });
         const data = await res.json();
+        
+        // Reset and populate the global media gallery list for swiping
+        channelMediaGallery = data.data
+            .filter(m => m.image_url && m.image_url !== 'null' && m.image_url !== 'undefined')
+            .map(m => ({ url: m.image_url, id: m.id }));
+
         const chatObj = document.getElementById('channelChatView');
         chatObj.innerHTML = '';
         
@@ -176,11 +213,13 @@ async function fetchChannelMessages(id) {
             let mediaHtml = '';
             if (m.image_url && m.image_url !== 'null' && m.image_url !== 'undefined') {
                 const safeImgUrl = String(m.image_url);
+                const galleryIndex = channelMediaGallery.findIndex(item => item.id === m.id);
                 const isVideo = safeImgUrl.match(/\.(mp4|mov|webm|ogg)$/i);
+                
                 if (isVideo) {
-                    mediaHtml = `<video src="${safeImgUrl}" controls style="max-width: 100%; border-radius: 8px; margin-bottom: 8px; cursor: pointer;" onclick="viewMediaPopup('${safeImgUrl}', 'video')"></video>`;
+                    mediaHtml = `<video src="${safeImgUrl}" controls style="max-width: 100%; border-radius: 8px; margin-bottom: 8px; cursor: pointer;" onclick="openSwipeGallery(${galleryIndex})"></video>`;
                 } else {
-                    mediaHtml = `<img src="${safeImgUrl}" style="max-width: 100%; border-radius: 8px; margin-bottom: 8px; cursor: pointer;" onclick="viewMediaPopup('${safeImgUrl}', 'image')" onerror="this.style.display='none'">`;
+                    mediaHtml = `<img src="${safeImgUrl}" style="max-width: 100%; border-radius: 8px; margin-bottom: 8px; cursor: pointer;" onclick="openSwipeGallery(${galleryIndex})" onerror="this.style.display='none'">`;
                 }
             }
             
@@ -329,27 +368,24 @@ if (formChannelMsg) {
         const replyId = replyIdEl ? replyIdEl.value : '';
 
         try {
+            const formData = new FormData();
+            formData.append('title', document.getElementById('channelMsgTitle').value);
+            formData.append('body', document.getElementById('channelMsgBody').value);
+            formData.append('link_url', document.getElementById('channelMsgUrl').value);
+            
+            const imageEl = document.getElementById('channelMsgImage');
+            if (imageEl && imageEl.files[0]) formData.append('image', imageEl.files[0]);
+
             if (editId) {
+                // EDIT EXISTING MESSAGE (With potential new media)
                 await fetch(`/api/channels/messages/${editId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        title: document.getElementById('channelMsgTitle').value,
-                        body: document.getElementById('channelMsgBody').value,
-                        link_url: document.getElementById('channelMsgUrl').value
-                    }),
+                    body: formData,
                     credentials: 'same-origin'
                 });
             } else {
-                const formData = new FormData();
-                formData.append('title', document.getElementById('channelMsgTitle').value);
-                formData.append('body', document.getElementById('channelMsgBody').value);
-                formData.append('link_url', document.getElementById('channelMsgUrl').value);
+                // NEW MESSAGE
                 if (replyId) formData.append('reply_to_id', replyId);
-                
-                const imageEl = document.getElementById('channelMsgImage');
-                if (imageEl && imageEl.files[0]) formData.append('image', imageEl.files[0]);
-
                 await fetch(`/api/channels/${id}/messages`, { method: 'POST', body: formData, credentials: 'same-origin' });
             }
             
