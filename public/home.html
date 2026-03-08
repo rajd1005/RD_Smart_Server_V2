@@ -451,7 +451,12 @@
             } catch(e) {}
         }
 
+window.appSettings = {}; // Global reference
+
         socket.on('new_channel_msg', (data) => {
+            // Block notification sound/update if channels are disabled
+            if (window.appSettings && window.appSettings.show_channel_tab === 'false') return;
+
             channelSound.play().catch(e => {});
             if (currentPublicChannelId == data.channel_id) {
                 fetchPublicChannelMessages(currentPublicChannelId);
@@ -1016,13 +1021,23 @@
             wmEl.style.left = Math.floor(Math.random() * (maxX - minX + 1)) + minX + 'px'; wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
         }
 
-        async function fetchSystemSettings() {
+async function fetchSystemSettings() {
             try {
                 const settingsRes = await fetch('/api/settings');
                 const settings = await settingsRes.json();
+                
+                window.appSettings = settings; // Save settings globally
+
                 const regBtn = document.getElementById('registerLinkBtn');
                 if (regBtn && settings.register_link) {
                     regBtn.href = settings.register_link;
+                }
+
+                // Strictly hide the Home / Free Channel Toggle Nav if disabled
+                if (settings.show_channel_tab === 'false') {
+                    document.getElementById('homeSubNav').setAttribute('style', 'display: none !important;');
+                } else {
+                    document.getElementById('homeSubNav').setAttribute('style', 'display: flex; position: sticky; top: 48px; z-index: 100;');
                 }
             } catch(e) {}
         }
