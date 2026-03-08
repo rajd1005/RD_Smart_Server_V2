@@ -128,6 +128,7 @@ const alterChannelsShowHome = `ALTER TABLE channels ADD COLUMN IF NOT EXISTS sho
         link_url VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`;
+const alterChannelsShowHome = `ALTER TABLE channels ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN DEFAULT TRUE;`;
 
     try {
         await pool.query(queryTrades);
@@ -152,11 +153,13 @@ const alterChannelsShowHome = `ALTER TABLE channels ADD COLUMN IF NOT EXISTS sho
         try { await pool.query(`ALTER TABLE lesson_videos ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;`); } catch(e){}
         try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS target_audience VARCHAR(50) DEFAULT 'both';`); } catch(e){}
         try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS recurrence VARCHAR(20) DEFAULT 'none';`); } catch(e){}
-        
-        // NEW FIX: Add image_path to the existing table
         try { await pool.query(`ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS image_path TEXT;`); } catch(e){}
+        
+        // NEW FIX: Add Dashboard Visibility and Display Order to Channels
+        try { await pool.query(`ALTER TABLE channels ADD COLUMN IF NOT EXISTS dashboard_visibility VARCHAR(20) DEFAULT 'all';`); } catch(e){}
+        try { await pool.query(`ALTER TABLE channels ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0;`); } catch(e){}
 
-        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push + Notifications)");
+        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push + Notifications + Channels)");
     } catch (err) {
         console.error("❌ Database Error:", err);
     }
