@@ -360,7 +360,7 @@
             }
         }
 
-        async function fetchPublicChannels() {
+async function fetchPublicChannels() {
             showPublicChannelList();
             try {
                 const res = await fetch('/api/channels/public');
@@ -368,20 +368,25 @@
                 const listObj = document.getElementById('publicChannelListView');
                 
                 if (data.data.length === 0) {
-                    listObj.innerHTML = '<div class="text-center text-muted mt-5"><span class="material-icons-round" style="font-size:48px; opacity:0.2;">forum</span><br>No free channels available.</div>';
+                    listObj.innerHTML = '<div class="text-center text-muted mt-5"><span class="material-icons-round" style="font-size:48px; opacity:0.2;">forum</span><br>No channels available.</div>';
                     return;
                 }
                 
                 let html = '';
                 data.data.forEach(c => {
+                    const isLocked = c.access_level !== 'demo';
+                    const iconHtml = isLocked ? 
+                        `<div class="bg-light text-muted rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; border: 1px solid #ccc;"><span class="material-icons-round">lock</span></div>` :
+                        `<div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; font-weight: bold; font-size: 18px;">${c.name.charAt(0).toUpperCase()}</div>`;
+                    
+                    const action = isLocked ? `openLoginModal()` : `openPublicChannel(${c.id}, '${c.name.replace(/'/g, "\\'")}')`;
+                    
                     html += `
-                    <div class="p-3 bg-white rounded shadow-sm mb-2 d-flex align-items-center" style="cursor:pointer; border: 1px solid var(--border-color);" onclick="openPublicChannel(${c.id}, '${c.name.replace(/'/g, "\\'")}')">
-                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; font-weight: bold; font-size: 18px;">
-                            ${c.name.charAt(0).toUpperCase()}
-                        </div>
+                    <div class="p-3 bg-white rounded shadow-sm mb-2 d-flex align-items-center" style="cursor:pointer; border: 1px solid var(--border-color); ${isLocked ? 'opacity: 0.8;' : ''}" onclick="${action}">
+                        ${iconHtml}
                         <div>
                             <h6 class="mb-0 fw-bold" style="font-size: 14px; color: #000;">${c.name}</h6>
-                            <div class="text-muted" style="font-size: 11px;">${c.description || 'Tap to view messages'}</div>
+                            <div class="text-muted" style="font-size: 11px;">${isLocked ? '⚠️ Locked. Login to access.' : (c.description || 'Tap to view messages')}</div>
                         </div>
                     </div>`;
                 });
@@ -389,7 +394,7 @@
 
                 if (window.pendingChannelId) {
                     const targetChannel = data.data.find(c => c.id == window.pendingChannelId);
-                    if (targetChannel) openPublicChannel(targetChannel.id, targetChannel.name);
+                    if (targetChannel && targetChannel.access_level === 'demo') openPublicChannel(targetChannel.id, targetChannel.name);
                     window.pendingChannelId = null; 
                 }
             } catch(e) {}
