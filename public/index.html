@@ -182,6 +182,7 @@
                 <div class="p-4 text-center text-muted">Loading courses...</div>
             </div>
         </div>
+
         <div id="channelSection" style="display:none; flex-direction: column; position: fixed; top: 40px; bottom: 55px; left: 0; right: 0; max-width: 800px; margin: 0 auto; background-color: #efeae2; z-index: 50;">
             <div class="p-2 bg-white shadow-sm z-1 border-bottom d-flex align-items-center">
                 <button class="btn btn-sm btn-light me-2 p-1" id="btnBackChannels" style="display:none;" onclick="showChannelList()"><span class="material-icons-round" style="font-size: 18px;">arrow_back</span></button>
@@ -219,7 +220,8 @@
                 </form>
             </div>
         </div>
-<div id="notificationSection" style="display:none; flex-direction: column; position: fixed; top: 40px; bottom: 55px; left: 0; right: 0; max-width: 800px; margin: 0 auto; background-color: #efeae2; z-index: 50;">
+
+        <div id="notificationSection" style="display:none; flex-direction: column; position: fixed; top: 40px; bottom: 55px; left: 0; right: 0; max-width: 800px; margin: 0 auto; background-color: #efeae2; z-index: 50;">
             <div class="p-2 bg-white shadow-sm z-1 border-bottom">
                 <h6 class="mb-0 fw-bold px-2 py-1"><span class="material-icons-round text-primary me-2 align-middle">notifications_active</span>Alerts</h6>
             </div>
@@ -227,7 +229,8 @@
                 <div class="text-center text-muted mt-3" style="font-size:12px;">Loading alerts...</div>
             </div>
         </div>
-<div id="pushSection" style="display:none; flex-direction: column; position: fixed; top: 40px; bottom: 55px; left: 0; right: 0; max-width: 800px; margin: 0 auto; background-color: #efeae2; z-index: 50;">
+
+        <div id="pushSection" style="display:none; flex-direction: column; position: fixed; top: 40px; bottom: 55px; left: 0; right: 0; max-width: 800px; margin: 0 auto; background-color: #efeae2; z-index: 50;">
             <div class="p-2 bg-white shadow-sm z-1 d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center">
                     <span class="material-icons-round text-primary me-2">campaign</span>
@@ -240,9 +243,9 @@
             </div>
             
             <div class="flex-grow-1 p-3" id="chatHistory" style="overflow-y: auto; background-color: #efeae2; display: flex; flex-direction: column;">
-                </div>
+            </div>
             
-<div class="p-2 bg-white border-top shadow-sm z-2">
+            <div class="p-2 bg-white border-top shadow-sm z-2">
                 <form id="formChatPush" class="d-flex flex-column gap-2 mb-0">
                     
                     <div class="d-flex gap-1 align-items-center">
@@ -306,8 +309,9 @@
                     </div>
                 </form>
             </div>
+        </div> 
 
-</div> <nav class="bottom-nav" id="navDefault">
+        <nav class="bottom-nav" id="navDefault">
             <button class="b-btn" id="navTradeBtn" onclick="switchSection('trade')" style="display:none;"><span class="material-icons-round">analytics</span>Trade</button>
             <button class="b-btn b-active" id="navLearnBtn" onclick="switchSection('learning')"><span class="material-icons-round">school</span>Learn</button>
             <button class="b-btn" id="navChannelBtn" onclick="switchSection('channel')" style="display:none;"><span class="material-icons-round">forum</span>Channels</button>
@@ -364,16 +368,16 @@
                         <input type="hidden" id="editPushId">
                         <label class="form-label fw-bold mb-0" style="font-size: 10px; color: var(--text-secondary);">Target Audience</label>
                         <select id="editPushTarget" class="form-select form-select-sm bg-light" style="font-size:12px;">
-    <option value="both">🌍 Send to ALL Users (Login + Public)</option>
-    <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
-    <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
-    <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
-    <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
-    <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
-    <option value="login_with_level_2">🔒 Login User with Level 2</option>
-    <option value="login_with_level_3">🔒 Login User with Level 3</option>
-    <option value="login_with_level_4">🔒 Login User with Level 4</option>
-</select>
+                            <option value="both">🌍 Send to ALL Users (Login + Public)</option>
+                            <option value="logged_in">🔒 Send to LOGIN Users ONLY</option>
+                            <option value="non_logged_in">🌐 Send to NON-LOGGED Users ONLY</option>
+                            <option value="login_no_level_2">🔒 Login User But Not Join Level 2</option>
+                            <option value="login_no_level_3">🔒 Login User But Not Join Level 3</option>
+                            <option value="login_no_level_4">🔒 Login User But Not Join Level 4</option>
+                            <option value="login_with_level_2">🔒 Login User with Level 2</option>
+                            <option value="login_with_level_3">🔒 Login User with Level 3</option>
+                            <option value="login_with_level_4">🔒 Login User with Level 4</option>
+                        </select>
                         <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Title</label>
                         <input type="text" id="editPushTitle" class="form-control bg-light" style="font-size:13px;" required>
                         <label class="form-label fw-bold mb-0 mt-1" style="font-size: 10px; color: var(--text-secondary);">Body</label>
@@ -412,6 +416,7 @@
             </div>
         </div>
     </div>
+
     <div class="modal fade" id="disclaimerModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 500px;">
             <div class="modal-content">
@@ -694,7 +699,7 @@
 
                         <div class="tab-pane fade" id="pane-channels" role="tabpanel">
                             <h6 class="fw-bold mb-2" style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary);">Create New Channel</h6>
-<form id="formAddChannel">
+                            <form id="formAddChannel">
                                 <div class="mb-2"><input type="text" id="adminChannelName" class="form-control" placeholder="Channel Name" required></div>
                                 <div class="mb-2"><input type="text" id="adminChannelDesc" class="form-control" placeholder="Short Description"></div>
                                 <div class="row g-2 mb-3">
@@ -788,7 +793,40 @@
         </div>
     </div>
 
-<div class="modal fade" id="editChannelModal" tabindex="-1">
+    <div class="modal fade" id="editLessonModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 320px;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title mb-0">Edit Lesson Information</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formEditLesson">
+                        <input type="hidden" id="editLessonId">
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Lesson Title</label>
+                            <input type="text" id="editLessonTitle" class="form-control" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description / Rich Text</label>
+                            <textarea id="editLessonDesc" class="form-control" rows="4"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
+                            <input type="number" id="editLessonDisplayOrder" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Update Thumbnail (Leave empty to keep existing)</label>
+                            <input type="file" id="editLessonThumbnailFile" class="form-control" accept="image/*">
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Save Changes</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editChannelModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered" style="max-width: 320px;">
             <div class="modal-content">
                 <div class="modal-header">
@@ -796,7 +834,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
                 </div>
                 <div class="modal-body">
-<form id="formEditChannel">
+                    <form id="formEditChannel">
                         <input type="hidden" id="editChannelId">
                         <div class="mb-2">
                             <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Channel Name</label>
