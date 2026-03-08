@@ -1,5 +1,36 @@
 let currentChannelId = null;
 window.appSettings = {};
+
+// Converts standard Markdown and URLs into clickable HTML
+function parseMarkdownToHtml(text) {
+    if (!text) return '';
+    // Prevent XSS by escaping HTML brackets first
+    let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    
+    // 1. Markdown Links: [text](url) -> becomes active hyperlink
+    html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" style="color:var(--blue); text-decoration:underline; font-weight:600;">$1</a>');
+    
+    // 2. Auto-link loose URLs that aren't inside an 'href' already
+    html = html.replace(/(^|\s)(https?:\/\/[^\s]+)/g, '$1<a href="$2" target="_blank" style="color:var(--blue); text-decoration:underline; font-weight:600;">$2</a>');
+
+    // 3. Bold: *text* or **text**
+    html = html.replace(/\*\*([^\*]+)\*\*/g, '<b>$1</b>'); 
+    html = html.replace(/\*([^\*]+)\*/g, '<b>$1</b>');     
+    
+    // 4. Italic: _text_
+    html = html.replace(/_([^_]+)_/g, '<i>$1</i>');
+    
+    // 5. Strikethrough: ~text~
+    html = html.replace(/~([^~]+)~/g, '<s>$1</s>');
+    
+    // 6. Monospace Code: `text`
+    html = html.replace(/`([^`]+)`/g, '<code style="background:#f1f1f1; padding:2px 4px; border-radius:4px; color:#d63384;">$1</code>');
+    
+    // 7. Line Breaks
+    html = html.replace(/\n/g, '<br>');
+    return html;
+}
+
 async function initChannelTab() {
     try {
         const res = await fetch('/api/settings');
@@ -119,8 +150,9 @@ async function fetchChannelMessages(id) {
         
         if (latestPinned && pinnedBar) {
             pinnedBar.style.display = 'block';
+            const pinnedTitleSafe = latestPinned.title ? latestPinned.title.replace(/[\*\_~`]/g, '') : '';
             const pinnedText = document.getElementById('channelPinnedMsgText');
-            if (pinnedText) pinnedText.innerText = latestPinned.title + " - " + latestPinned.body;
+            if (pinnedText) pinnedText.innerText = pinnedTitleSafe;
             pinnedBar.onclick = () => {
                 const target = document.getElementById(`msg-${latestPinned.id}`);
                 if(target) target.scrollIntoView({behavior: 'smooth', block: 'center'});
@@ -149,14 +181,18 @@ async function fetchChannelMessages(id) {
             let linkHtml = m.link_url ? `<a href="${m.link_url}" target="_blank" class="chat-link mt-2" style="font-size:11px;">${m.link_url}</a>` : '';
 
             const safeTitle = (m.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            // safeBody passes raw text formatting to the edit box so admins can edit it naturally
             const safeBody = (m.body || '').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n');
             const safeLink = (m.link_url || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            
+            // Format HTML for the visible chat bubble
+            const formattedBodyHtml = parseMarkdownToHtml(m.body);
 
             // 1. Reply Bubble Structure
             const replySnippet = m.reply_to_id ? `
                 <div style="border-left: 3px solid var(--blue); background: rgba(0,0,0,0.04); padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; font-size: 11px; cursor: pointer;" onclick="const t = document.getElementById('msg-${m.reply_to_id}'); if(t) t.scrollIntoView({behavior:'smooth', block:'center'});">
-                    <div style="font-weight:bold; color:var(--blue);">${m.reply_title || 'Message'}</div>
-                    <div style="color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${m.reply_body_snippet || 'Deleted'}</div>
+                    <div style="font-weight:bold; color:var(--blue);">${m.reply_title ? m.reply_title.replace(/[\*\_~`]/g, '') : 'Message'}</div>
+                    <div style="color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${m.reply_body_snippet ? m.reply_body_snippet.replace(/[\*\_~`]/g, '') : 'Deleted'}</div>
                 </div>
             ` : '';
 
@@ -186,9 +222,9 @@ async function fetchChannelMessages(id) {
                     <span style="font-size: 9px; color: var(--text-secondary);">${dateStr}${pinIcon}</span>
                 </div>
                 ${replySnippet}
-                <div class="chat-title mt-1">${m.title}</div>
+                <div class="chat-title mt-1">${parseMarkdownToHtml(m.title)}</div>
                 ${imgHtml}
-                <div class="chat-body" style="font-size: 13px; color: #333;">${m.body}</div>
+                <div class="chat-body" style="font-size: 13px; color: #333; line-height: 1.5;">${formattedBodyHtml}</div>
                 ${linkHtml}
             </div>`;
         });
@@ -206,7 +242,7 @@ window.replyChannelMsg = function(id, title, snippet) {
         preview.style.backgroundColor = '#e3f2fd';
         preview.style.borderLeftColor = 'var(--blue)';
         document.getElementById('channelReplyModeText').innerHTML = 'Replying to... <span class="material-icons-round float-end text-muted" style="font-size:14px; cursor:pointer;" onclick="cancelChannelReplyEdit()">close</span>';
-        document.getElementById('channelReplyText').innerText = title + ' - ' + snippet;
+        document.getElementById('channelReplyText').innerText = title.replace(/[\*\_~`]/g, '') + ' - ' + snippet.replace(/[\*\_~`]/g, '');
     }
 
     const replyIdEl = document.getElementById('activeReplyId');
@@ -226,7 +262,7 @@ window.editChannelMsgInit = function(id, title, body, url) {
         preview.style.backgroundColor = '#fff3cd';
         preview.style.borderLeftColor = '#ffc107';
         document.getElementById('channelReplyModeText').innerHTML = 'Editing message... <span class="material-icons-round float-end text-muted" style="font-size:14px; cursor:pointer;" onclick="cancelChannelReplyEdit()">close</span>';
-        document.getElementById('channelReplyText').innerText = title;
+        document.getElementById('channelReplyText').innerText = title.replace(/[\*\_~`]/g, '');
     }
 
     const editIdEl = document.getElementById('activeEditMsgId');
