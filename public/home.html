@@ -177,20 +177,20 @@
             </div>
         </div>
 
-<div id="publicChannelsContent" style="display:none; flex-direction: column; position: fixed; top: 88px; bottom: 0; left: 0; right: 0; max-width: 800px; margin: 0 auto; background-color: var(--bg-color); z-index: 50;">
+<div id="publicChannelsContent" style="display:none; flex-direction: column; background-color: var(--bg-color); height: calc(100vh - 90px); overflow: hidden;">
             
+            <div class="bg-white p-2 shadow-sm flex-shrink-0 align-items-center" id="publicChannelHeader" style="display:none; z-index: 99; border-bottom: 1px solid var(--border-color);">
+                <button class="btn btn-sm btn-light me-2 p-1 d-flex align-items-center justify-content-center" onclick="showPublicChannelList()" style="height: 30px; width: 30px;"><span class="material-icons-round" style="font-size: 18px;">arrow_back</span></button>
+                <h6 class="mb-0 fw-bold text-truncate" id="publicChannelHeaderTitle" style="font-size: 15px; color: var(--blue);">Channel Name</h6>
+            </div>
+
             <div class="flex-grow-1 p-2" id="publicChannelListView" style="overflow-y: auto;">
                 <div class="text-center text-muted mt-3" style="font-size:12px;">Loading channels...</div>
             </div>
             
-            <div id="publicChannelChatView" class="w-100 h-100" style="display:none; flex-direction: column;">
-                <div class="d-flex align-items-center bg-white p-2 shadow-sm flex-shrink-0 z-1" style="border-bottom: 1px solid var(--border-color);">
-                    <button class="btn btn-sm btn-light me-2 p-1 d-flex align-items-center justify-content-center" onclick="showPublicChannelList()" style="height: 30px; width: 30px;"><span class="material-icons-round" style="font-size: 18px;">arrow_back</span></button>
-                    <h6 class="mb-0 fw-bold text-truncate" id="publicChannelHeaderTitle" style="font-size: 15px; color: var(--blue);">Channel Name</h6>
-                </div>
-                
-                <div id="publicChannelMessages" class="p-3 flex-grow-1" style="overflow-y: auto; background-color: var(--bg-color);"></div>
+            <div class="flex-grow-1 p-3" id="publicChannelChatView" style="display:none; overflow-y: auto; flex-direction: column;">
             </div>
+
         </div>
         
         <div id="stickyFooterWrapper" class="sticky-footer-wrapper" style="display:none;"></div>
