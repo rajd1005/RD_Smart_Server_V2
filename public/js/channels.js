@@ -105,63 +105,212 @@ async function fetchChannelMessages(id) {
         const chatObj = document.getElementById('channelChatView');
         chatObj.innerHTML = '';
         
+        const pinnedBar = document.getElementById('channelPinnedMsgBar');
+
         if (data.data.length === 0) {
             chatObj.innerHTML = '<div class="text-center text-muted mt-4" style="font-size:12px;">No messages yet.</div>';
+            if (pinnedBar) pinnedBar.style.display = 'none';
             return;
         }
 
+        // --- PINNED MESSAGE BAR LOGIC ---
+        let pinnedMsgs = data.data.filter(m => m.is_pinned);
+        let latestPinned = pinnedMsgs.length > 0 ? pinnedMsgs[pinnedMsgs.length - 1] : null;
+        
+        if (latestPinned && pinnedBar) {
+            pinnedBar.style.display = 'block';
+            const pinnedText = document.getElementById('channelPinnedMsgText');
+            if (pinnedText) pinnedText.innerText = latestPinned.title + " - " + latestPinned.body;
+            pinnedBar.onclick = () => {
+                const target = document.getElementById(`msg-${latestPinned.id}`);
+                if(target) target.scrollIntoView({behavior: 'smooth', block: 'center'});
+            };
+        } else if (pinnedBar) { 
+            pinnedBar.style.display = 'none'; 
+        }
+
         let html = '';
+        const isAdminRole = (typeof userData !== 'undefined' && (userData.role === 'admin' || userData.role === 'manager'));
+
         data.data.forEach(m => {
             const dateStr = new Date(m.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
             let imgHtml = m.image_url ? `<img src="${m.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;">` : '';
             let linkHtml = m.link_url ? `<a href="${m.link_url}" target="_blank" class="chat-link mt-2" style="font-size:11px;">${m.link_url}</a>` : '';
 
-            html += `
-            <div class="chat-bubble mb-3 w-100 shadow-sm" style="background-color: #fff; max-width: 90%; align-self: flex-start; border: 1px solid var(--border-color); border-radius: 12px; border-bottom-left-radius: 0; padding: 10px 14px;">
-                <div class="d-flex justify-content-between mb-1 border-bottom pb-1">
-                    <span style="font-size: 10px; font-weight: 900; color: var(--blue); text-transform: uppercase;">${m.sender_email.split('@')[0]}</span>
-                    <span style="font-size: 9px; color: var(--text-secondary);">${dateStr}</span>
+            const safeTitle = (m.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const safeBody = (m.body || '').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n');
+            const safeLink = (m.link_url || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+            // 1. Reply Bubble Structure
+            const replySnippet = m.reply_to_id ? `
+                <div style="border-left: 3px solid var(--blue); background: rgba(0,0,0,0.04); padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; font-size: 11px; cursor: pointer;" onclick="const t = document.getElementById('msg-${m.reply_to_id}'); if(t) t.scrollIntoView({behavior:'smooth', block:'center'});">
+                    <div style="font-weight:bold; color:var(--blue);">${m.reply_title || 'Message'}</div>
+                    <div style="color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${m.reply_body_snippet || 'Deleted'}</div>
                 </div>
+            ` : '';
+
+            const pinIcon = m.is_pinned ? `<span class="material-icons-round text-primary ms-2" style="font-size: 14px; vertical-align: middle;">push_pin</span>` : '';
+
+            // 2. Options Dropdown
+            let optionsMenu = '';
+            if (isAdminRole) {
+                optionsMenu = `
+                <div class="dropdown float-end z-3">
+                    <span class="material-icons-round text-muted" style="font-size: 18px; cursor: pointer; padding: 2px;" data-bs-toggle="dropdown">more_vert</span>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 12px; min-width: 120px;">
+                        <li><a class="dropdown-item" href="#" onclick="replyChannelMsg(${m.id}, '${safeTitle}', '${safeBody.substring(0,30)}')"><span class="material-icons-round align-middle me-2" style="font-size:16px;">reply</span>Reply</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="editChannelMsgInit(${m.id}, '${safeTitle}', '${safeBody}', '${safeLink}')"><span class="material-icons-round align-middle me-2" style="font-size:16px;">edit</span>Edit</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="togglePinChannelMsg(${m.id}, ${!m.is_pinned})"><span class="material-icons-round align-middle me-2" style="font-size:16px;">${m.is_pinned ? 'push_pin' : 'push_pin'}</span>${m.is_pinned ? 'Unpin' : 'Pin'}</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="#" onclick="deleteChannelMsg(${m.id})"><span class="material-icons-round align-middle me-2" style="font-size:16px;">delete</span>Delete</a></li>
+                    </ul>
+                </div>`;
+            }
+
+            html += `
+            <div id="msg-${m.id}" class="chat-bubble mb-3 w-100 shadow-sm" style="background-color: #fff; max-width: 90%; align-self: flex-start; border: 1px solid var(--border-color); border-radius: 12px; border-bottom-left-radius: 0; padding: 10px 14px; position:relative;">
+                ${optionsMenu}
+                <div class="d-flex justify-content-between mb-1 border-bottom pb-1 ${isAdminRole ? 'pe-4' : ''}">
+                    <span style="font-size: 10px; font-weight: 900; color: var(--blue); text-transform: uppercase;">${(m.sender_email||'').split('@')[0]}</span>
+                    <span style="font-size: 9px; color: var(--text-secondary);">${dateStr}${pinIcon}</span>
+                </div>
+                ${replySnippet}
                 <div class="chat-title mt-1">${m.title}</div>
                 ${imgHtml}
                 <div class="chat-body" style="font-size: 13px; color: #333;">${m.body}</div>
                 ${linkHtml}
             </div>`;
         });
+        
         chatObj.innerHTML = html;
         chatObj.scrollTop = chatObj.scrollHeight;
-    } catch(e) {}
+    } catch(e) { console.log(e) }
 }
 
+// --- NEW ACTION FUNCTIONS ---
+window.replyChannelMsg = function(id, title, snippet) {
+    const preview = document.getElementById('channelReplyPreview');
+    if (preview) {
+        preview.style.display = 'block';
+        preview.style.backgroundColor = '#e3f2fd';
+        preview.style.borderLeftColor = 'var(--blue)';
+        document.getElementById('channelReplyModeText').innerHTML = 'Replying to... <span class="material-icons-round float-end text-muted" style="font-size:14px; cursor:pointer;" onclick="cancelChannelReplyEdit()">close</span>';
+        document.getElementById('channelReplyText').innerText = title + ' - ' + snippet;
+    }
+
+    const replyIdEl = document.getElementById('activeReplyId');
+    if(replyIdEl) replyIdEl.value = id;
+    
+    const editIdEl = document.getElementById('activeEditMsgId');
+    if(editIdEl) editIdEl.value = '';
+    
+    const bodyEl = document.getElementById('channelMsgBody');
+    if(bodyEl) bodyEl.focus();
+};
+
+window.editChannelMsgInit = function(id, title, body, url) {
+    const preview = document.getElementById('channelReplyPreview');
+    if (preview) {
+        preview.style.display = 'block';
+        preview.style.backgroundColor = '#fff3cd';
+        preview.style.borderLeftColor = '#ffc107';
+        document.getElementById('channelReplyModeText').innerHTML = 'Editing message... <span class="material-icons-round float-end text-muted" style="font-size:14px; cursor:pointer;" onclick="cancelChannelReplyEdit()">close</span>';
+        document.getElementById('channelReplyText').innerText = title;
+    }
+
+    const editIdEl = document.getElementById('activeEditMsgId');
+    if(editIdEl) editIdEl.value = id;
+    
+    const replyIdEl = document.getElementById('activeReplyId');
+    if(replyIdEl) replyIdEl.value = '';
+    
+    document.getElementById('channelMsgTitle').value = title;
+    document.getElementById('channelMsgBody').value = body;
+    
+    const urlEl = document.getElementById('channelMsgUrl');
+    if(urlEl) urlEl.value = url || '';
+    
+    const submitBtn = document.getElementById('btnChannelSubmit');
+    if(submitBtn) submitBtn.innerHTML = '<span class="material-icons-round" style="font-size:18px; margin-left:4px;">check</span>';
+};
+
+window.cancelChannelReplyEdit = function() {
+    const preview = document.getElementById('channelReplyPreview');
+    if(preview) preview.style.display = 'none';
+    
+    const replyIdEl = document.getElementById('activeReplyId');
+    if(replyIdEl) replyIdEl.value = '';
+    
+    const editIdEl = document.getElementById('activeEditMsgId');
+    if(editIdEl) editIdEl.value = '';
+    
+    const submitBtn = document.getElementById('btnChannelSubmit');
+    if(submitBtn) submitBtn.innerHTML = '<span class="material-icons-round" style="font-size:18px; margin-left:4px;">send</span>';
+    
+    const form = document.getElementById('formChannelMessage');
+    if(form) form.reset();
+};
+
+window.deleteChannelMsg = async function(id) {
+    if(!confirm("Are you sure you want to delete this message?")) return;
+    try { await fetch(`/api/channels/messages/${id}`, { method: 'DELETE', credentials: 'same-origin' }); } catch(e) {}
+};
+
+window.togglePinChannelMsg = async function(id, isPinned) {
+    try {
+        await fetch(`/api/channels/messages/${id}/pin`, { 
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_pinned: isPinned }), credentials: 'same-origin' 
+        });
+    } catch(e) {}
+};
+
+// --- UPDATE FORM SUBMIT TO SUPPORT EDIT AND REPLY_TO_ID ---
 const formChannelMsg = document.getElementById('formChannelMessage');
 if (formChannelMsg) {
     formChannelMsg.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = document.getElementById('btnChannelSubmit');
-        btn.disabled = true;
+        if (btn) btn.disabled = true;
 
         const id = document.getElementById('activeChannelId').value;
-        const formData = new FormData();
-        formData.append('title', document.getElementById('channelMsgTitle').value);
-        formData.append('body', document.getElementById('channelMsgBody').value);
-        formData.append('link_url', document.getElementById('channelMsgUrl').value);
-        
-        const imageEl = document.getElementById('channelMsgImage');
-        if (imageEl && imageEl.files[0]) formData.append('image', imageEl.files[0]);
+        const editIdEl = document.getElementById('activeEditMsgId');
+        const replyIdEl = document.getElementById('activeReplyId');
+        const editId = editIdEl ? editIdEl.value : '';
+        const replyId = replyIdEl ? replyIdEl.value : '';
 
         try {
-            const res = await fetch(`/api/channels/${id}/messages`, { method: 'POST', body: formData, credentials: 'same-origin' });
-            if (res.ok) {
-                document.getElementById('channelMsgTitle').value = '';
-                document.getElementById('channelMsgBody').value = '';
-                document.getElementById('channelMsgUrl').value = '';
-                if (imageEl) imageEl.value = '';
-                fetchChannelMessages(id);
+            if (editId) {
+                // EDIT EXISTING MESSAGE
+                await fetch(`/api/channels/messages/${editId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: document.getElementById('channelMsgTitle').value,
+                        body: document.getElementById('channelMsgBody').value,
+                        link_url: document.getElementById('channelMsgUrl').value
+                    }),
+                    credentials: 'same-origin'
+                });
+            } else {
+                // SEND NEW OR REPLY MESSAGE
+                const formData = new FormData();
+                formData.append('title', document.getElementById('channelMsgTitle').value);
+                formData.append('body', document.getElementById('channelMsgBody').value);
+                formData.append('link_url', document.getElementById('channelMsgUrl').value);
+                if (replyId) formData.append('reply_to_id', replyId);
                 
-                const adv = document.getElementById('advancedChannelOptions');
-                if (adv.classList.contains('show')) new bootstrap.Collapse(adv).hide();
+                const imageEl = document.getElementById('channelMsgImage');
+                if (imageEl && imageEl.files[0]) formData.append('image', imageEl.files[0]);
+
+                await fetch(`/api/channels/${id}/messages`, { method: 'POST', body: formData, credentials: 'same-origin' });
             }
-        } catch(e) {} finally { btn.disabled = false; }
+            
+            cancelChannelReplyEdit(); 
+            const adv = document.getElementById('advancedChannelOptions');
+            if (adv && adv.classList.contains('show')) new bootstrap.Collapse(adv).hide();
+        } catch(e) { console.error("Submit Error:", e); } 
+        finally { if (btn) btn.disabled = false; }
     });
 }
 
@@ -174,6 +323,13 @@ if (typeof socket !== 'undefined') {
         }
 
         channelSound.play().catch(e => { console.log("Sound autoplay blocked"); });
+        if (currentChannelId == data.channel_id) {
+            fetchChannelMessages(currentChannelId);
+        }
+    });
+
+    // Real-time listener for Pin, Edit, and Delete actions
+    socket.on('channel_msg_update', (data) => {
         if (currentChannelId == data.channel_id) {
             fetchChannelMessages(currentChannelId);
         }
