@@ -51,6 +51,13 @@ self.addEventListener('notificationclick', event => {
                         // If it's a custom URL link, navigate to it
                         client.navigate(urlToOpen);
                     }
+                    if (urlToOpen.includes('tab=alerts')) {
+                        client.postMessage({ action: 'open_alerts' });
+                    } else if (urlToOpen.includes('tab=channels')) {
+                        client.postMessage({ action: 'open_channels' }); // ADD THIS
+                    } else {
+                        client.navigate(urlToOpen);
+                    }
                     return;
                 }
             }
