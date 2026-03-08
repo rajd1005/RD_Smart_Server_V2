@@ -177,7 +177,7 @@
             </div>
         </div>
 
-<div id="publicChannelsContent" style="display:none; flex-direction: column; position: fixed; top: 88px; bottom: 0; left: 0; right: 0; max-width: 800px; margin: 0 auto; background-color: var(--bg-color); z-index: 50;">
+        <div id="publicChannelsContent" style="display:none; flex-direction: column; position: fixed; top: 88px; bottom: 0; left: 0; right: 0; max-width: 800px; margin: 0 auto; background-color: var(--bg-color); z-index: 50;">
             
             <div class="flex-grow-1 p-2" id="publicChannelListView" style="overflow-y: auto;">
                 <div class="text-center text-muted mt-3" style="font-size:12px;">Loading channels...</div>
@@ -402,16 +402,14 @@
             } catch(e) {}
         }
 
-function showPublicChannelList() {
+        function showPublicChannelList() {
             currentPublicChannelId = null;
-            document.getElementById('publicChannelHeader').style.display = 'none'; // Hide header
             document.getElementById('publicChannelListView').style.display = 'block';
             document.getElementById('publicChannelChatView').style.display = 'none';
         }
 
         async function openPublicChannel(id, name) {
             currentPublicChannelId = id;
-            document.getElementById('publicChannelHeader').style.display = 'flex'; // Show header
             document.getElementById('publicChannelListView').style.display = 'none';
             document.getElementById('publicChannelChatView').style.display = 'flex';
             document.getElementById('publicChannelHeaderTitle').innerText = name;
@@ -422,9 +420,7 @@ function showPublicChannelList() {
             try {
                 const res = await fetch(`/api/channels/public/${id}/messages`);
                 const data = await res.json();
-                
-                // We inject directly into the main scrolling container now
-                const chatObj = document.getElementById('publicChannelChatView'); 
+                const chatObj = document.getElementById('publicChannelMessages');
                 
                 if (data.data.length === 0) {
                     chatObj.innerHTML = '<div class="text-center text-muted mt-4" style="font-size:12px;">No messages yet.</div>';
@@ -450,9 +446,8 @@ function showPublicChannelList() {
                     </div>`;
                 });
                 chatObj.innerHTML = html;
-                
-                // Automatically scroll the chat to the bottom
-                chatObj.scrollTop = chatObj.scrollHeight;
+                const scrollContainer = document.getElementById('publicChannelMessages');
+                scrollContainer.scrollTop = scrollContainer.scrollHeight;
             } catch(e) {}
         }
 
