@@ -21,6 +21,40 @@ function toMarkdown(text) {
         .replace(/`/g, "\\`"); 
 }
 
+// Convert Telegram Entities (Bold, Italic, Links) into Markdown
+function parseTelegramEntitiesToMarkdown(text, entities) {
+    if (!text) return '';
+    if (!entities || entities.length === 0) return text;
+
+    let result = '';
+    let lastIndex = 0;
+    // Sort entities to process them left-to-right
+    let sortedEntities = [...entities].sort((a, b) => a.offset - b.offset);
+
+    for (let i = 0; i < sortedEntities.length; i++) {
+        const entity = sortedEntities[i];
+        if (entity.offset < lastIndex) continue;
+
+        result += text.substring(lastIndex, entity.offset);
+        const entityText = text.substring(entity.offset, entity.offset + entity.length);
+
+        if (entity.type === 'bold') result += `*${entityText}*`;
+        else if (entity.type === 'italic') result += `_${entityText}_`;
+        else if (entity.type === 'strikethrough') result += `~${entityText}~`;
+        else if (entity.type === 'code' || entity.type === 'pre') result += `\`${entityText}\``;
+        else if (entity.type === 'text_link') result += `[${entityText}](${entity.url})`;
+        else result += entityText;
+
+        lastIndex = entity.offset + entity.length;
+    }
+
+    if (lastIndex < text.length) {
+        result += text.substring(lastIndex);
+    }
+
+    return result;
+}
+
 // TG -> Web Sync Setup
 function initTelegramChannelsSync(pool, io) {
     
@@ -60,18 +94,21 @@ function initTelegramChannelsSync(pool, io) {
 
             if (!msg.text && !msg.caption && !msg.photo && !msg.video) return;
             
-            let text = msg.text || msg.caption || '';
+            let rawText = msg.text || msg.caption || '';
+            // INJECT MARKDOWN STYLING AND LINKS
+            let formattedText = parseTelegramEntitiesToMarkdown(rawText, msg.entities || msg.caption_entities);
+            
             let title = 'Telegram Update';
-            let body = text;
+            let body = formattedText;
             
             // Generate clean title & body, with fallbacks for empty media
-            if (text.includes('\n')) {
-                const parts = text.split('\n');
-                title = parts[0].replace(/[\*\_]/g, '').trim(); 
+            if (formattedText.includes('\n')) {
+                const parts = formattedText.split('\n');
+                title = parts[0].replace(/[\*\_~`]/g, '').trim(); 
                 body = parts.slice(1).join('\n').trim();
-            } else if (text) {
-                title = text.length > 35 ? text.substring(0, 35) + '...' : text;
-                body = text;
+            } else if (formattedText) {
+                title = rawText.length > 35 ? rawText.substring(0, 35).replace(/[\*\_~`]/g, '') + '...' : rawText.replace(/[\*\_~`]/g, '');
+                body = formattedText;
             } else if (msg.photo) {
                 title = 'New Image Alert';
                 body = '📷 Tap to view the attached image.';
@@ -129,18 +166,10 @@ function initTelegramChannelsSync(pool, io) {
                 image: image_url 
             };
 
-            console.log(`[TG Sync] Sending Push to ${uniqueSubs.length} users for channel: ${channel.name}`);
-
             uniqueSubs.forEach(async (sub) => { 
                 try { 
                     await webpush.sendNotification(sub, JSON.stringify(payload));
-                } catch(e) {
-                    // 410 and 404 just mean the user uninstalled the app, ignore those. 
-                    // Log any actual errors that prevent delivery.
-                    if (e.statusCode !== 410 && e.statusCode !== 404) {
-                        console.error("Telegram Push Delivery Failed:", e.body || e.message);
-                    }
-                } 
+                } catch(e) {} 
             });
 
         } catch(e) { console.error("TG->Web Sync Error (New Msg):", e); }
@@ -152,13 +181,18 @@ function initTelegramChannelsSync(pool, io) {
     // 2. Shared logic for edited messages
     const handleEditedMessage = async (msg) => {
         try {
-            let text = msg.text || msg.caption || '';
+            let rawText = msg.text || msg.caption || '';
+            let formattedText = parseTelegramEntitiesToMarkdown(rawText, msg.entities || msg.caption_entities);
+            
             let title = 'Telegram Update';
-            let body = text;
-            if (text.includes('\n')) {
-                const parts = text.split('\n');
-                title = parts[0].replace(/[\*\_]/g, '').trim();
+            let body = formattedText;
+            
+            if (formattedText.includes('\n')) {
+                const parts = formattedText.split('\n');
+                title = parts[0].replace(/[\*\_~`]/g, '').trim();
                 body = parts.slice(1).join('\n').trim();
+            } else if (formattedText) {
+                title = rawText.length > 35 ? rawText.substring(0, 35).replace(/[\*\_~`]/g, '') + '...' : rawText.replace(/[\*\_~`]/g, '');
             }
 
             const { rows } = await pool.query("UPDATE channel_messages SET title = $1, body = $2 WHERE telegram_msg_id = $3 RETURNING channel_id", [title, body, msg.message_id]);
