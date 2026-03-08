@@ -971,6 +971,60 @@
                 tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-3">Error loading report.</td></tr>';
             }
         }
+        function copyUrlForSafariPopup() {
+        const urlInput = document.getElementById('copyUrlInput');
+        urlInput.select();
+        urlInput.setSelectionRange(0, 99999); // For mobile devices
+        navigator.clipboard.writeText(urlInput.value).then(() => {
+            document.getElementById('copySuccessMsg').style.display = 'block';
+            setTimeout(() => { document.getElementById('copySuccessMsg').style.display = 'none'; }, 3000);
+        });
+    }
+
+    function enforceSafariOnIOS() {
+        const userAgent = window.navigator.userAgent.toLowerCase();
+        const isIos = /iphone|ipad|ipod/.test(userAgent);
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+        if (isIos && !isStandalone) {
+            const isSafari = userAgent.includes('safari') && 
+                             !userAgent.includes('crios') && 
+                             !userAgent.includes('fxios') && 
+                             !userAgent.includes('opios') && 
+                             !userAgent.includes('edgios');
+
+            const installBtn = document.getElementById('installAppBtn');
+            if (installBtn) {
+                installBtn.style.display = 'inline-block';
+                
+                if (!isSafari) {
+                    // If on Chrome/Firefox iOS -> Show Custom Popup when Install is clicked
+                    installBtn.onclick = (e) => {
+                        e.preventDefault();
+                        document.getElementById('copyUrlInput').value = window.location.href;
+                        const modal = new bootstrap.Modal(document.getElementById('safariRequiredModal'));
+                        modal.show();
+                    };
+                } else {
+                    // If on Safari iOS -> Show native install instructions
+                    installBtn.onclick = (e) => {
+                        e.preventDefault();
+                        alert("To install this App & get Trade Alerts: \n\n1. Tap the 'Share' icon (square with an up arrow) at the bottom of Safari.\n2. Scroll down and tap 'Add to Home Screen'. \n3. Open the app from your home screen.");
+                    };
+                }
+            }
+        }
+        
+        // Return false so the page is NEVER blocked completely
+        return false; 
+    }
+
+    window.addEventListener('load', () => {
+        const isBlocked = enforceSafariOnIOS();
+        if (!isBlocked) {
+            if (typeof showInstallModal === 'function') showInstallModal();
+        }
+    });
     </script>
     <div class="modal fade" id="pushReminderModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
@@ -1014,5 +1068,29 @@
         </div>
     </div>
 </div>
+    <div class="modal fade" id="safariRequiredModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 340px; margin: 0 auto;">
+            <div class="modal-content text-center p-3">
+                <div class="modal-header border-0 pb-0 justify-content-center">
+                    <span class="material-icons-round text-danger" style="font-size: 48px;">gpp_bad</span>
+                </div>
+                <div class="modal-body px-4 pb-2 pt-3">
+                    <h5 class="fw-bold mb-2">Safari Required</h5>
+                    <p class="text-muted small mb-3" style="font-size: 13px; line-height: 1.4;">
+                        Apple strictly requires you to use the <b>Safari browser</b> to install this app and receive live trade alerts on an iPhone.<br><br>
+                        Please copy the link below and open it in Safari.
+                    </p>
+                    <input type="text" id="copyUrlInput" value="" readonly class="form-control text-center mb-3 fw-bold" style="font-size:12px; background:#f8f9fa; color:#000;">
+                    
+                    <button type="button" class="btn btn-primary w-100 fw-bold mb-2" onclick="copyUrlForSafariPopup()">Copy Link</button>
+                    <button type="button" class="btn btn-light w-100 fw-bold text-muted" data-bs-dismiss="modal">Close</button>
+                    
+                    <div id="copySuccessMsg" class="text-success fw-bold mt-2" style="display:none; font-size:12px;">
+                        <span class="material-icons-round align-middle" style="font-size:14px;">check_circle</span> Copied! Now open Safari.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
