@@ -1,32 +1,18 @@
 let currentChannelId = null;
 window.appSettings = {};
 
-// Converts standard Markdown and URLs into clickable HTML
+// Converts standard Markdown and URLs into clickable HTML (Bulletproofed)
 function parseMarkdownToHtml(text) {
-    if (!text) return '';
-    // Prevent XSS by escaping HTML brackets first
-    let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    if (!text || text === 'null' || text === 'undefined') return '';
+    let html = String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     
-    // 1. Markdown Links: [text](url) -> becomes active hyperlink
     html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" style="color:var(--blue); text-decoration:underline; font-weight:600;">$1</a>');
-    
-    // 2. Auto-link loose URLs that aren't inside an 'href' already
     html = html.replace(/(^|\s)(https?:\/\/[^\s]+)/g, '$1<a href="$2" target="_blank" style="color:var(--blue); text-decoration:underline; font-weight:600;">$2</a>');
-
-    // 3. Bold: *text* or **text**
     html = html.replace(/\*\*([^\*]+)\*\*/g, '<b>$1</b>'); 
     html = html.replace(/\*([^\*]+)\*/g, '<b>$1</b>');     
-    
-    // 4. Italic: _text_
     html = html.replace(/_([^_]+)_/g, '<i>$1</i>');
-    
-    // 5. Strikethrough: ~text~
     html = html.replace(/~([^~]+)~/g, '<s>$1</s>');
-    
-    // 6. Monospace Code: `text`
     html = html.replace(/`([^`]+)`/g, '<code style="background:#f1f1f1; padding:2px 4px; border-radius:4px; color:#d63384;">$1</code>');
-    
-    // 7. Line Breaks
     html = html.replace(/\n/g, '<br>');
     return html;
 }
@@ -35,7 +21,7 @@ async function initChannelTab() {
     try {
         const res = await fetch('/api/settings');
         const data = await res.json();
-        window.appSettings = data; // Save globally
+        window.appSettings = data;
         
         const navBtn = document.getElementById('navChannelBtn');
         if (navBtn) {
@@ -96,7 +82,6 @@ async function fetchChannels() {
         if (window.pendingChannelId) {
             const targetChannel = data.data.find(c => c.id == window.pendingChannelId);
             if (targetChannel) {
-                // Double check if locked before opening
                 const isLocked = (typeof userData !== 'undefined' && userData.role !== 'admin' && userData.role !== 'manager') && targetChannel.access_level !== 'demo' && accessLevels[targetChannel.access_level] !== 'Yes';
                 if (!isLocked) openChannel(targetChannel.id, targetChannel.name);
             }
@@ -144,13 +129,12 @@ async function fetchChannelMessages(id) {
             return;
         }
 
-        // --- PINNED MESSAGE BAR LOGIC ---
         let pinnedMsgs = data.data.filter(m => m.is_pinned);
         let latestPinned = pinnedMsgs.length > 0 ? pinnedMsgs[pinnedMsgs.length - 1] : null;
         
         if (latestPinned && pinnedBar) {
             pinnedBar.style.display = 'block';
-            const pinnedTitleSafe = latestPinned.title ? latestPinned.title.replace(/[\*\_~`]/g, '') : '';
+            const pinnedTitleSafe = latestPinned.title ? String(latestPinned.title).replace(/[\*\_~`]/g, '') : '';
             const pinnedText = document.getElementById('channelPinnedMsgText');
             if (pinnedText) pinnedText.innerText = pinnedTitleSafe;
             pinnedBar.onclick = () => {
@@ -167,38 +151,36 @@ async function fetchChannelMessages(id) {
         data.data.forEach(m => {
             const dateStr = new Date(m.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
             
-            // --- VIDEO VS IMAGE RENDERING LOGIC ---
+            // --- BULLETPROOF VIDEO VS IMAGE LOGIC ---
             let imgHtml = '';
-            if (m.image_url) {
-                const isVideo = m.image_url.match(/\.(mp4|mov|webm|ogg)$/i);
+            if (m.image_url && m.image_url !== 'null' && m.image_url !== 'undefined') {
+                const safeImgUrl = String(m.image_url); // Forces string to prevent crashes on old data
+                const isVideo = safeImgUrl.match(/\.(mp4|mov|webm|ogg)$/i);
                 if (isVideo) {
-                    imgHtml = `<video src="${m.image_url}" controls style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;"></video>`;
+                    imgHtml = `<video src="${safeImgUrl}" controls style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;"></video>`;
                 } else {
-                    imgHtml = `<img src="${m.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;">`;
+                    // Added 'onerror' to gracefully hide broken old image links
+                    imgHtml = `<img src="${safeImgUrl}" style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;" onerror="this.style.display='none'">`;
                 }
             }
             
             let linkHtml = m.link_url ? `<a href="${m.link_url}" target="_blank" class="chat-link mt-2" style="font-size:11px;">${m.link_url}</a>` : '';
 
-            const safeTitle = (m.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-            // safeBody passes raw text formatting to the edit box so admins can edit it naturally
-            const safeBody = (m.body || '').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n');
-            const safeLink = (m.link_url || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const safeTitle = String(m.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const safeBody = String(m.body || '').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n');
+            const safeLink = String(m.link_url || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             
-            // Format HTML for the visible chat bubble
             const formattedBodyHtml = parseMarkdownToHtml(m.body);
 
-            // 1. Reply Bubble Structure
             const replySnippet = m.reply_to_id ? `
                 <div style="border-left: 3px solid var(--blue); background: rgba(0,0,0,0.04); padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; font-size: 11px; cursor: pointer;" onclick="const t = document.getElementById('msg-${m.reply_to_id}'); if(t) t.scrollIntoView({behavior:'smooth', block:'center'});">
-                    <div style="font-weight:bold; color:var(--blue);">${m.reply_title ? m.reply_title.replace(/[\*\_~`]/g, '') : 'Message'}</div>
-                    <div style="color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${m.reply_body_snippet ? m.reply_body_snippet.replace(/[\*\_~`]/g, '') : 'Deleted'}</div>
+                    <div style="font-weight:bold; color:var(--blue);">${m.reply_title ? String(m.reply_title).replace(/[\*\_~`]/g, '') : 'Message'}</div>
+                    <div style="color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${m.reply_body_snippet ? String(m.reply_body_snippet).replace(/[\*\_~`]/g, '') : 'Deleted'}</div>
                 </div>
             ` : '';
 
             const pinIcon = m.is_pinned ? `<span class="material-icons-round text-primary ms-2" style="font-size: 14px; vertical-align: middle;">push_pin</span>` : '';
 
-            // 2. Options Dropdown
             let optionsMenu = '';
             if (isAdminRole) {
                 optionsMenu = `
@@ -234,7 +216,6 @@ async function fetchChannelMessages(id) {
     } catch(e) { console.log(e) }
 }
 
-// --- NEW ACTION FUNCTIONS ---
 window.replyChannelMsg = function(id, title, snippet) {
     const preview = document.getElementById('channelReplyPreview');
     if (preview) {
@@ -242,7 +223,7 @@ window.replyChannelMsg = function(id, title, snippet) {
         preview.style.backgroundColor = '#e3f2fd';
         preview.style.borderLeftColor = 'var(--blue)';
         document.getElementById('channelReplyModeText').innerHTML = 'Replying to... <span class="material-icons-round float-end text-muted" style="font-size:14px; cursor:pointer;" onclick="cancelChannelReplyEdit()">close</span>';
-        document.getElementById('channelReplyText').innerText = title.replace(/[\*\_~`]/g, '') + ' - ' + snippet.replace(/[\*\_~`]/g, '');
+        document.getElementById('channelReplyText').innerText = String(title).replace(/[\*\_~`]/g, '') + ' - ' + String(snippet).replace(/[\*\_~`]/g, '');
     }
 
     const replyIdEl = document.getElementById('activeReplyId');
@@ -262,7 +243,7 @@ window.editChannelMsgInit = function(id, title, body, url) {
         preview.style.backgroundColor = '#fff3cd';
         preview.style.borderLeftColor = '#ffc107';
         document.getElementById('channelReplyModeText').innerHTML = 'Editing message... <span class="material-icons-round float-end text-muted" style="font-size:14px; cursor:pointer;" onclick="cancelChannelReplyEdit()">close</span>';
-        document.getElementById('channelReplyText').innerText = title.replace(/[\*\_~`]/g, '');
+        document.getElementById('channelReplyText').innerText = String(title).replace(/[\*\_~`]/g, '');
     }
 
     const editIdEl = document.getElementById('activeEditMsgId');
@@ -312,7 +293,6 @@ window.togglePinChannelMsg = async function(id, isPinned) {
     } catch(e) {}
 };
 
-// --- UPDATE FORM SUBMIT TO SUPPORT EDIT AND REPLY_TO_ID ---
 const formChannelMsg = document.getElementById('formChannelMessage');
 if (formChannelMsg) {
     formChannelMsg.addEventListener('submit', async (e) => {
@@ -328,7 +308,6 @@ if (formChannelMsg) {
 
         try {
             if (editId) {
-                // EDIT EXISTING MESSAGE
                 await fetch(`/api/channels/messages/${editId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
@@ -340,7 +319,6 @@ if (formChannelMsg) {
                     credentials: 'same-origin'
                 });
             } else {
-                // SEND NEW OR REPLY MESSAGE
                 const formData = new FormData();
                 formData.append('title', document.getElementById('channelMsgTitle').value);
                 formData.append('body', document.getElementById('channelMsgBody').value);
@@ -364,18 +342,15 @@ if (formChannelMsg) {
 if (typeof socket !== 'undefined') {
     const channelSound = new Audio('/chaching.mp3'); 
     socket.on('new_channel_msg', (data) => {
-        // Block notification if disabled for students
         if (typeof userData !== 'undefined' && userData.role !== 'admin' && userData.role !== 'manager') {
             if (window.appSettings && window.appSettings.show_channel_tab === 'false') return;
         }
-
         channelSound.play().catch(e => { console.log("Sound autoplay blocked"); });
         if (currentChannelId == data.channel_id) {
             fetchChannelMessages(currentChannelId);
         }
     });
 
-    // Real-time listener for Pin, Edit, and Delete actions
     socket.on('channel_msg_update', (data) => {
         if (currentChannelId == data.channel_id) {
             fetchChannelMessages(currentChannelId);
