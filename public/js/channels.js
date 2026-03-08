@@ -48,6 +48,14 @@ async function fetchChannels() {
             </div>`;
         });
         listObj.innerHTML = html;
+        // --- NEW: Auto-open specific channel if clicked from a notification ---
+        if (window.pendingChannelId) {
+            const targetChannel = data.data.find(c => c.id == window.pendingChannelId);
+            if (targetChannel) {
+                openChannel(targetChannel.id, targetChannel.name);
+            }
+            window.pendingChannelId = null; // Clear it so it doesn't open repeatedly
+        }
     } catch(e) {}
 }
 
@@ -144,8 +152,16 @@ if (formChannelMsg) {
 
 // Real-time socket updates
 if (typeof socket !== 'undefined') {
+    const channelSound = new Audio('/chaching.mp3'); // Load the sound
+    
     socket.on('new_channel_msg', (data) => {
-        if (currentChannelId == data.channel_id) fetchChannelMessages(currentChannelId);
+        // Play the sound if the app is open
+        channelSound.play().catch(e => { console.log("Sound autoplay blocked"); });
+        
+        // Auto-refresh messages if you are currently looking at that specific channel
+        if (currentChannelId == data.channel_id) {
+            fetchChannelMessages(currentChannelId);
+        }
     });
 }
 
