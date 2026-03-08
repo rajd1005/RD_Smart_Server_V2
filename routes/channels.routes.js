@@ -70,8 +70,14 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
             else if (channel.access_level === 'level_3_status') target_audience = 'login_with_level_3';
             else if (channel.access_level === 'level_4_status') target_audience = 'login_with_level_4';
             
-            const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience);
-            const payload = { title: `${channel.name}: ${title}`, body, url: `/index.html?tab=channels&id=${channel_id}`, image: image_url };
+const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience);
+            
+            // NEW: Send public users strictly to the root URL so the Channel ID doesn't get stripped by login redirects
+            const targetUrl = (target_audience === 'non_logged_in') 
+                ? `/?tab=channels&id=${channel_id}` 
+                : `/index.html?tab=channels&id=${channel_id}`;
+                
+            const payload = { title: `${channel.name}: ${title}`, body, url: targetUrl, image: image_url };
             uniqueSubs.forEach(sub => { 
                 try { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); } catch(e){} 
             });
