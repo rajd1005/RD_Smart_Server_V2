@@ -37,9 +37,11 @@ window.onload = function() {
 
     // --- NEW: Listen for background clicks if app is already open ---
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.addEventListener('message', event => {
+    navigator.serviceWorker.addEventListener('message', event => {
             if (event.data && event.data.action === 'open_alerts') {
                 if (typeof switchSection === 'function') switchSection('notification');
+            } else if (event.data && event.data.action === 'open_channels') {
+                if (typeof switchSection === 'function') switchSection('channel'); // ADD THIS
             }
         });
     }
