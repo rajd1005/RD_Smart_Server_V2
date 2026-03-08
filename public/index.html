@@ -449,8 +449,8 @@
         </div>
     </div>
     
-    <div class="modal fade" id="adminCourseModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+<div class="modal fade" id="adminCourseModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 420px;">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title mb-0">Admin Course Manager</h5>
@@ -458,7 +458,8 @@
                 </div>
                 <div class="modal-body p-0">
                     
-                    <ul class="nav nav-tabs nav-justified px-1 pt-2" id="adminTabs" role="tablist">
+                    <ul class="nav nav-tabs flex-nowrap text-nowrap overflow-x-auto px-1 pt-2 border-bottom-0" id="adminTabs" role="tablist" style="scrollbar-width: none; -ms-overflow-style: none;">
+                        <style>#adminTabs::-webkit-scrollbar { display: none; }</style>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active fw-bold text-uppercase" id="tab-module" data-bs-toggle="tab" data-bs-target="#pane-module" type="button" role="tab" style="font-size: 10px;">1. Module</button>
                         </li>
@@ -562,8 +563,8 @@
                             </form>
                         </div>
 
-                        <div class="tab-pane fade" id="pane-settings" role="tabpanel">
-                            <form id="formAdminSettings">
+<div class="tab-pane fade" id="pane-settings" role="tabpanel">
+                            <form id="formAdminSettings" class="p-1">
                                 <div class="mb-3">
                                     <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Default Accordion State</label>
                                     <select id="adminAccordionState" class="form-select mb-2" required>
@@ -573,35 +574,38 @@
                                     </select>
                                 </div>
                                 
-                                <div class="mb-2 d-flex align-items-center">
-                                    <input type="checkbox" class="custom-check m-0" id="adminPushTradeAlerts">
-                                    <label class="form-check-label ms-2 fw-bold" for="adminPushTradeAlerts" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Enable Web Push for Trade Alerts</label>
+                                <h6 class="fw-bold text-primary mb-2 mt-3" style="font-size: 11px; text-transform: uppercase;">Feature Toggles</h6>
+                                <div class="bg-light p-3 rounded border mb-4 shadow-sm">
+                                    <div class="mb-3 d-flex align-items-center">
+                                        <input type="checkbox" class="custom-check m-0" id="adminPushTradeAlerts">
+                                        <label class="form-check-label ms-2 fw-bold" for="adminPushTradeAlerts" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Enable Web Push for Trade Alerts</label>
+                                    </div>
+                                    <div class="mb-3 d-flex align-items-center">
+                                        <input type="checkbox" class="custom-check m-0" id="adminShowChannelTab">
+                                        <label class="form-check-label ms-2 fw-bold" for="adminShowChannelTab" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Channel Tab to Students</label>
+                                    </div>
+                                    <div class="mb-3 d-flex align-items-center">
+                                        <input type="checkbox" class="custom-check m-0" id="adminShowGallery">
+                                        <label class="form-check-label ms-2 fw-bold" for="adminShowGallery" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Performance Gallery on Home Page</label>
+                                    </div>
+                                    <div class="mb-3 d-flex align-items-center">
+                                        <input type="checkbox" class="custom-check m-0" id="adminShowCallWidget">
+                                        <label class="form-check-label ms-2 fw-bold" for="adminShowCallWidget" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Call Report on Home Page</label>
+                                    </div>
+                                    <div class="mb-3 d-flex align-items-center">
+                                        <input type="checkbox" class="custom-check m-0" id="adminHideTradeTab">
+                                        <label class="form-check-label ms-2 fw-bold" for="adminHideTradeTab" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Hide Trade Tab for All Users</label>
+                                    </div>
+                                    <div class="mb-0 d-flex align-items-center">
+                                        <input type="checkbox" class="custom-check m-0" id="adminShowDisclaimer">
+                                        <label class="form-check-label ms-2 fw-bold" for="adminShowDisclaimer" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Legal Disclaimer Popup</label>
+                                    </div>
                                 </div>
-
-                                <div class="mb-2 d-flex align-items-center">
-                                    <input type="checkbox" class="custom-check m-0" id="adminShowGallery">
-                                    <label class="form-check-label ms-2 fw-bold" for="adminShowGallery" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Performance Gallery on Home Page</label>
+                                
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Registration Link</label>
+                                    <input type="text" id="adminRegisterLink" class="form-control" placeholder="URL for New Registrations">
                                 </div>
-                                <div class="mb-2 d-flex align-items-center">
-                                    <input type="checkbox" class="custom-check m-0" id="adminShowCallWidget">
-                                    <label class="form-check-label ms-2 fw-bold" for="adminShowCallWidget" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Call Report on Home Page</label>
-                                </div>
-                                <div class="mb-2 d-flex align-items-center">
-                                    <input type="checkbox" class="custom-check m-0" id="adminHideTradeTab">
-                                    <label class="form-check-label ms-2 fw-bold" for="adminHideTradeTab" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Hide Trade Tab for All Users</label>
-                                </div>
-                                <div class="mb-3 d-flex align-items-center">
-                                    <input type="checkbox" class="custom-check m-0" id="adminShowDisclaimer">
-                                    <label class="form-check-label ms-2 fw-bold" for="adminShowDisclaimer" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Legal Disclaimer Popup</label>
-                                </div>
-                                <div class="mb-2 d-flex align-items-center">
-    <input type="checkbox" class="custom-check m-0" id="adminShowChannelTab">
-    <label class="form-check-label ms-2 fw-bold" for="adminShowChannelTab" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">Show Channel Tab to Students</label>
-</div>
-<div class="mb-4">
-    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Registration Link</label>
-    <input type="text" id="adminRegisterLink" class="form-control" placeholder="URL for New Registrations">
-</div>
 
 <div class="mb-4">
     <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Manager Emails (Comma-separated)</label>
