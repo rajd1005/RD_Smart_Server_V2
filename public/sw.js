@@ -6,7 +6,6 @@ self.addEventListener('push', event => {
         data = { title: "New Notification", body: event.data.text() };
     }
 
-    // --- UPDATED: Explicitly use index.html to ensure PWA app compatibility
     let targetUrl = data.url;
     if (!targetUrl || targetUrl === '/' || targetUrl.trim() === '') {
         targetUrl = '/index.html?tab=alerts';
@@ -45,16 +44,9 @@ self.addEventListener('notificationclick', event => {
                     client.focus();
                     
                     if (urlToOpen.includes('tab=alerts')) {
-                        // Silently tell the open app to switch to the Alerts tab
                         client.postMessage({ action: 'open_alerts' });
-                    } else {
-                        // If it's a custom URL link, navigate to it
-                        client.navigate(urlToOpen);
-                    }
-                    if (urlToOpen.includes('tab=alerts')) {
-                        client.postMessage({ action: 'open_alerts' });
-                        } else if (urlToOpen.includes('tab=channels')) {
-                        // Extract the channel ID from the URL
+                    } else if (urlToOpen.includes('tab=channels')) {
+                        // Extract the channel ID from the URL securely
                         const match = urlToOpen.match(/id=([^&]*)/);
                         const cId = match ? match[1] : null;
                         client.postMessage({ action: 'open_channels', channelId: cId });
