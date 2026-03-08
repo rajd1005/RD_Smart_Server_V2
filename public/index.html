@@ -694,17 +694,25 @@
 
                         <div class="tab-pane fade" id="pane-channels" role="tabpanel">
                             <h6 class="fw-bold mb-2" style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary);">Create New Channel</h6>
-                            <form id="formAddChannel">
+<form id="formAddChannel">
                                 <div class="mb-2"><input type="text" id="adminChannelName" class="form-control" placeholder="Channel Name" required></div>
                                 <div class="mb-2"><input type="text" id="adminChannelDesc" class="form-control" placeholder="Short Description"></div>
-                                <div class="mb-3">
-                                    <select id="adminChannelLevel" class="form-select" required>
-                                        <option value="demo">Demo / Public</option>
-                                        <option value="level_1_status">Level 1 (All Access)</option>
-                                        <option value="level_2_status">Requires Level 2</option>
-                                        <option value="level_3_status">Requires Level 3</option>
-                                        <option value="level_4_status">Requires Level 4</option>
-                                    </select>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <select id="adminChannelLevel" class="form-select" required>
+                                            <option value="demo">Demo / Public</option>
+                                            <option value="level_1_status">Level 1 (All Access)</option>
+                                            <option value="level_2_status">Requires Level 2</option>
+                                            <option value="level_3_status">Requires Level 3</option>
+                                            <option value="level_4_status">Requires Level 4</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6">
+                                        <select id="adminChannelShowHome" class="form-select" required>
+                                            <option value="true">Show Publicly</option>
+                                            <option value="false">Hide (Private)</option>
+                                        </select>
+                                    </div>
                                 </div>
                                 <button type="submit" class="btn btn-sm btn-primary w-100 fw-bold">Create Channel</button>
                             </form>
@@ -788,7 +796,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="formEditChannel">
+<form id="formEditChannel">
                         <input type="hidden" id="editChannelId">
                         <div class="mb-2">
                             <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Channel Name</label>
@@ -798,15 +806,24 @@
                             <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
                             <input type="text" id="editChannelDesc" class="form-control">
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Access Level</label>
-                            <select id="editChannelLevel" class="form-select" required>
-                                <option value="demo">Demo / Public</option>
-                                <option value="level_1_status">Level 1 (All Access)</option>
-                                <option value="level_2_status">Requires Level 2</option>
-                                <option value="level_3_status">Requires Level 3</option>
-                                <option value="level_4_status">Requires Level 4</option>
-                            </select>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Access Level</label>
+                                <select id="editChannelLevel" class="form-select" required>
+                                    <option value="demo">Demo / Public</option>
+                                    <option value="level_1_status">Level 1 (All Access)</option>
+                                    <option value="level_2_status">Requires Level 2</option>
+                                    <option value="level_3_status">Requires Level 3</option>
+                                    <option value="level_4_status">Requires Level 4</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Visibility</label>
+                                <select id="editChannelShowHome" class="form-select" required>
+                                    <option value="true">Show Publicly</option>
+                                    <option value="false">Hide (Private)</option>
+                                </select>
+                            </div>
                         </div>
                         <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Save Changes</button>
                     </form>
