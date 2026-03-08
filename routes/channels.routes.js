@@ -6,7 +6,21 @@ const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 const pushRoutes = require('./push.routes');
 const webpush = require('web-push');
+// --- NEW PUBLIC ROUTES FOR HOME PAGE ---
+router.get('/public', async (req, res) => {
+    try {
+        const { rows } = await pool.query("SELECT * FROM channels WHERE access_level = 'demo' ORDER BY id ASC");
+        res.json({ success: true, data: rows });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
 
+router.get('/public/:id/messages', async (req, res) => {
+    try {
+        const { rows } = await pool.query("SELECT * FROM channel_messages WHERE channel_id = $1 ORDER BY created_at ASC", [req.params.id]);
+        res.json({ success: true, data: rows });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+// ----------------------------------------
 // 1. Get channels available to the user based on access levels
 router.get('/', authenticateToken, async (req, res) => {
     try {
@@ -50,7 +64,9 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
         if (rows.length > 0) {
             const channel = rows[0];
             let target_audience = 'logged_in';
-            if (channel.access_level === 'level_2_status') target_audience = 'login_with_level_2';
+            // Send exclusively to non-logged users if it's a demo channel
+            if (channel.access_level === 'demo') target_audience = 'non_logged_in'; 
+            else if (channel.access_level === 'level_2_status') target_audience = 'login_with_level_2';
             else if (channel.access_level === 'level_3_status') target_audience = 'login_with_level_3';
             else if (channel.access_level === 'level_4_status') target_audience = 'login_with_level_4';
             
