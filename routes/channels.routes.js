@@ -6,37 +6,33 @@ const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 const pushRoutes = require('./push.routes');
 const webpush = require('web-push');
-// --- NEW PUBLIC ROUTES FOR HOME PAGE ---
+
+// --- PUBLIC ROUTES FOR HOME PAGE ---
 router.get('/public', async (req, res) => {
     try {
-        // ONLY fetch demo channels if 'show_on_home' is set to TRUE
-        const { rows } = await pool.query("SELECT * FROM channels WHERE access_level = 'demo' AND show_on_home = true ORDER BY id ASC");
+        // Fetch ALL channels meant for the home page (we'll filter and lock non-demo ones in frontend)
+        const { rows } = await pool.query("SELECT * FROM channels WHERE show_on_home = true ORDER BY display_order ASC, id ASC");
         res.json({ success: true, data: rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 router.get('/public/:id/messages', async (req, res) => {
     try {
+        // Ensure channel is actually demo
+        const channelCheck = await pool.query("SELECT access_level FROM channels WHERE id = $1", [req.params.id]);
+        if(channelCheck.rows.length === 0 || channelCheck.rows[0].access_level !== 'demo') {
+            return res.status(403).json({ success: false, msg: "Access Denied." });
+        }
         const { rows } = await pool.query("SELECT * FROM channel_messages WHERE channel_id = $1 ORDER BY created_at ASC", [req.params.id]);
         res.json({ success: true, data: rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
-// ----------------------------------------
+
 // 1. Get channels available to the user based on access levels
 router.get('/', authenticateToken, async (req, res) => {
     try {
-        let levels = req.user.accessLevels || {};
-        let allowedLevels = ['demo', 'level_1_status'];
-        if (levels.level_2_status === 'Yes') allowedLevels.push('level_2_status');
-        if (levels.level_3_status === 'Yes') allowedLevels.push('level_3_status');
-        if (levels.level_4_status === 'Yes') allowedLevels.push('level_4_status');
-        
-        if (req.user.role === 'admin' || req.user.role === 'manager') {
-            const { rows } = await pool.query("SELECT * FROM channels ORDER BY id ASC");
-            return res.json({ success: true, data: rows });
-        }
-
-        const { rows } = await pool.query("SELECT * FROM channels WHERE access_level = ANY($1) ORDER BY id ASC", [allowedLevels]);
+        // Send all channels to the dashboard. The frontend handles "accessible only/hidden/all" & lock icons
+        const { rows } = await pool.query("SELECT * FROM channels ORDER BY display_order ASC, id ASC");
         res.json({ success: true, data: rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -44,6 +40,15 @@ router.get('/', authenticateToken, async (req, res) => {
 // 2. Get messages for a specific channel
 router.get('/:id/messages', authenticateToken, async (req, res) => {
     try {
+        // Access Protection
+        const channelRes = await pool.query("SELECT access_level FROM channels WHERE id = $1", [req.params.id]);
+        if (channelRes.rows.length > 0) {
+            const level = channelRes.rows[0].access_level;
+            const levels = req.user.accessLevels || {};
+            if (req.user.role !== 'admin' && req.user.role !== 'manager' && level !== 'demo' && levels[level] !== 'Yes') {
+                return res.status(403).json({ success: false, msg: "Access Denied. Please upgrade." });
+            }
+        }
         const { rows } = await pool.query("SELECT * FROM channel_messages WHERE channel_id = $1 ORDER BY created_at ASC", [req.params.id]);
         res.json({ success: true, data: rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
@@ -91,20 +96,23 @@ const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience);
 
 // Admin CRUD for managing the actual channels
 router.post('/admin', authenticateToken, isAdmin, async (req, res) => {
-    const { name, description, access_level, show_on_home } = req.body;
+    const { name, description, access_level, show_on_home, dashboard_visibility, display_order } = req.body;
     try {
-        await pool.query("INSERT INTO channels (name, description, access_level, show_on_home) VALUES ($1, $2, $3, $4)", [name, description, access_level, show_on_home !== false]);
+        await pool.query(
+            "INSERT INTO channels (name, description, access_level, show_on_home, dashboard_visibility, display_order) VALUES ($1, $2, $3, $4, $5, $6)", 
+            [name, description, access_level, show_on_home !== false, dashboard_visibility || 'all', display_order || 0]
+        );
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 // Edit an existing channel
 router.put('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
-    const { name, description, access_level, show_on_home } = req.body;
+    const { name, description, access_level, show_on_home, dashboard_visibility, display_order } = req.body;
     try {
         await pool.query(
-            "UPDATE channels SET name = $1, description = $2, access_level = $3, show_on_home = $4 WHERE id = $5", 
-            [name, description, access_level, show_on_home !== false, req.params.id]
+            "UPDATE channels SET name = $1, description = $2, access_level = $3, show_on_home = $4, dashboard_visibility = $5, display_order = $6 WHERE id = $7", 
+            [name, description, access_level, show_on_home !== false, dashboard_visibility || 'all', display_order || 0, req.params.id]
         );
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
