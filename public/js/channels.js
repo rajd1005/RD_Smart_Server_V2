@@ -190,14 +190,17 @@ async function fetchAdminChannels() {
     try {
         const res = await fetch('/api/channels', { credentials: 'same-origin' });
         const data = await res.json();
-        let html = '<table class="table table-sm" style="font-size:10px;">';
+let html = '<table class="table table-sm" style="font-size:10px;">';
         data.data.forEach(c => {
             const safeName = c.name.replace(/'/g, "\\'");
             const safeDesc = (c.description || '').replace(/'/g, "\\'");
+            const showHome = c.show_on_home !== false;
+            const visBadge = showHome ? '<span class="text-success fw-bold" style="font-size:9px;">👁️ Visible</span>' : '<span class="text-danger fw-bold" style="font-size:9px;">🚫 Hidden</span>';
+            
             html += `<tr>
-                <td><b style="color:var(--blue);">${c.name}</b><br><span class="text-muted">${c.access_level}</span></td>
+                <td><b style="color:var(--blue);">${c.name}</b> <span class="ms-1">${visBadge}</span><br><span class="text-muted">${c.access_level}</span></td>
                 <td class="text-end align-middle">
-                    <button class="btn btn-sm text-primary p-0 me-2" onclick="openEditChannelModal(${c.id}, '${safeName}', '${safeDesc}', '${c.access_level}')"><span class="material-icons-round" style="font-size:16px;">edit</span></button>
+                    <button class="btn btn-sm text-primary p-0 me-2" onclick="openEditChannelModal(${c.id}, '${safeName}', '${safeDesc}', '${c.access_level}', ${showHome})"><span class="material-icons-round" style="font-size:16px;">edit</span></button>
                     <button class="btn btn-sm text-danger p-0" onclick="deleteChannel(${c.id})"><span class="material-icons-round" style="font-size:16px;">delete</span></button>
                 </td>
             </tr>`;
@@ -217,12 +220,12 @@ const adminModal = document.getElementById('adminCourseModal');
 if (adminModal) {
     adminModal.addEventListener('show.bs.modal', function () { fetchAdminChannels(); });
 }
-// --- NEW: Edit Channel Logic ---
-window.openEditChannelModal = function(id, name, desc, level) {
+window.openEditChannelModal = function(id, name, desc, level, showHome) {
     document.getElementById('editChannelId').value = id;
     document.getElementById('editChannelName').value = name;
     document.getElementById('editChannelDesc').value = desc;
     document.getElementById('editChannelLevel').value = level;
+    document.getElementById('editChannelShowHome').value = showHome ? 'true' : 'false';
     
     const modal = new bootstrap.Modal(document.getElementById('editChannelModal'));
     modal.show();
@@ -236,29 +239,18 @@ if (formEditChannel) {
         const data = {
             name: document.getElementById('editChannelName').value,
             description: document.getElementById('editChannelDesc').value,
-            access_level: document.getElementById('editChannelLevel').value
+            access_level: document.getElementById('editChannelLevel').value,
+            show_on_home: document.getElementById('editChannelShowHome').value === 'true'
         };
         
         try {
-            const res = await fetch(`/api/channels/admin/${id}`, { 
-                method: 'PUT', 
-                headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify(data), 
-                credentials: 'same-origin' 
-            });
-            
+            const res = await fetch(`/api/channels/admin/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), credentials: 'same-origin' });
             if (res.ok) {
                 const modal = bootstrap.Modal.getInstance(document.getElementById('editChannelModal'));
                 if (modal) modal.hide();
-                
-                // Refresh both the admin list and the visual student list
                 fetchAdminChannels();
                 fetchChannels(); 
-            } else {
-                alert("Error updating channel.");
             }
-        } catch(e) {
-            alert("Network error.");
-        }
+        } catch(e) {}
     });
 }
