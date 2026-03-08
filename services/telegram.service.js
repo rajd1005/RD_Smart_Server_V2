@@ -30,7 +30,8 @@ function initTelegramChannelsSync(pool, io) {
             const link = await bot.getFileLink(fileId);
             const ext = path.extname(link) || '.jpg';
             const filename = crypto.randomUUID() + ext;
-            const dest = path.join(__dirname, '..', 'public', 'uploads', filename);
+            // FIXED PATH: Pointing to the root uploads folder, not public/uploads
+            const dest = path.join(__dirname, '..', 'uploads', filename); 
             
             return new Promise((resolve, reject) => {
                 const file = fs.createWriteStream(dest);
