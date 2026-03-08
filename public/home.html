@@ -98,71 +98,97 @@
         .sticky-btn .material-icons-round { font-size: 20px; }
         .btn-green { background-color: #25d366; border-radius: 12px 0 0 0; }
         .btn-blue { background-color: #2ca5e0; border-radius: 0 12px 0 0; }
+
+        /* --- PUBLIC CHAT STYLES --- */
+        .chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 12px; margin-bottom: 12px; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .chat-title { font-weight: bold; font-size: 14px; margin-bottom: 4px; color: #000; line-height: 1.2; }
+        .chat-body { font-size: 13px; color: #222; margin-bottom: 6px; white-space: pre-wrap; line-height: 1.4; }
+        .chat-link { font-size: 12px; color: #0056b3; word-break: break-all; display: block; margin-bottom: 5px; text-decoration: underline; }
     </style>
 </head>
 <body>
 
     <div class="app-wrapper">
-<nav class="navbar d-flex justify-content-between align-items-center">
-    <div class="navbar-brand">RD Algo Trading</div>
-    <div>
-        <button id="installAppBtn" class="btn btn-sm btn-success fw-bold px-3 py-1 me-2" style="display:none; border-radius: 4px; font-size:12px;" onclick="installPWA()">Install App</button>
-        
-        <button class="btn btn-sm btn-primary fw-bold px-3 py-1" style="border-radius: 4px; font-size:12px;" data-bs-toggle="modal" data-bs-target="#loginModal">Login</button>
-    </div>
-</nav>
+        <nav class="navbar d-flex justify-content-between align-items-center" style="position: sticky; top: 0; z-index: 101;">
+            <div class="navbar-brand">RD Algo Trading</div>
+            <div>
+                <button id="installAppBtn" class="btn btn-sm btn-success fw-bold px-3 py-1 me-2" style="display:none; border-radius: 4px; font-size:12px;" onclick="installPWA()">Install App</button>
+                <button class="btn btn-sm btn-primary fw-bold px-3 py-1" style="border-radius: 4px; font-size:12px;" data-bs-toggle="modal" data-bs-target="#loginModal">Login</button>
+            </div>
+        </nav>
 
-        <div class="curriculum-container pb-0" id="demoCoursesContainer" style="display:none;">
-            <div class="accordion" id="publicCourseContainer_demo"></div>
+        <div class="d-flex bg-white border-bottom shadow-sm" style="position: sticky; top: 48px; z-index: 100;">
+            <button class="flex-grow-1 btn text-primary fw-bold rounded-0 border-bottom border-primary border-2 py-2" style="font-size:13px;" id="homeTabBtn" onclick="switchHomeTab('home')">Home Dashboard</button>
+            <button class="flex-grow-1 btn text-secondary fw-bold rounded-0 py-2" style="font-size:13px;" id="channelTabBtn" onclick="switchHomeTab('channel')">Free Channels <span class="badge bg-danger ms-1" style="font-size:9px; vertical-align:middle;">LIVE</span></button>
         </div>
 
-        <div id="galleryWrapper" class="px-3 pt-3 pb-1" style="display:none;" oncontextmenu="return false;">
-            <h6 class="fw-bold mb-2 ms-1" style="color: #000; text-transform: uppercase; font-size: 13px; letter-spacing: 0.5px;">
-                <span class="material-icons-round text-primary me-1" style="font-size: 16px; vertical-align: text-bottom;">trending_up</span>
-                Rd Algo Software Performance
-            </h6>
+        <div id="homeMainContent">
+            <div class="curriculum-container pb-0" id="demoCoursesContainer" style="display:none;">
+                <div class="accordion" id="publicCourseContainer_demo"></div>
+            </div>
 
-            <div id="galleryCarousel" class="carousel slide gallery-carousel" data-bs-ride="carousel" data-bs-interval="3000">
-                <div class="carousel-inner" id="galleryContainer"></div>
-                <button class="carousel-control-prev" type="button" data-bs-target="#galleryCarousel" data-bs-slide="prev">
-                    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-                    <span class="visually-hidden">Previous</span>
-                </button>
-                <button class="carousel-control-next" type="button" data-bs-target="#galleryCarousel" data-bs-slide="next">
-                    <span class="carousel-control-next-icon" aria-hidden="true"></span>
-                    <span class="visually-hidden">Next</span>
-                </button>
+            <div id="galleryWrapper" class="px-3 pt-3 pb-1" style="display:none;" oncontextmenu="return false;">
+                <h6 class="fw-bold mb-2 ms-1" style="color: #000; text-transform: uppercase; font-size: 13px; letter-spacing: 0.5px;">
+                    <span class="material-icons-round text-primary me-1" style="font-size: 16px; vertical-align: text-bottom;">trending_up</span>
+                    Rd Algo Software Performance
+                </h6>
+
+                <div id="galleryCarousel" class="carousel slide gallery-carousel" data-bs-ride="carousel" data-bs-interval="3000">
+                    <div class="carousel-inner" id="galleryContainer"></div>
+                    <button class="carousel-control-prev" type="button" data-bs-target="#galleryCarousel" data-bs-slide="prev">
+                        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                        <span class="visually-hidden">Previous</span>
+                    </button>
+                    <button class="carousel-control-next" type="button" data-bs-target="#galleryCarousel" data-bs-slide="next">
+                        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                        <span class="visually-hidden">Next</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="callReportWrapper" class="px-3 pt-3 pb-2" style="display:none;">
+                <h6 class="fw-bold mb-2 ms-1" style="color: #000; text-transform: uppercase; font-size: 13px; letter-spacing: 0.5px;">
+                    <span class="material-icons-round text-primary me-1" style="font-size: 16px; vertical-align: text-bottom;">query_stats</span>
+                    Call Performance
+                </h6>
+                <div style="background: #fff; border-radius: 12px; border: 1px solid var(--border-color); padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.03);">
+                    <div class="d-flex align-items-center justify-content-center mb-3">
+                        <input id="call-date-range" class="form-control text-center fw-bold" placeholder="Select Date Range" readonly style="max-width: 220px; font-size: 12px; background-color: #f8f9fa;">
+                    </div>
+                    
+                    <div id="call-loader" style="display:none; text-align:center; margin: 20px 0;">
+                        <span style="font-size:12px; font-weight: bold; color:var(--blue);">
+                            <span class="material-icons-round rotating" style="font-size:16px; vertical-align: text-bottom;">sync</span> Fetching Report...
+                        </span>
+                    </div>
+                    
+                    <div id="call-summary"></div>
+                    <div id="call-report-output"></div>
+                </div>
+            </div>
+
+            <div class="curriculum-container pt-1" id="otherCoursesContainer" style="display:none;">
+                <div class="accordion" id="publicCourseContainer_other"></div>
+            </div>
+
+            <div class="footer">
+                &copy; 2026 RD Algo Trading.<br>
+                All rights reserved.
             </div>
         </div>
 
-        <div id="callReportWrapper" class="px-3 pt-3 pb-2" style="display:none;">
-            <h6 class="fw-bold mb-2 ms-1" style="color: #000; text-transform: uppercase; font-size: 13px; letter-spacing: 0.5px;">
-                <span class="material-icons-round text-primary me-1" style="font-size: 16px; vertical-align: text-bottom;">query_stats</span>
-                Call Performance
-            </h6>
-            <div style="background: #fff; border-radius: 12px; border: 1px solid var(--border-color); padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.03);">
-                <div class="d-flex align-items-center justify-content-center mb-3">
-                    <input id="call-date-range" class="form-control text-center fw-bold" placeholder="Select Date Range" readonly style="max-width: 220px; font-size: 12px; background-color: #f8f9fa;">
-                </div>
-                
-                <div id="call-loader" style="display:none; text-align:center; margin: 20px 0;">
-                    <span style="font-size:12px; font-weight: bold; color:var(--blue);">
-                        <span class="material-icons-round rotating" style="font-size:16px; vertical-align: text-bottom;">sync</span> Fetching Report...
-                    </span>
-                </div>
-                
-                <div id="call-summary"></div>
-                <div id="call-report-output"></div>
+        <div id="publicChannelsContent" style="display:none; flex-direction: column; background-color: #efeae2; min-height: calc(100vh - 90px);">
+            <div class="flex-grow-1 p-2" id="publicChannelListView">
+                <div class="text-center text-muted mt-3" style="font-size:12px;">Loading channels...</div>
             </div>
-        </div>
-
-        <div class="curriculum-container pt-1" id="otherCoursesContainer" style="display:none;">
-            <div class="accordion" id="publicCourseContainer_other"></div>
-        </div>
-
-        <div class="footer">
-            &copy; 2026 RD Algo Trading.<br>
-            All rights reserved.
+            
+            <div class="flex-grow-1 p-3" id="publicChannelChatView" style="display:none; flex-direction: column;">
+                <div class="d-flex align-items-center mb-3 bg-white p-2 rounded shadow-sm sticky-top" style="top: 10px; z-index: 10;">
+                    <button class="btn btn-sm btn-light me-2 p-1" onclick="showPublicChannelList()"><span class="material-icons-round" style="font-size: 18px;">arrow_back</span></button>
+                    <h6 class="mb-0 fw-bold" id="publicChannelHeaderTitle" style="font-size: 14px;">Channel Name</h6>
+                </div>
+                <div id="publicChannelMessages"></div>
+            </div>
         </div>
         
         <div id="stickyFooterWrapper" class="sticky-footer-wrapper" style="display:none;"></div>
@@ -278,11 +304,12 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     
     <script>
         let videoPlayer = null; 
         let watermarkInterval = null; 
-        let progressInterval = null; // --- NEW: Video Progress Tracker ---
+        let progressInterval = null; 
         let tempSetupToken = null;
         let tempResetEmail = null;
 
@@ -300,7 +327,141 @@
             }
         });
 
-        // --- NEW: INITIALIZE CALL WIDGET FETCH & LOGIC ---
+        // --- PUBLIC CHANNELS LOGIC ---
+        const socket = io(); 
+        const channelSound = new Audio('/chaching.mp3');
+        let currentPublicChannelId = null;
+
+        function switchHomeTab(tab) {
+            if (tab === 'home') {
+                document.getElementById('homeMainContent').style.display = 'block';
+                document.getElementById('publicChannelsContent').style.display = 'none';
+                document.getElementById('homeTabBtn').classList.add('text-primary', 'border-bottom', 'border-primary', 'border-2');
+                document.getElementById('homeTabBtn').classList.remove('text-secondary');
+                document.getElementById('channelTabBtn').classList.add('text-secondary');
+                document.getElementById('channelTabBtn').classList.remove('text-primary', 'border-bottom', 'border-primary', 'border-2');
+            } else {
+                document.getElementById('homeMainContent').style.display = 'none';
+                document.getElementById('publicChannelsContent').style.display = 'flex';
+                document.getElementById('channelTabBtn').classList.add('text-primary', 'border-bottom', 'border-primary', 'border-2');
+                document.getElementById('channelTabBtn').classList.remove('text-secondary');
+                document.getElementById('homeTabBtn').classList.add('text-secondary');
+                document.getElementById('homeTabBtn').classList.remove('text-primary', 'border-bottom', 'border-primary', 'border-2');
+                
+                fetchPublicChannels();
+            }
+        }
+
+        async function fetchPublicChannels() {
+            showPublicChannelList();
+            try {
+                const res = await fetch('/api/channels/public');
+                const data = await res.json();
+                const listObj = document.getElementById('publicChannelListView');
+                
+                if (data.data.length === 0) {
+                    listObj.innerHTML = '<div class="text-center text-muted mt-5"><span class="material-icons-round" style="font-size:48px; opacity:0.2;">forum</span><br>No free channels available.</div>';
+                    return;
+                }
+                
+                let html = '';
+                data.data.forEach(c => {
+                    html += `
+                    <div class="p-3 bg-white rounded shadow-sm mb-2 d-flex align-items-center" style="cursor:pointer; border: 1px solid var(--border-color);" onclick="openPublicChannel(${c.id}, '${c.name.replace(/'/g, "\\'")}')">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; font-weight: bold; font-size: 18px;">
+                            ${c.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <h6 class="mb-0 fw-bold" style="font-size: 14px; color: #000;">${c.name}</h6>
+                            <div class="text-muted" style="font-size: 11px;">${c.description || 'Tap to view messages'}</div>
+                        </div>
+                    </div>`;
+                });
+                listObj.innerHTML = html;
+
+                if (window.pendingChannelId) {
+                    const targetChannel = data.data.find(c => c.id == window.pendingChannelId);
+                    if (targetChannel) openPublicChannel(targetChannel.id, targetChannel.name);
+                    window.pendingChannelId = null; 
+                }
+            } catch(e) {}
+        }
+
+        function showPublicChannelList() {
+            currentPublicChannelId = null;
+            document.getElementById('publicChannelListView').style.display = 'block';
+            document.getElementById('publicChannelChatView').style.display = 'none';
+        }
+
+        async function openPublicChannel(id, name) {
+            currentPublicChannelId = id;
+            document.getElementById('publicChannelListView').style.display = 'none';
+            document.getElementById('publicChannelChatView').style.display = 'flex';
+            document.getElementById('publicChannelHeaderTitle').innerText = name;
+            fetchPublicChannelMessages(id);
+        }
+
+        async function fetchPublicChannelMessages(id) {
+            try {
+                const res = await fetch(`/api/channels/public/${id}/messages`);
+                const data = await res.json();
+                const chatObj = document.getElementById('publicChannelMessages');
+                
+                if (data.data.length === 0) {
+                    chatObj.innerHTML = '<div class="text-center text-muted mt-4" style="font-size:12px;">No messages yet.</div>';
+                    return;
+                }
+
+                let html = '';
+                data.data.forEach(m => {
+                    const dateStr = new Date(m.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+                    let imgHtml = m.image_url ? `<img src="${m.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;">` : '';
+                    let linkHtml = m.link_url ? `<a href="${m.link_url}" target="_blank" class="chat-link mt-2" style="font-size:11px;">${m.link_url}</a>` : '';
+
+                    html += `
+                    <div class="chat-bubble mb-3 w-100 shadow-sm" style="background-color: #fff; max-width: 90%; align-self: flex-start; border: 1px solid var(--border-color); border-radius: 12px; border-bottom-left-radius: 0; padding: 10px 14px;">
+                        <div class="d-flex justify-content-between mb-1 border-bottom pb-1">
+                            <span style="font-size: 10px; font-weight: 900; color: var(--blue); text-transform: uppercase;">ADMIN</span>
+                            <span style="font-size: 9px; color: var(--text-secondary);">${dateStr}</span>
+                        </div>
+                        <div class="chat-title mt-1">${m.title}</div>
+                        ${imgHtml}
+                        <div class="chat-body" style="font-size: 13px; color: #333;">${m.body}</div>
+                        ${linkHtml}
+                    </div>`;
+                });
+                chatObj.innerHTML = html;
+                window.scrollTo(0, document.body.scrollHeight);
+            } catch(e) {}
+        }
+
+        socket.on('new_channel_msg', (data) => {
+            channelSound.play().catch(e => {});
+            if (currentPublicChannelId == data.channel_id) {
+                fetchPublicChannelMessages(currentPublicChannelId);
+            }
+        });
+
+        // Check URL parameters for Push Notification deep-linking
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('tab') === 'channels') {
+                window.pendingChannelId = urlParams.get('id');
+                switchHomeTab('channel');
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        });
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', event => {
+                if (event.data && event.data.action === 'open_channels') {
+                    window.pendingChannelId = event.data.channelId;
+                    switchHomeTab('channel');
+                }
+            });
+        }
+        // ---------------------------------
+
         async function initCallWidget() {
             try {
                 const settingsRes = await fetch('/api/settings');
@@ -317,7 +478,7 @@
                             const istOffset = 5.5 * 60 * 60 * 1000;
                             const todayIST = new Date(now.getTime() + istOffset);
                             const past10 = new Date(todayIST);
-                            past10.setDate(todayIST.getDate() - 10); // Changed from 29 to 6 for the last 7 days
+                            past10.setDate(todayIST.getDate() - 10); 
                             return [past10, todayIST];
                         })(),
                         onReady: function (selectedDates) {
@@ -723,7 +884,7 @@
                     if (settings.homepage_layout) {
                         try {
                             const layoutOrder = JSON.parse(settings.homepage_layout);
-                            const appWrapper = document.querySelector('.app-wrapper');
+                            const appWrapper = document.getElementById('homeMainContent');
                             const footer = document.querySelector('.footer');
                             layoutOrder.forEach(id => {
                                 const el = document.getElementById(id);
@@ -734,7 +895,6 @@
                         } catch(e) {}
                     }
                     
-                    // --- NEW STICKY BUTTON RENDERING ---
                     if (settings.show_sticky_footer !== 'false') {
                         const wrapper = document.getElementById('stickyFooterWrapper');
                         if (wrapper) {
@@ -765,7 +925,6 @@
                     const vw = videoPlayer.videoWidth();
                     const vh = videoPlayer.videoHeight();
                     
-                    // Check if the API is supported
                     if (screen.orientation && screen.orientation.lock) {
                         try { 
                             if (vw > vh) { 
@@ -777,7 +936,6 @@
                             console.log("Orientation lock failed", e);
                         }
                     } else {
-                        // Fallback for iOS devices
                         if (vw > vh && window.innerHeight > window.innerWidth) {
                             alert("For the best experience, please rotate your device horizontally.");
                         }
@@ -798,7 +956,6 @@
                 startWatermark(); 
                 videoPlayer.play();
 
-                // --- NEW: Start Video Progress Tracking ---
                 if (progressInterval) clearInterval(progressInterval);
                 progressInterval = setInterval(() => {
                     if (!videoPlayer.paused()) {
@@ -810,13 +967,12 @@
                         }).catch(e => {});
                     }
                 }, 10000);
-                // ------------------------------------------
 
             } catch(err) { alert("🚨 Error loading video stream."); }
         }
 
         function closeVideoPlayer() {
-            if (progressInterval) clearInterval(progressInterval); // --- NEW: Stop Video Tracking ---
+            if (progressInterval) clearInterval(progressInterval);
             if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
             if (screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch (e) {} }
             if (document.fullscreenElement || document.webkitFullscreenElement) {
@@ -827,7 +983,7 @@
 
         function startWatermark() {
             const wmEl = document.getElementById('dynamicWatermark');
-            wmEl.innerHTML = `Rdalgo.in`; // <-- Updated to show only one line
+            wmEl.innerHTML = `Rdalgo.in`;
             wmEl.style.display = 'block';
             if (watermarkInterval) clearInterval(watermarkInterval); 
             moveWatermark(); 
@@ -850,7 +1006,6 @@
             wmEl.style.left = Math.floor(Math.random() * (maxX - minX + 1)) + minX + 'px'; wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
         }
 
-        // --- NEW: FETCH REGISTRATION LINK ON LOAD ---
         async function fetchSystemSettings() {
             try {
                 const settingsRes = await fetch('/api/settings');
@@ -865,18 +1020,16 @@
         initCallWidget();
         loadGallery();
         fetchPublicCourses();
-        fetchSystemSettings(); // Fetch registration link and update DOM
+        fetchSystemSettings(); 
     </script>
 <script>
-    // --- SMART PUSH LOGIC FOR PUBLIC USERS ---
     function checkAndPromptPushSubscription() {
         if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
 
-        // Using a unique session key for public users
         const hasBeenPrompted = sessionStorage.getItem('publicPushPromptDismissed');
 
         if (Notification.permission === 'granted') {
-            registerPublicServiceWorker(); // Silently connect
+            registerPublicServiceWorker(); 
         } 
         else if (Notification.permission === 'denied') {
             if (!hasBeenPrompted) {
@@ -952,8 +1105,6 @@
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
     if (isIos && !isStandalone) {
-        // A strict check to see if it is Safari. 
-        // Safari has 'safari' in the user agent, but NOT 'crios' (Chrome), 'fxios' (Firefox), etc.
         const isSafari = userAgent.includes('safari') && 
                          !userAgent.includes('crios') && 
                          !userAgent.includes('fxios') && 
@@ -961,7 +1112,6 @@
                          !userAgent.includes('edgios');
 
         if (!isSafari) {
-            // USER IS ON iPHONE BUT NOT IN SAFARI -> BLOCK THE ENTIRE SCREEN
             document.body.innerHTML = `
                 <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background-color:#f0f2f5; padding:20px; text-align:center; font-family:'Roboto', sans-serif;">
                     <span class="material-icons-round" style="font-size:72px; color:#ff3b30; margin-bottom:15px;">gpp_bad</span>
@@ -980,20 +1130,17 @@
                 </div>
             `;
             
-            // Define the copy function globally so the button can use it
             window.copyUrlForSafari = function() {
                 const urlInput = document.getElementById('currentUrl');
                 urlInput.select();
-                urlInput.setSelectionRange(0, 99999); // For mobile devices
+                urlInput.setSelectionRange(0, 99999); 
                 navigator.clipboard.writeText(urlInput.value).then(() => {
                     document.getElementById('copySuccess').style.display = 'block';
                 });
             };
             
-            // Stop further execution because the app is blocked
             return true; 
         } else {
-            // USER IS ON iPHONE AND IN SAFARI -> Show standard install instructions
             const installBtn = document.getElementById('installAppBtn');
             if (installBtn) {
                 installBtn.style.display = 'inline-block';
@@ -1004,17 +1151,13 @@
     return false;
 }
 
-// Run this immediately when the page loads
 window.addEventListener('load', () => {
     const isBlocked = enforceSafariOnIOS();
     if (!isBlocked) {
-        // If not blocked, run your other normal startup functions here...
-        // For example, your prompt for Androids:
         if (typeof showInstallModal === 'function') showInstallModal();
     }
 });
 
-    // Trigger the soft prompt 3 seconds after the landing page loads
     setTimeout(checkAndPromptPushSubscription, 3000);
 </script>
     <div class="modal fade" id="pushReminderModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
@@ -1045,19 +1188,16 @@ window.addEventListener('load', () => {
     <script>
     let deferredPrompt;
     
-    // Listen for the browser telling us the app is ready to be installed
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
-        // Show the install button
         const installBtn = document.getElementById('installAppBtn');
         if (installBtn) installBtn.style.display = 'inline-block';
     });
 
-    // Function to trigger when user clicks the "Install App" button
     function installPWA() {
         if (!deferredPrompt) return;
-        deferredPrompt.prompt(); // Show the native browser install prompt
+        deferredPrompt.prompt(); 
         deferredPrompt.userChoice.then((choiceResult) => {
             if (choiceResult.outcome === 'accepted') {
                 console.log('User accepted the install prompt');
@@ -1067,7 +1207,6 @@ window.addEventListener('load', () => {
         });
     }
 
-    // Hide button if already installed
     window.addEventListener('appinstalled', (evt) => {
         const installBtn = document.getElementById('installAppBtn');
         if (installBtn) installBtn.style.display = 'none';
