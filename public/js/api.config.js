@@ -44,8 +44,9 @@ const urlParams = new URLSearchParams(window.location.search);
     navigator.serviceWorker.addEventListener('message', event => {
             if (event.data && event.data.action === 'open_alerts') {
                 if (typeof switchSection === 'function') switchSection('notification');
-            } else if (event.data && event.data.action === 'open_channels') {
-                if (typeof switchSection === 'function') switchSection('channel'); // ADD THIS
+} else if (event.data && event.data.action === 'open_channels') {
+                window.pendingChannelId = event.data.channelId;
+                if (typeof switchSection === 'function') switchSection('channel');
             }
         });
     }
