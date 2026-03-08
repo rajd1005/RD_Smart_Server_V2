@@ -1,9 +1,11 @@
 let currentChannelId = null;
-
+window.appSettings = {};
 async function initChannelTab() {
     try {
         const res = await fetch('/api/settings');
         const data = await res.json();
+        window.appSettings = data; // Save globally
+        
         const navBtn = document.getElementById('navChannelBtn');
         if (navBtn) {
             if (data.show_channel_tab === 'false' && typeof userData !== 'undefined' && userData.role !== 'admin' && userData.role !== 'manager') {
@@ -166,6 +168,11 @@ if (formChannelMsg) {
 if (typeof socket !== 'undefined') {
     const channelSound = new Audio('/chaching.mp3'); 
     socket.on('new_channel_msg', (data) => {
+        // Block notification if disabled for students
+        if (typeof userData !== 'undefined' && userData.role !== 'admin' && userData.role !== 'manager') {
+            if (window.appSettings && window.appSettings.show_channel_tab === 'false') return;
+        }
+
         channelSound.play().catch(e => { console.log("Sound autoplay blocked"); });
         if (currentChannelId == data.channel_id) {
             fetchChannelMessages(currentChannelId);
