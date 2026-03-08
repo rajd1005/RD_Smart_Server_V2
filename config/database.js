@@ -103,8 +103,30 @@ const initDb = async () => {
     ('cat_stock', ''),
     ('cat_index', ''),
     ('cat_mcx', ''),
-    ('push_trade_alerts', 'true')
+    ('push_trade_alerts', 'true'),
+    ('show_channel_tab', 'true')
     ON CONFLICT (setting_key) DO NOTHING;`;
+
+    const queryChannels = `
+    CREATE TABLE IF NOT EXISTS channels (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        access_level VARCHAR(50) DEFAULT 'demo',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`;
+
+    const queryChannelMessages = `
+    CREATE TABLE IF NOT EXISTS channel_messages (
+        id SERIAL PRIMARY KEY,
+        channel_id INT REFERENCES channels(id) ON DELETE CASCADE,
+        sender_email VARCHAR(255),
+        title VARCHAR(255),
+        body TEXT,
+        image_url VARCHAR(255),
+        link_url VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`;
 
     try {
         await pool.query(queryTrades);
@@ -117,6 +139,8 @@ const initDb = async () => {
         await pool.query(queryProgress);
         await pool.query(queryPushSubscriptions);
         await pool.query(queryScheduledNotifications);
+        await pool.query(queryChannels);
+        await pool.query(queryChannelMessages);
         await pool.query(populateDefaultSettings);
 
         // Run ALTER statements safely to update existing tables
