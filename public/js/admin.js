@@ -32,12 +32,12 @@ if (formAdminSettings) {
         e.preventDefault();
         const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
         
-        const state = document.getElementById('adminAccordionState')?.value || 'first';
+const state = document.getElementById('adminAccordionState')?.value || 'first';
         const hideTrade = document.getElementById('adminHideTradeTab')?.checked ? 'true' : 'false';
         const push_trade_alerts = document.getElementById('adminPushTradeAlerts')?.checked ? 'true' : 'false';
         const showGallery = document.getElementById('adminShowGallery')?.checked ? 'true' : 'false';
         const showCallWidget = document.getElementById('adminShowCallWidget')?.checked ? 'true' : 'false';
-        
+        const showChannelTab = document.getElementById('adminShowChannelTab')?.checked ? 'true' : 'false'; // <-- ADDED THIS
 
         const showStickyFooter = document.getElementById('adminShowStickyFooter')?.checked ? 'true' : 'false';
         const sticky_btn1_text = document.getElementById('adminBtn1Text')?.value || '';
@@ -65,6 +65,7 @@ if (formAdminSettings) {
                 push_trade_alerts: push_trade_alerts,
                 show_gallery: showGallery, 
                 show_call_widget: showCallWidget,
+                show_channel_tab: showChannelTab,
                 show_sticky_footer: showStickyFooter,
                 sticky_btn1_text: sticky_btn1_text,
                 sticky_btn1_icon: sticky_btn1_icon,
