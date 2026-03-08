@@ -178,18 +178,19 @@
         </div>
 
 <div id="publicChannelsContent" style="display:none; flex-direction: column; background-color: var(--bg-color); height: calc(100vh - 90px); overflow: hidden;">
-            <div class="flex-grow-1 p-2" id="publicChannelListView" style="overflow-y: auto; min-height: 0;">
+            
+            <div class="bg-white p-2 shadow-sm flex-shrink-0 align-items-center" id="publicChannelHeader" style="display:none; z-index: 99; border-bottom: 1px solid var(--border-color);">
+                <button class="btn btn-sm btn-light me-2 p-1 d-flex align-items-center justify-content-center" onclick="showPublicChannelList()" style="height: 30px; width: 30px;"><span class="material-icons-round" style="font-size: 18px;">arrow_back</span></button>
+                <h6 class="mb-0 fw-bold text-truncate" id="publicChannelHeaderTitle" style="font-size: 15px; color: var(--blue);">Channel Name</h6>
+            </div>
+
+            <div class="flex-grow-1 p-2" id="publicChannelListView" style="overflow-y: auto;">
                 <div class="text-center text-muted mt-3" style="font-size:12px;">Loading channels...</div>
             </div>
             
-            <div class="flex-grow-1" id="publicChannelChatView" style="display:none; flex-direction: column; overflow: hidden; height: 100%; min-height: 0;">
-                <div class="d-flex align-items-center bg-white p-2 shadow-sm flex-shrink-0" style="z-index: 99; border-bottom: 1px solid var(--border-color);">
-                    <button class="btn btn-sm btn-light me-2 p-1 d-flex align-items-center justify-content-center" onclick="showPublicChannelList()" style="height: 30px; width: 30px;"><span class="material-icons-round" style="font-size: 18px;">arrow_back</span></button>
-                    <h6 class="mb-0 fw-bold text-truncate" id="publicChannelHeaderTitle" style="font-size: 15px; color: var(--blue);">Channel Name</h6>
-                </div>
-                
-                <div id="publicChannelMessages" class="p-3 flex-grow-1" style="overflow-y: auto; height: 100%; min-height: 0;"></div>
+            <div class="flex-grow-1 p-3" id="publicChannelChatView" style="display:none; overflow-y: auto; flex-direction: column;">
             </div>
+
         </div>
         
         <div id="stickyFooterWrapper" class="sticky-footer-wrapper" style="display:none;"></div>
@@ -401,14 +402,16 @@
             } catch(e) {}
         }
 
-        function showPublicChannelList() {
+function showPublicChannelList() {
             currentPublicChannelId = null;
+            document.getElementById('publicChannelHeader').style.display = 'none'; // Hide header
             document.getElementById('publicChannelListView').style.display = 'block';
             document.getElementById('publicChannelChatView').style.display = 'none';
         }
 
         async function openPublicChannel(id, name) {
             currentPublicChannelId = id;
+            document.getElementById('publicChannelHeader').style.display = 'flex'; // Show header
             document.getElementById('publicChannelListView').style.display = 'none';
             document.getElementById('publicChannelChatView').style.display = 'flex';
             document.getElementById('publicChannelHeaderTitle').innerText = name;
@@ -419,7 +422,9 @@
             try {
                 const res = await fetch(`/api/channels/public/${id}/messages`);
                 const data = await res.json();
-                const chatObj = document.getElementById('publicChannelMessages');
+                
+                // We inject directly into the main scrolling container now
+                const chatObj = document.getElementById('publicChannelChatView'); 
                 
                 if (data.data.length === 0) {
                     chatObj.innerHTML = '<div class="text-center text-muted mt-4" style="font-size:12px;">No messages yet.</div>';
@@ -445,8 +450,9 @@
                     </div>`;
                 });
                 chatObj.innerHTML = html;
-                const scrollContainer = document.getElementById('publicChannelMessages');
-                scrollContainer.scrollTop = scrollContainer.scrollHeight;
+                
+                // Automatically scroll the chat to the bottom
+                chatObj.scrollTop = chatObj.scrollHeight;
             } catch(e) {}
         }
 
