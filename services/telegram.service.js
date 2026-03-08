@@ -24,7 +24,7 @@ function toMarkdown(text) {
 // TG -> Web Sync Setup
 function initTelegramChannelsSync(pool, io) {
     
-    // Function to download TG images
+    // Function to download TG images/videos
     async function downloadTgImage(fileId) {
         try {
             const link = await bot.getFileLink(fileId);
@@ -58,7 +58,8 @@ function initTelegramChannelsSync(pool, io) {
                  return;
             }
 
-            if (!msg.text && !msg.caption && !msg.photo) return;
+            // ALLOW VIDEOS NOW
+            if (!msg.text && !msg.caption && !msg.photo && !msg.video) return;
             
             let text = msg.text || msg.caption || '';
             let title = 'Telegram Update';
@@ -77,9 +78,17 @@ function initTelegramChannelsSync(pool, io) {
             }
 
             let image_url = null;
+            let fileIdToDownload = null;
+            
+            // Extract file ID for Photo OR Video
             if (msg.photo && msg.photo.length > 0) {
-                const fileId = msg.photo[msg.photo.length - 1].file_id; // Get highest resolution
-                image_url = await downloadTgImage(fileId);
+                fileIdToDownload = msg.photo[msg.photo.length - 1].file_id;
+            } else if (msg.video) {
+                fileIdToDownload = msg.video.file_id;
+            }
+
+            if (fileIdToDownload) {
+                image_url = await downloadTgImage(fileIdToDownload); // Downloads media (photo/video up to 20MB limit)
             }
 
             // Insert into Database
