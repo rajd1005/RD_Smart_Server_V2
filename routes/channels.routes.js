@@ -9,7 +9,8 @@ const webpush = require('web-push');
 // --- NEW PUBLIC ROUTES FOR HOME PAGE ---
 router.get('/public', async (req, res) => {
     try {
-        const { rows } = await pool.query("SELECT * FROM channels WHERE access_level = 'demo' ORDER BY id ASC");
+        // ONLY fetch demo channels if 'show_on_home' is set to TRUE
+        const { rows } = await pool.query("SELECT * FROM channels WHERE access_level = 'demo' AND show_on_home = true ORDER BY id ASC");
         res.json({ success: true, data: rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -88,22 +89,22 @@ const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience);
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// 4. Admin CRUD for managing the actual channels
+// Admin CRUD for managing the actual channels
 router.post('/admin', authenticateToken, isAdmin, async (req, res) => {
-    const { name, description, access_level } = req.body;
+    const { name, description, access_level, show_on_home } = req.body;
     try {
-        await pool.query("INSERT INTO channels (name, description, access_level) VALUES ($1, $2, $3)", [name, description, access_level]);
+        await pool.query("INSERT INTO channels (name, description, access_level, show_on_home) VALUES ($1, $2, $3, $4)", [name, description, access_level, show_on_home !== false]);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 // Edit an existing channel
 router.put('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
-    const { name, description, access_level } = req.body;
+    const { name, description, access_level, show_on_home } = req.body;
     try {
         await pool.query(
-            "UPDATE channels SET name = $1, description = $2, access_level = $3 WHERE id = $4", 
-            [name, description, access_level, req.params.id]
+            "UPDATE channels SET name = $1, description = $2, access_level = $3, show_on_home = $4 WHERE id = $5", 
+            [name, description, access_level, show_on_home !== false, req.params.id]
         );
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
