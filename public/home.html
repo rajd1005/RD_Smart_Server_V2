@@ -177,7 +177,7 @@
             </div>
         </div>
 
-        <div id="publicChannelsContent" style="display:none; flex-direction: column; background-color: #efeae2; height: calc(100vh - 90px); overflow: hidden;">
+        <div id="publicChannelsContent" style="display:none; flex-direction: column; background-color: var(--bg-color); height: calc(100vh - 90px); overflow: hidden;">
             <div class="flex-grow-1 p-2" id="publicChannelListView" style="overflow-y: auto;">
                 <div class="text-center text-muted mt-3" style="font-size:12px;">Loading channels...</div>
             </div>
@@ -375,6 +375,7 @@ async function fetchPublicChannels() {
                 let html = '';
                 data.data.forEach(c => {
                     const isLocked = c.access_level !== 'demo';
+                    
                     const iconHtml = isLocked ? 
                         `<div class="bg-light text-muted rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; border: 1px solid #ccc;"><span class="material-icons-round">lock</span></div>` :
                         `<div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; font-weight: bold; font-size: 18px;">${c.name.charAt(0).toUpperCase()}</div>`;
