@@ -117,7 +117,7 @@
             </div>
         </nav>
 
-        <div id="homeSubNav" class="d-flex bg-white border-bottom shadow-sm" style="position: sticky; top: 48px; z-index: 100; display: none !important;">
+        <div id="homeSubNav" class="d-none bg-white border-bottom shadow-sm" style="position: sticky; top: 48px; z-index: 100;">
             <button class="flex-grow-1 btn text-primary fw-bold rounded-0 border-bottom border-primary border-2 py-2" style="font-size:13px;" id="homeTabBtn" onclick="switchHomeTab('home')">Home Dashboard</button>
             <button class="flex-grow-1 btn text-secondary fw-bold rounded-0 py-2" style="font-size:13px;" id="channelTabBtn" onclick="switchHomeTab('channel')">Free Channels <span class="badge bg-danger ms-1" style="font-size:9px; vertical-align:middle;">LIVE</span></button>
         </div>
@@ -890,12 +890,6 @@ window.appSettings = {}; // Global reference
                 try {
                     const settingsRes = await fetch('/api/settings'); const settings = await settingsRes.json();
                     
-                    if (settings.show_channel_tab === 'false') {
-                        document.getElementById('homeSubNav').style.display = 'none';
-                    } else {
-                        document.getElementById('homeSubNav').style.display = 'flex';
-                    }
-
                     if (settings.homepage_layout) {
                         try {
                             const layoutOrder = JSON.parse(settings.homepage_layout);
@@ -1033,11 +1027,16 @@ async function fetchSystemSettings() {
                     regBtn.href = settings.register_link;
                 }
 
-                // Strictly hide the Home / Free Channel Toggle Nav if disabled
-                if (settings.show_channel_tab === 'false') {
-                    document.getElementById('homeSubNav').setAttribute('style', 'display: none !important;');
-                } else {
-                    document.getElementById('homeSubNav').setAttribute('style', 'display: flex; position: sticky; top: 48px; z-index: 100;');
+                // Strictly handle Bootstrap !important classes
+                const subNav = document.getElementById('homeSubNav');
+                if (subNav) {
+                    if (settings.show_channel_tab === 'false') {
+                        subNav.classList.remove('d-flex');
+                        subNav.classList.add('d-none');
+                    } else {
+                        subNav.classList.remove('d-none');
+                        subNav.classList.add('d-flex');
+                    }
                 }
             } catch(e) {}
         }
