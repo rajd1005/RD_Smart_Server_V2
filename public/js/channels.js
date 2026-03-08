@@ -346,7 +346,8 @@ if (formAddChannel) {
             access_level: document.getElementById('adminChannelLevel').value,
             show_on_home: document.getElementById('adminChannelShowHome').value === 'true',
             dashboard_visibility: document.getElementById('adminChannelDashVis').value,
-            display_order: document.getElementById('adminChannelOrder').value || 0
+            display_order: document.getElementById('adminChannelOrder').value || 0,
+            telegram_chat_id: document.getElementById('adminChannelTelegram') ? document.getElementById('adminChannelTelegram').value : ''
         };
         await fetch('/api/channels/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), credentials: 'same-origin' });
         formAddChannel.reset();
@@ -368,11 +369,12 @@ async function fetchAdminChannels() {
             const visBadge = showHome ? '<span class="text-success fw-bold" style="font-size:9px;">👁️ Visible</span>' : '<span class="text-danger fw-bold" style="font-size:9px;">🚫 Hidden</span>';
             const dashVis = c.dashboard_visibility || 'all';
             const order = c.display_order || 0;
+            const tgId = c.telegram_chat_id || '';
             
             html += `<tr>
                 <td><b style="color:var(--blue);">${c.name}</b> <span class="ms-1">${visBadge}</span><br><span class="text-muted">${c.access_level} | Order: ${order}</span></td>
                 <td class="text-end align-middle">
-                    <button class="btn btn-sm text-primary p-0 me-2" onclick="openEditChannelModal(${c.id}, '${safeName}', '${safeDesc}', '${c.access_level}', ${showHome}, '${dashVis}', ${order})"><span class="material-icons-round" style="font-size:16px;">edit</span></button>
+                    <button class="btn btn-sm text-primary p-0 me-2" onclick="openEditChannelModal(${c.id}, '${safeName}', '${safeDesc}', '${c.access_level}', ${showHome}, '${dashVis}', ${order}, '${tgId}')"><span class="material-icons-round" style="font-size:16px;">edit</span></button>
                     <button class="btn btn-sm text-danger p-0" onclick="deleteChannel(${c.id})"><span class="material-icons-round" style="font-size:16px;">delete</span></button>
                 </td>
             </tr>`;
@@ -393,7 +395,7 @@ if (adminModal) {
     adminModal.addEventListener('show.bs.modal', function () { fetchAdminChannels(); });
 }
 
-window.openEditChannelModal = function(id, name, desc, level, showHome, dashVis, order) {
+window.openEditChannelModal = function(id, name, desc, level, showHome, dashVis, order, tgId) {
     document.getElementById('editChannelId').value = id;
     document.getElementById('editChannelName').value = name;
     document.getElementById('editChannelDesc').value = desc;
@@ -401,6 +403,9 @@ window.openEditChannelModal = function(id, name, desc, level, showHome, dashVis,
     document.getElementById('editChannelShowHome').value = showHome ? 'true' : 'false';
     document.getElementById('editChannelDashVis').value = dashVis;
     document.getElementById('editChannelOrder').value = order;
+    
+    const editChannelTelegram = document.getElementById('editChannelTelegram');
+    if(editChannelTelegram) editChannelTelegram.value = tgId || '';
     
     const modal = new bootstrap.Modal(document.getElementById('editChannelModal'));
     modal.show();
@@ -417,7 +422,8 @@ if (formEditChannel) {
             access_level: document.getElementById('editChannelLevel').value,
             show_on_home: document.getElementById('editChannelShowHome').value === 'true',
             dashboard_visibility: document.getElementById('editChannelDashVis').value,
-            display_order: document.getElementById('editChannelOrder').value || 0
+            display_order: document.getElementById('editChannelOrder').value || 0,
+            telegram_chat_id: document.getElementById('editChannelTelegram') ? document.getElementById('editChannelTelegram').value : ''
         };
         
         try {
