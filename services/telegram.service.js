@@ -7,8 +7,12 @@ const webpush = require('web-push');
 const pushRoutes = require('../routes/push.routes');
 require('dotenv').config();
 
-// Enable polling to listen to incoming TG messages
-const bot = new TelegramBot(process.env.TG_BOT_TOKEN, { polling: true });
+// Enable polling and disable the deprecation warning by setting filepath to false
+const bot = new TelegramBot(process.env.TG_BOT_TOKEN, { 
+    polling: true,
+    filepath: false // This line resolves the (node:49) DeprecationWarning
+});
+
 const CHAT_ID = process.env.TG_CHAT_ID;
 
 // Helper function to escape characters for Telegram MarkdownV2
@@ -29,7 +33,6 @@ function parseTelegramEntitiesToMarkdown(text, entities) {
 
     let result = '';
     let lastIndex = 0;
-    // Sort entities to process them left-to-right
     let sortedEntities = [...entities].sort((a, b) => a.offset - b.offset);
 
     for (let i = 0; i < sortedEntities.length; i++) {
@@ -77,16 +80,15 @@ function initTelegramChannelsSync(pool, io) {
         } catch(e) { return null; }
     }
 
-    // 1. Shared logic for incoming messages (Supports both Groups and Channels)
+    // 1. Shared logic for incoming messages
     const handleIncomingMessage = async (msg) => {
         try {
             const chat_id = msg.chat.id.toString();
             const { rows: channels } = await pool.query("SELECT id, name, access_level FROM channels WHERE telegram_chat_id = $1", [chat_id]);
-            if (channels.length === 0) return; // Unlinked channel
+            if (channels.length === 0) return;
             const channel = channels[0];
             const channelId = channel.id;
 
-            // Detect Pin Event
             if (msg.pinned_message) {
                  await pool.query("UPDATE channel_messages SET is_pinned = true WHERE telegram_msg_id = $1", [msg.pinned_message.message_id]);
                  io.emit('channel_msg_update', { channel_id: channelId });
@@ -96,13 +98,11 @@ function initTelegramChannelsSync(pool, io) {
             if (!msg.text && !msg.caption && !msg.photo && !msg.video) return;
             
             let rawText = msg.text || msg.caption || '';
-            // INJECT MARKDOWN STYLING AND LINKS
             let formattedText = parseTelegramEntitiesToMarkdown(rawText, msg.entities || msg.caption_entities);
             
             let title = 'Telegram Update';
             let body = formattedText;
             
-            // Generate clean title & body, with fallbacks for empty media
             if (formattedText.includes('\n')) {
                 const parts = formattedText.split('\n');
                 title = parts[0].replace(/[\*\_~`]/g, '').trim(); 
@@ -131,16 +131,13 @@ function initTelegramChannelsSync(pool, io) {
                 image_url = await downloadTgImage(fileIdToDownload);
             }
 
-            // Insert into Database
             await pool.query(
                 "INSERT INTO channel_messages (channel_id, sender_email, title, body, telegram_msg_id, reply_to_id, image_url) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
                 [channelId, 'Telegram', title, body, msg.message_id, reply_to_id, image_url]
             );
 
-            // Update real-time UI
             io.emit('new_channel_msg', { channel_id: channelId });
 
-            // Trigger Push Notifications to App Users
             let target_audience = 'logged_in';
             if (channel.access_level === 'demo') target_audience = 'non_logged_in'; 
             else if (channel.access_level === 'level_2_status') target_audience = 'login_with_level_2';
@@ -171,7 +168,6 @@ function initTelegramChannelsSync(pool, io) {
         try {
             let rawText = msg.text || msg.caption || '';
             let formattedText = parseTelegramEntitiesToMarkdown(rawText, msg.entities || msg.caption_entities);
-            
             let title = 'Telegram Update';
             let body = formattedText;
             
@@ -202,8 +198,6 @@ function initTelegramChannelsSync(pool, io) {
     bot.on('channel_post', handleIncomingMessage);
     bot.on('edited_message', handleEditedMessage);
     bot.on('edited_channel_post', handleEditedMessage);
-    
-    // Listen for deletions (Requires Bot to be Admin)
     bot.on('delete_chat_message', handleDeletedMessage);
     bot.on('delete_channel_post', handleDeletedMessage);
 }
