@@ -6,15 +6,12 @@ async function initChannelTab() {
         const data = await res.json();
         const navBtn = document.getElementById('navChannelBtn');
         if (navBtn) {
-            // Hide if setting is false AND user is a standard student
             if (data.show_channel_tab === 'false' && typeof userData !== 'undefined' && userData.role !== 'admin' && userData.role !== 'manager') {
                 navBtn.style.display = 'none';
             } else {
                 navBtn.style.display = 'flex';
             }
         }
-        
-        // Setup Admin Toggle switch
         const toggle = document.getElementById('adminShowChannelTab');
         if (toggle) toggle.checked = (data.show_channel_tab !== 'false');
     } catch(e) {}
@@ -48,13 +45,13 @@ async function fetchChannels() {
             </div>`;
         });
         listObj.innerHTML = html;
-        // --- NEW: Auto-open specific channel if clicked from a notification ---
+        
         if (window.pendingChannelId) {
             const targetChannel = data.data.find(c => c.id == window.pendingChannelId);
             if (targetChannel) {
                 openChannel(targetChannel.id, targetChannel.name);
             }
-            window.pendingChannelId = null; // Clear it so it doesn't open repeatedly
+            window.pendingChannelId = null;
         }
     } catch(e) {}
 }
@@ -150,22 +147,16 @@ if (formChannelMsg) {
     });
 }
 
-// Real-time socket updates
 if (typeof socket !== 'undefined') {
-    const channelSound = new Audio('/chaching.mp3'); // Load the sound
-    
+    const channelSound = new Audio('/chaching.mp3'); 
     socket.on('new_channel_msg', (data) => {
-        // Play the sound if the app is open
         channelSound.play().catch(e => { console.log("Sound autoplay blocked"); });
-        
-        // Auto-refresh messages if you are currently looking at that specific channel
         if (currentChannelId == data.channel_id) {
             fetchChannelMessages(currentChannelId);
         }
     });
 }
 
-// ADMIN PANEL LOGIC
 const formAddChannel = document.getElementById('formAddChannel');
 if (formAddChannel) {
     formAddChannel.addEventListener('submit', async (e) => {
@@ -190,7 +181,7 @@ async function fetchAdminChannels() {
     try {
         const res = await fetch('/api/channels', { credentials: 'same-origin' });
         const data = await res.json();
-let html = '<table class="table table-sm" style="font-size:10px;">';
+        let html = '<table class="table table-sm" style="font-size:10px;">';
         data.data.forEach(c => {
             const safeName = c.name.replace(/'/g, "\\'");
             const safeDesc = (c.description || '').replace(/'/g, "\\'");
@@ -220,6 +211,7 @@ const adminModal = document.getElementById('adminCourseModal');
 if (adminModal) {
     adminModal.addEventListener('show.bs.modal', function () { fetchAdminChannels(); });
 }
+
 window.openEditChannelModal = function(id, name, desc, level, showHome) {
     document.getElementById('editChannelId').value = id;
     document.getElementById('editChannelName').value = name;
