@@ -65,6 +65,10 @@ function switchSection(section) {
     
     const notifSec = document.getElementById('notificationSection');
     if(notifSec) notifSec.style.display = 'none';
+    const chanSec = document.getElementById('channelSection');
+    if(chanSec) chanSec.style.display = 'none';
+    const navChanBtn = document.getElementById('navChannelBtn');
+    if(navChanBtn) navChanBtn.classList.remove('b-active');
     
     // Reset bottom nav active states
     document.getElementById('navTradeBtn').classList.remove('b-active');
@@ -104,6 +108,12 @@ function switchSection(section) {
         if (badge) badge.style.display = 'none';
         
         if (typeof fetchUserNotifications === 'function') fetchUserNotifications(false);
+        // --- ADD THIS BLOCK ---
+    } else if (section === 'channel') {
+        if(chanSec) chanSec.style.display = 'flex';
+        if(navChanBtn) navChanBtn.classList.add('b-active');
+        if (typeof fetchChannels === 'function') fetchChannels();
+    // -----------------------
         
     } else {
         document.getElementById('learningSection').style.display = 'block';
