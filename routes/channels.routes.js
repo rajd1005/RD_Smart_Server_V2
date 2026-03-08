@@ -23,7 +23,12 @@ router.get('/public/:id/messages', async (req, res) => {
         if(channelCheck.rows.length === 0 || channelCheck.rows[0].access_level !== 'demo') {
             return res.status(403).json({ success: false, msg: "Access Denied." });
         }
-        const { rows } = await pool.query("SELECT * FROM channel_messages WHERE channel_id = $1 ORDER BY created_at ASC", [req.params.id]);
+        const { rows } = await pool.query(`
+            SELECT m.*, r.title as reply_title, SUBSTRING(r.body, 1, 60) as reply_body_snippet 
+            FROM channel_messages m 
+            LEFT JOIN channel_messages r ON m.reply_to_id = r.id 
+            WHERE m.channel_id = $1 ORDER BY m.created_at ASC
+        `, [req.params.id]);
         res.json({ success: true, data: rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
@@ -49,21 +54,26 @@ router.get('/:id/messages', authenticateToken, async (req, res) => {
                 return res.status(403).json({ success: false, msg: "Access Denied. Please upgrade." });
             }
         }
-        const { rows } = await pool.query("SELECT * FROM channel_messages WHERE channel_id = $1 ORDER BY created_at ASC", [req.params.id]);
+        const { rows } = await pool.query(`
+            SELECT m.*, r.title as reply_title, SUBSTRING(r.body, 1, 60) as reply_body_snippet 
+            FROM channel_messages m 
+            LEFT JOIN channel_messages r ON m.reply_to_id = r.id 
+            WHERE m.channel_id = $1 ORDER BY m.created_at ASC
+        `, [req.params.id]);
         res.json({ success: true, data: rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 // 3. Post a message to a channel (Manager/Admin Only) & Send Push!
 router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single('image'), async (req, res) => {
-    const { title, body, link_url } = req.body;
+    const { title, body, link_url, reply_to_id } = req.body;
     const channel_id = req.params.id;
     const image_url = req.file ? `/uploads/${req.file.filename}` : null;
     
     try {
         await pool.query(
-            "INSERT INTO channel_messages (channel_id, sender_email, title, body, image_url, link_url) VALUES ($1, $2, $3, $4, $5, $6)",
-            [channel_id, req.user.email, title, body, image_url, link_url]
+            "INSERT INTO channel_messages (channel_id, sender_email, title, body, image_url, link_url, reply_to_id) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            [channel_id, req.user.email, title, body, image_url, link_url, reply_to_id || null]
         );
 
         const { rows } = await pool.query("SELECT name, access_level FROM channels WHERE id = $1", [channel_id]);
@@ -76,7 +86,7 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
             else if (channel.access_level === 'level_3_status') target_audience = 'login_with_level_3';
             else if (channel.access_level === 'level_4_status') target_audience = 'login_with_level_4';
             
-const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience);
+            const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience);
             
             // NEW: Send public users strictly to the root URL so the Channel ID doesn't get stripped by login redirects
             const targetUrl = (target_audience === 'non_logged_in') 
@@ -114,6 +124,35 @@ router.put('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
             "UPDATE channels SET name = $1, description = $2, access_level = $3, show_on_home = $4, dashboard_visibility = $5, display_order = $6 WHERE id = $7", 
             [name, description, access_level, show_on_home !== false, dashboard_visibility || 'all', display_order || 0, req.params.id]
         );
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// Edit Message
+router.put('/messages/:msgId', authenticateToken, isManagerOrAdmin, async (req, res) => {
+    const { title, body, link_url } = req.body;
+    try {
+        const { rows } = await pool.query("UPDATE channel_messages SET title = $1, body = $2, link_url = $3 WHERE id = $4 RETURNING channel_id", [title, body, link_url, req.params.msgId]);
+        if (rows.length > 0) req.app.get('io').emit('channel_msg_update', { channel_id: rows[0].channel_id });
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// Delete Message
+router.delete('/messages/:msgId', authenticateToken, isManagerOrAdmin, async (req, res) => {
+    try {
+        const { rows } = await pool.query("DELETE FROM channel_messages WHERE id = $1 RETURNING channel_id", [req.params.msgId]);
+        if (rows.length > 0) req.app.get('io').emit('channel_msg_update', { channel_id: rows[0].channel_id });
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
+});
+
+// Pin/Unpin Message
+router.put('/messages/:msgId/pin', authenticateToken, isManagerOrAdmin, async (req, res) => {
+    const { is_pinned } = req.body;
+    try {
+        const { rows } = await pool.query("UPDATE channel_messages SET is_pinned = $1 WHERE id = $2 RETURNING channel_id", [is_pinned, req.params.msgId]);
+        if (rows.length > 0) req.app.get('io').emit('channel_msg_update', { channel_id: rows[0].channel_id });
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
