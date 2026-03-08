@@ -42,8 +42,8 @@ function initTelegramChannelsSync(pool, io) {
         } catch(e) { return null; }
     }
 
-    // 1. Listen for new messages
-    bot.on('message', async (msg) => {
+    // 1. Shared logic for incoming messages (Supports both Groups and Channels)
+    const handleIncomingMessage = async (msg) => {
         try {
             const chat_id = msg.chat.id.toString();
             const { rows: channels } = await pool.query("SELECT id, name, access_level FROM channels WHERE telegram_chat_id = $1", [chat_id]);
@@ -91,7 +91,7 @@ function initTelegramChannelsSync(pool, io) {
             // Update real-time UI
             io.emit('new_channel_msg', { channel_id: channelId });
 
-            // ---> NEW: TRIGGER PUSH NOTIFICATIONS TO APP USERS <---
+            // Trigger Push Notifications to App Users
             let target_audience = 'logged_in';
             if (channel.access_level === 'demo') target_audience = 'non_logged_in'; 
             else if (channel.access_level === 'level_2_status') target_audience = 'login_with_level_2';
@@ -113,10 +113,14 @@ function initTelegramChannelsSync(pool, io) {
             });
 
         } catch(e) { console.error("TG->Web Sync Error (New Msg):", e); }
-    });
+    };
 
-    // 2. Listen for edited messages
-    bot.on('edited_message', async (msg) => {
+    // Attach listeners for both standard groups AND broadcast channels
+    bot.on('message', handleIncomingMessage);
+    bot.on('channel_post', handleIncomingMessage);
+
+    // 2. Shared logic for edited messages
+    const handleEditedMessage = async (msg) => {
         try {
             let text = msg.text || msg.caption || '';
             let title = 'Telegram Update';
@@ -130,7 +134,11 @@ function initTelegramChannelsSync(pool, io) {
             const { rows } = await pool.query("UPDATE channel_messages SET title = $1, body = $2 WHERE telegram_msg_id = $3 RETURNING channel_id", [title, body, msg.message_id]);
             if (rows.length > 0) io.emit('channel_msg_update', { channel_id: rows[0].channel_id });
         } catch(e) { console.error("TG->Web Sync Error (Edit Msg):", e); }
-    });
+    };
+
+    // Attach listeners for editing in both groups AND broadcast channels
+    bot.on('edited_message', handleEditedMessage);
+    bot.on('edited_channel_post', handleEditedMessage);
 }
 
 module.exports = {
