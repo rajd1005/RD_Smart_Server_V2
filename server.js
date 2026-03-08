@@ -100,6 +100,7 @@ const courseRoutes = require('./routes/courses.routes');
 const adminRoutes = require('./routes/admin.routes');
 const pushRoutes = require('./routes/push.routes');
 const { authenticateToken } = require('./middlewares/auth.middleware');
+const channelRoutes = require('./routes/channels.routes');
 
 // === MOUNT MODULAR ROUTES ===
 app.use('/api', authRoutes);
@@ -108,6 +109,7 @@ app.use('/api/courses', courseRoutes);
 app.use('/api', courseRoutes); // Map for public courses backward compatibility
 app.use('/api/admin', adminRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/channels', channelRoutes);
 
 // === REMAINING PUBLIC / EXTERNAL INTEGRATION APIs ===
 app.get('/api/public/call-report', async (req, res) => {
