@@ -26,10 +26,12 @@ router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
         accordion_state, hide_trade_tab, show_gallery, show_call_widget, homepage_layout,
         show_sticky_footer, sticky_btn1_text, sticky_btn1_link, sticky_btn1_icon,
         sticky_btn2_text, sticky_btn2_link, sticky_btn2_icon,
-        show_disclaimer, register_link, push_trade_alerts, manager_emails // <--- Added manager_emails here
+        show_disclaimer, register_link, push_trade_alerts, manager_emails,
+        show_channel_tab // <--- NEW
     } = req.body;
     
     try {
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_channel_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_channel_tab || 'true']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state || 'first']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('hide_trade_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [hide_trade_tab || 'false']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_gallery', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_gallery || 'true']);
