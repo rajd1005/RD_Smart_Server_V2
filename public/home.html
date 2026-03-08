@@ -182,13 +182,13 @@
                 <div class="text-center text-muted mt-3" style="font-size:12px;">Loading channels...</div>
             </div>
             
-            <div class="flex-grow-1" id="publicChannelChatView" style="display:none; flex-direction: column; overflow-y: auto;">
-                <div class="d-flex align-items-center bg-white p-2 shadow-sm sticky-top" style="top: 0; z-index: 99; border-bottom: 1px solid var(--border-color);">
+                <div class="flex-grow-1" id="publicChannelChatView" style="display:none; flex-direction: column; overflow: hidden;">
+                <div class="d-flex align-items-center bg-white p-2 shadow-sm" style="flex-shrink: 0; z-index: 99; border-bottom: 1px solid var(--border-color);">
                     <button class="btn btn-sm btn-light me-2 p-1 d-flex align-items-center justify-content-center" onclick="showPublicChannelList()" style="height: 30px; width: 30px;"><span class="material-icons-round" style="font-size: 18px;">arrow_back</span></button>
                     <h6 class="mb-0 fw-bold text-truncate" id="publicChannelHeaderTitle" style="font-size: 15px; color: var(--blue);">Channel Name</h6>
                 </div>
                 
-                <div id="publicChannelMessages" class="p-3"></div>
+                <div id="publicChannelMessages" class="p-3" style="flex-grow: 1; overflow-y: auto;"></div>
             </div>
         </div>
         
@@ -444,7 +444,8 @@ async function fetchPublicChannels() {
                     </div>`;
                 });
                 chatObj.innerHTML = html;
-                const scrollContainer = document.getElementById('publicChannelChatView');
+                // Target the new scrollable messages container
+                const scrollContainer = document.getElementById('publicChannelMessages');
                 scrollContainer.scrollTop = scrollContainer.scrollHeight;
             } catch(e) {}
         }
