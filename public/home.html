@@ -177,14 +177,12 @@
             </div>
         </div>
 
-<div id="publicChannelsContent" style="display:none; flex-direction: column; background-color: #efeae2; height: calc(100vh - 90px); overflow: hidden;">
-            
+        <div id="publicChannelsContent" style="display:none; flex-direction: column; background-color: #efeae2; height: calc(100vh - 90px); overflow: hidden;">
             <div class="flex-grow-1 p-2" id="publicChannelListView" style="overflow-y: auto;">
                 <div class="text-center text-muted mt-3" style="font-size:12px;">Loading channels...</div>
             </div>
             
             <div class="flex-grow-1" id="publicChannelChatView" style="display:none; flex-direction: column; overflow-y: auto;">
-                
                 <div class="d-flex align-items-center bg-white p-2 shadow-sm sticky-top" style="top: 0; z-index: 99; border-bottom: 1px solid var(--border-color);">
                     <button class="btn btn-sm btn-light me-2 p-1 d-flex align-items-center justify-content-center" onclick="showPublicChannelList()" style="height: 30px; width: 30px;"><span class="material-icons-round" style="font-size: 18px;">arrow_back</span></button>
                     <h6 class="mb-0 fw-bold text-truncate" id="publicChannelHeaderTitle" style="font-size: 15px; color: var(--blue);">Channel Name</h6>
@@ -335,7 +333,6 @@
         const channelSound = new Audio('/chaching.mp3');
         let currentPublicChannelId = null;
         
-        // NEW: Unlock Mobile Audio Autoplay with first interaction
         document.body.addEventListener('click', () => {
             channelSound.play().then(() => {
                 channelSound.pause();
@@ -442,14 +439,13 @@
                     </div>`;
                 });
                 chatObj.innerHTML = html;
-                // Target the chat container directly so the whole page doesn't scroll
                 const scrollContainer = document.getElementById('publicChannelChatView');
                 scrollContainer.scrollTop = scrollContainer.scrollHeight;
             } catch(e) {}
         }
 
         socket.on('new_channel_msg', (data) => {
-            channelSound.play().catch(e => { console.log("Sound autoplay blocked"); });
+            channelSound.play().catch(e => {});
             if (currentPublicChannelId == data.channel_id) {
                 fetchPublicChannelMessages(currentPublicChannelId);
             }
@@ -463,7 +459,6 @@
                 }
             });
         }
-        // ---------------------------------
 
         async function initCallWidget() {
             try {
@@ -618,7 +613,6 @@
                     document.getElementById('call-loader').style.display = 'none';
                 });
         }
-
 
         async function loadGallery() {
             try {
@@ -884,7 +878,6 @@
                 try {
                     const settingsRes = await fetch('/api/settings'); const settings = await settingsRes.json();
                     
-                    // NEW: HIDE THE CHANNEL TAB IF DISABLED IN ADMIN SETTINGS
                     if (settings.show_channel_tab === 'false') {
                         document.getElementById('homeSubNav').style.display = 'none';
                     } else {
@@ -1032,7 +1025,6 @@
         fetchPublicCourses();
         fetchSystemSettings(); 
         
-        // --- NEW: URL LOGIC EXECUTED AFTER DOM IS FULLY LOADED ---
         window.addEventListener('load', () => {
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('tab') === 'channels') {
@@ -1219,9 +1211,6 @@ window.addEventListener('load', () => {
         if (!deferredPrompt) return;
         deferredPrompt.prompt(); 
         deferredPrompt.userChoice.then((choiceResult) => {
-            if (choiceResult.outcome === 'accepted') {
-                console.log('User accepted the install prompt');
-            }
             deferredPrompt = null;
             document.getElementById('installAppBtn').style.display = 'none';
         });
