@@ -107,15 +107,16 @@ const initDb = async () => {
     ('show_channel_tab', 'true')
     ON CONFLICT (setting_key) DO NOTHING;`;
 
-    const queryChannels = `
+const queryChannels = `
     CREATE TABLE IF NOT EXISTS channels (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         description TEXT,
         access_level VARCHAR(50) DEFAULT 'demo',
+        show_on_home BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`;
-
+const alterChannelsShowHome = `ALTER TABLE channels ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN DEFAULT TRUE;`;
     const queryChannelMessages = `
     CREATE TABLE IF NOT EXISTS channel_messages (
         id SERIAL PRIMARY KEY,
@@ -140,6 +141,7 @@ const initDb = async () => {
         await pool.query(queryPushSubscriptions);
         await pool.query(queryScheduledNotifications);
         await pool.query(queryChannels);
+        await pool.query(alterChannelsShowHome);
         await pool.query(queryChannelMessages);
         await pool.query(populateDefaultSettings);
 
