@@ -113,8 +113,7 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
 
                     let sentTgMsg;
                     if (image_url && req.file) {
-                        const mediaPath = path.join(__dirname, '..', 'public', image_url);
-                        // Check if it is a video file or an image file
+                        const mediaPath = path.join(__dirname, '..', 'uploads', req.file.filename);
                         if (req.file.mimetype.startsWith('video/')) {
                             sentTgMsg = await bot.sendVideo(channel.telegram_chat_id, mediaPath, { ...opts, caption: tgMsg });
                         } else {
