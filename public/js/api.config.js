@@ -26,10 +26,14 @@ window.onload = function() {
     if (typeof applyRoleRestrictions === 'function') applyRoleRestrictions(); 
     
     // --- UPDATED: Check URL for the Alerts Tab Request ---
-    const urlParams = new URLSearchParams(window.location.search);
+const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('tab') === 'alerts') {
         switchSection('notification');
-        // Clean the URL so refreshing the page later doesn't force them back to alerts
+        window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (urlParams.get('tab') === 'channels') {
+        // --- NEW: Save the specific channel ID to open automatically ---
+        window.pendingChannelId = urlParams.get('id');
+        switchSection('channel');
         window.history.replaceState({}, document.title, window.location.pathname);
     } else {
         switchSection('learning'); 
