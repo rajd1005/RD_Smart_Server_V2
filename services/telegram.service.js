@@ -30,7 +30,6 @@ function initTelegramChannelsSync(pool, io) {
             const link = await bot.getFileLink(fileId);
             const ext = path.extname(link) || '.jpg';
             const filename = crypto.randomUUID() + ext;
-            // FIXED PATH: Pointing to the root uploads folder, not public/uploads
             const dest = path.join(__dirname, '..', 'uploads', filename); 
             
             return new Promise((resolve, reject) => {
@@ -59,17 +58,26 @@ function initTelegramChannelsSync(pool, io) {
                  return;
             }
 
-            // ALLOW VIDEOS NOW
             if (!msg.text && !msg.caption && !msg.photo && !msg.video) return;
             
             let text = msg.text || msg.caption || '';
             let title = 'Telegram Update';
             let body = text;
             
+            // Generate clean title & body, with fallbacks for empty media
             if (text.includes('\n')) {
                 const parts = text.split('\n');
-                title = parts[0].replace(/[\*\_]/g, '').trim(); // Remove bold/italic markdown from title
+                title = parts[0].replace(/[\*\_]/g, '').trim(); 
                 body = parts.slice(1).join('\n').trim();
+            } else if (text) {
+                title = text.length > 35 ? text.substring(0, 35) + '...' : text;
+                body = text;
+            } else if (msg.photo) {
+                title = 'New Image Alert';
+                body = '📷 Tap to view the attached image.';
+            } else if (msg.video) {
+                title = 'New Video Alert';
+                body = '🎥 Tap to watch the attached video.';
             }
 
             let reply_to_id = null;
@@ -81,7 +89,6 @@ function initTelegramChannelsSync(pool, io) {
             let image_url = null;
             let fileIdToDownload = null;
             
-            // Extract file ID for Photo OR Video
             if (msg.photo && msg.photo.length > 0) {
                 fileIdToDownload = msg.photo[msg.photo.length - 1].file_id;
             } else if (msg.video) {
@@ -89,7 +96,7 @@ function initTelegramChannelsSync(pool, io) {
             }
 
             if (fileIdToDownload) {
-                image_url = await downloadTgImage(fileIdToDownload); // Downloads media (photo/video up to 20MB limit)
+                image_url = await downloadTgImage(fileIdToDownload);
             }
 
             // Insert into Database
@@ -111,21 +118,34 @@ function initTelegramChannelsSync(pool, io) {
             const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience);
             const targetUrl = (target_audience === 'non_logged_in') ? `/?tab=channels&id=${channelId}` : `/index.html?tab=channels&id=${channelId}`;
             
+            // Strict length limits to prevent 4KB Web Push Payload Crash
+            const safeTitle = `${channel.name}: ${title}`.substring(0, 60);
+            const safeBody = body.substring(0, 200) + (body.length > 200 ? '...' : '');
+
             const payload = { 
-                title: `${channel.name}: ${title}`, 
-                body: body, 
+                title: safeTitle, 
+                body: safeBody, 
                 url: targetUrl, 
                 image: image_url 
             };
 
-            uniqueSubs.forEach(sub => { 
-                try { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); } catch(e){} 
+            console.log(`[TG Sync] Sending Push to ${uniqueSubs.length} users for channel: ${channel.name}`);
+
+            uniqueSubs.forEach(async (sub) => { 
+                try { 
+                    await webpush.sendNotification(sub, JSON.stringify(payload));
+                } catch(e) {
+                    // 410 and 404 just mean the user uninstalled the app, ignore those. 
+                    // Log any actual errors that prevent delivery.
+                    if (e.statusCode !== 410 && e.statusCode !== 404) {
+                        console.error("Telegram Push Delivery Failed:", e.body || e.message);
+                    }
+                } 
             });
 
         } catch(e) { console.error("TG->Web Sync Error (New Msg):", e); }
     };
 
-    // Attach listeners for both standard groups AND broadcast channels
     bot.on('message', handleIncomingMessage);
     bot.on('channel_post', handleIncomingMessage);
 
@@ -146,7 +166,6 @@ function initTelegramChannelsSync(pool, io) {
         } catch(e) { console.error("TG->Web Sync Error (Edit Msg):", e); }
     };
 
-    // Attach listeners for editing in both groups AND broadcast channels
     bot.on('edited_message', handleEditedMessage);
     bot.on('edited_channel_post', handleEditedMessage);
 }
