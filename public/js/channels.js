@@ -32,15 +32,29 @@ async function fetchChannels() {
         }
         
         let html = '';
+        let accessLevels = {};
+        try { accessLevels = JSON.parse(localStorage.getItem('accessLevels')) || {}; } catch(e) {}
+
         data.data.forEach(c => {
+            const isLocked = (typeof userData !== 'undefined' && userData.role !== 'admin' && userData.role !== 'manager') && c.access_level !== 'demo' && accessLevels[c.access_level] !== 'Yes';
+            
+            if (typeof userData !== 'undefined' && userData.role !== 'admin' && userData.role !== 'manager') {
+                if (c.dashboard_visibility === 'hidden') return;
+                if (c.dashboard_visibility === 'accessible' && isLocked) return;
+            }
+
+            const iconHtml = isLocked ? 
+                `<div class="bg-light text-muted rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; border: 1px solid #ccc;"><span class="material-icons-round">lock</span></div>` :
+                `<div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; font-weight: bold; font-size: 18px;">${c.name.charAt(0).toUpperCase()}</div>`;
+            
+            const action = isLocked ? `alert('⚠️ Locked. Please upgrade your access level.')` : `openChannel(${c.id}, '${c.name.replace(/'/g, "\\'")}')`;
+
             html += `
-            <div class="p-3 bg-white rounded shadow-sm mb-2 d-flex align-items-center" style="cursor:pointer; border: 1px solid var(--border-color);" onclick="openChannel(${c.id}, '${c.name.replace(/'/g, "\\'")}')">
-                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; font-weight: bold; font-size: 18px;">
-                    ${c.name.charAt(0).toUpperCase()}
-                </div>
+            <div class="p-3 bg-white rounded shadow-sm mb-2 d-flex align-items-center" style="cursor:pointer; border: 1px solid var(--border-color); ${isLocked ? 'opacity: 0.7;' : ''}" onclick="${action}">
+                ${iconHtml}
                 <div>
                     <h6 class="mb-0 fw-bold" style="font-size: 14px; color: #000;">${c.name}</h6>
-                    <div class="text-muted" style="font-size: 11px;">${c.description || 'Tap to view messages'}</div>
+                    <div class="text-muted" style="font-size: 11px;">${isLocked ? 'Access Restricted' : (c.description || 'Tap to view messages')}</div>
                 </div>
             </div>`;
         });
@@ -49,7 +63,9 @@ async function fetchChannels() {
         if (window.pendingChannelId) {
             const targetChannel = data.data.find(c => c.id == window.pendingChannelId);
             if (targetChannel) {
-                openChannel(targetChannel.id, targetChannel.name);
+                // Double check if locked before opening
+                const isLocked = (typeof userData !== 'undefined' && userData.role !== 'admin' && userData.role !== 'manager') && targetChannel.access_level !== 'demo' && accessLevels[targetChannel.access_level] !== 'Yes';
+                if (!isLocked) openChannel(targetChannel.id, targetChannel.name);
             }
             window.pendingChannelId = null;
         }
@@ -165,12 +181,12 @@ if (formAddChannel) {
             name: document.getElementById('adminChannelName').value,
             description: document.getElementById('adminChannelDesc').value,
             access_level: document.getElementById('adminChannelLevel').value,
-            show_on_home: document.getElementById('adminChannelShowHome').value === 'true'
+            show_on_home: document.getElementById('adminChannelShowHome').value === 'true',
+            dashboard_visibility: document.getElementById('adminChannelDashVis').value,
+            display_order: document.getElementById('adminChannelOrder').value || 0
         };
         await fetch('/api/channels/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), credentials: 'same-origin' });
-        document.getElementById('adminChannelName').value = '';
-        document.getElementById('adminChannelDesc').value = '';
-        document.getElementById('adminChannelShowHome').value = 'true';
+        formAddChannel.reset();
         fetchAdminChannels();
     });
 }
@@ -187,11 +203,13 @@ async function fetchAdminChannels() {
             const safeDesc = (c.description || '').replace(/'/g, "\\'");
             const showHome = c.show_on_home !== false;
             const visBadge = showHome ? '<span class="text-success fw-bold" style="font-size:9px;">👁️ Visible</span>' : '<span class="text-danger fw-bold" style="font-size:9px;">🚫 Hidden</span>';
+            const dashVis = c.dashboard_visibility || 'all';
+            const order = c.display_order || 0;
             
             html += `<tr>
-                <td><b style="color:var(--blue);">${c.name}</b> <span class="ms-1">${visBadge}</span><br><span class="text-muted">${c.access_level}</span></td>
+                <td><b style="color:var(--blue);">${c.name}</b> <span class="ms-1">${visBadge}</span><br><span class="text-muted">${c.access_level} | Order: ${order}</span></td>
                 <td class="text-end align-middle">
-                    <button class="btn btn-sm text-primary p-0 me-2" onclick="openEditChannelModal(${c.id}, '${safeName}', '${safeDesc}', '${c.access_level}', ${showHome})"><span class="material-icons-round" style="font-size:16px;">edit</span></button>
+                    <button class="btn btn-sm text-primary p-0 me-2" onclick="openEditChannelModal(${c.id}, '${safeName}', '${safeDesc}', '${c.access_level}', ${showHome}, '${dashVis}', ${order})"><span class="material-icons-round" style="font-size:16px;">edit</span></button>
                     <button class="btn btn-sm text-danger p-0" onclick="deleteChannel(${c.id})"><span class="material-icons-round" style="font-size:16px;">delete</span></button>
                 </td>
             </tr>`;
@@ -212,12 +230,14 @@ if (adminModal) {
     adminModal.addEventListener('show.bs.modal', function () { fetchAdminChannels(); });
 }
 
-window.openEditChannelModal = function(id, name, desc, level, showHome) {
+window.openEditChannelModal = function(id, name, desc, level, showHome, dashVis, order) {
     document.getElementById('editChannelId').value = id;
     document.getElementById('editChannelName').value = name;
     document.getElementById('editChannelDesc').value = desc;
     document.getElementById('editChannelLevel').value = level;
     document.getElementById('editChannelShowHome').value = showHome ? 'true' : 'false';
+    document.getElementById('editChannelDashVis').value = dashVis;
+    document.getElementById('editChannelOrder').value = order;
     
     const modal = new bootstrap.Modal(document.getElementById('editChannelModal'));
     modal.show();
@@ -232,7 +252,9 @@ if (formEditChannel) {
             name: document.getElementById('editChannelName').value,
             description: document.getElementById('editChannelDesc').value,
             access_level: document.getElementById('editChannelLevel').value,
-            show_on_home: document.getElementById('editChannelShowHome').value === 'true'
+            show_on_home: document.getElementById('editChannelShowHome').value === 'true',
+            dashboard_visibility: document.getElementById('editChannelDashVis').value,
+            display_order: document.getElementById('editChannelOrder').value || 0
         };
         
         try {
