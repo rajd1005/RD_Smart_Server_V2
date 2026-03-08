@@ -134,7 +134,18 @@ async function fetchChannelMessages(id) {
 
         data.data.forEach(m => {
             const dateStr = new Date(m.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-            let imgHtml = m.image_url ? `<img src="${m.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;">` : '';
+            
+            // --- VIDEO VS IMAGE RENDERING LOGIC ---
+            let imgHtml = '';
+            if (m.image_url) {
+                const isVideo = m.image_url.match(/\.(mp4|mov|webm|ogg)$/i);
+                if (isVideo) {
+                    imgHtml = `<video src="${m.image_url}" controls style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;"></video>`;
+                } else {
+                    imgHtml = `<img src="${m.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;">`;
+                }
+            }
+            
             let linkHtml = m.link_url ? `<a href="${m.link_url}" target="_blank" class="chat-link mt-2" style="font-size:11px;">${m.link_url}</a>` : '';
 
             const safeTitle = (m.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
