@@ -158,6 +158,10 @@ const initDb = async () => {
         try { await pool.query(`ALTER TABLE channels ADD COLUMN IF NOT EXISTS dashboard_visibility VARCHAR(20) DEFAULT 'all';`); } catch(e){}
         try { await pool.query(`ALTER TABLE channels ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0;`); } catch(e){}
 
+        // Channel Messages updates (Reply and Pin features)
+        try { await pool.query(`ALTER TABLE channel_messages ADD COLUMN IF NOT EXISTS reply_to_id INT REFERENCES channel_messages(id) ON DELETE SET NULL;`); } catch(e){}
+        try { await pool.query(`ALTER TABLE channel_messages ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE;`); } catch(e){}
+
         console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push + Notifications + Channels)");
     } catch (err) {
         console.error("❌ Database Error:", err);
