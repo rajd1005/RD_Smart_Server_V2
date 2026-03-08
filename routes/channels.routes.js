@@ -75,9 +75,14 @@ router.post('/admin', authenticateToken, isAdmin, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-router.delete('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
+// Edit an existing channel
+router.put('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
+    const { name, description, access_level } = req.body;
     try {
-        await pool.query("DELETE FROM channels WHERE id = $1", [req.params.id]);
+        await pool.query(
+            "UPDATE channels SET name = $1, description = $2, access_level = $3 WHERE id = $4", 
+            [name, description, access_level, req.params.id]
+        );
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
