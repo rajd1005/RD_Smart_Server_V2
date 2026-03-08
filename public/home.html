@@ -1171,10 +1171,10 @@
 }
 
 window.addEventListener('load', () => {
-    const isBlocked = enforceSafariOnIOS();
-    if (!isBlocked) {
+    // const isBlocked = enforceSafariOnIOS(); // Disabled Safari forcing
+    // if (!isBlocked) {
         if (typeof showInstallModal === 'function') showInstallModal();
-    }
+    // }
 });
 
     setTimeout(checkAndPromptPushSubscription, 3000);
