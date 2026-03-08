@@ -780,31 +780,33 @@
         </div>
     </div>
 
-    <div class="modal fade" id="editLessonModal" tabindex="-1">
+<div class="modal fade" id="editChannelModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered" style="max-width: 320px;">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title mb-0">Edit Lesson Information</h5>
+                    <h5 class="modal-title mb-0">Edit Channel</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="formEditLesson">
-                        <input type="hidden" id="editLessonId">
+                    <form id="formEditChannel">
+                        <input type="hidden" id="editChannelId">
                         <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Lesson Title</label>
-                            <input type="text" id="editLessonTitle" class="form-control" required>
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Channel Name</label>
+                            <input type="text" id="editChannelName" class="form-control" required>
                         </div>
                         <div class="mb-2">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description / Rich Text</label>
-                            <textarea id="editLessonDesc" class="form-control" rows="4"></textarea>
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Description</label>
+                            <input type="text" id="editChannelDesc" class="form-control">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Order</label>
-                            <input type="number" id="editLessonDisplayOrder" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Update Thumbnail (Leave empty to keep existing)</label>
-                            <input type="file" id="editLessonThumbnailFile" class="form-control" accept="image/*">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Access Level</label>
+                            <select id="editChannelLevel" class="form-select" required>
+                                <option value="demo">Demo / Public</option>
+                                <option value="level_1_status">Level 1 (All Access)</option>
+                                <option value="level_2_status">Requires Level 2</option>
+                                <option value="level_3_status">Requires Level 3</option>
+                                <option value="level_4_status">Requires Level 4</option>
+                            </select>
                         </div>
                         <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Save Changes</button>
                     </form>
