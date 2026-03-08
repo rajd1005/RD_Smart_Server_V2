@@ -6,16 +6,37 @@ function parseMarkdownToHtml(text) {
     if (!text || text === 'null' || text === 'undefined') return '';
     let html = String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     
+    // 1. Markdown Links: [text](url) -> becomes active hyperlink
     html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" style="color:var(--blue); text-decoration:underline; font-weight:600;">$1</a>');
+    
+    // 2. Auto-link loose URLs
     html = html.replace(/(^|\s)(https?:\/\/[^\s]+)/g, '$1<a href="$2" target="_blank" style="color:var(--blue); text-decoration:underline; font-weight:600;">$2</a>');
+
+    // 3. Telegram Formatting
     html = html.replace(/\*\*([^\*]+)\*\*/g, '<b>$1</b>'); 
     html = html.replace(/\*([^\*]+)\*/g, '<b>$1</b>');     
     html = html.replace(/_([^_]+)_/g, '<i>$1</i>');
     html = html.replace(/~([^~]+)~/g, '<s>$1</s>');
     html = html.replace(/`([^`]+)`/g, '<code style="background:#f1f1f1; padding:2px 4px; border-radius:4px; color:#d63384;">$1</code>');
+    
+    // 4. Line Breaks
     html = html.replace(/\n/g, '<br>');
     return html;
 }
+
+// Function to show full-screen media popup
+window.viewMediaPopup = function(url, type) {
+    const modalHtml = `
+        <div id="mediaPopupModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; display:flex; align-items:center; justify-content:center; flex-direction:column;">
+            <span class="material-icons-round" style="position:absolute; top:20px; right:20px; color:#fff; font-size:32px; cursor:pointer;" onclick="document.getElementById('mediaPopupModal').remove()">close</span>
+            ${type === 'video' ? 
+                `<video src="${url}" controls autoplay style="max-width:95%; max-height:80vh;"></video>` : 
+                `<img src="${url}" style="max-width:95%; max-height:80vh; border-radius:8px;">`
+            }
+            <a href="${url}" download class="btn btn-light mt-3 fw-bold"><span class="material-icons-round align-middle me-1">download</span>Download</a>
+        </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+};
 
 async function initChannelTab() {
     try {
@@ -151,16 +172,15 @@ async function fetchChannelMessages(id) {
         data.data.forEach(m => {
             const dateStr = new Date(m.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
             
-            // --- BULLETPROOF VIDEO VS IMAGE LOGIC ---
-            let imgHtml = '';
+            // --- MEDIA RENDERING FIRST ---
+            let mediaHtml = '';
             if (m.image_url && m.image_url !== 'null' && m.image_url !== 'undefined') {
-                const safeImgUrl = String(m.image_url); // Forces string to prevent crashes on old data
+                const safeImgUrl = String(m.image_url);
                 const isVideo = safeImgUrl.match(/\.(mp4|mov|webm|ogg)$/i);
                 if (isVideo) {
-                    imgHtml = `<video src="${safeImgUrl}" controls style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;"></video>`;
+                    mediaHtml = `<video src="${safeImgUrl}" controls style="max-width: 100%; border-radius: 8px; margin-bottom: 8px; cursor: pointer;" onclick="viewMediaPopup('${safeImgUrl}', 'video')"></video>`;
                 } else {
-                    // Added 'onerror' to gracefully hide broken old image links
-                    imgHtml = `<img src="${safeImgUrl}" style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;" onerror="this.style.display='none'">`;
+                    mediaHtml = `<img src="${safeImgUrl}" style="max-width: 100%; border-radius: 8px; margin-bottom: 8px; cursor: pointer;" onclick="viewMediaPopup('${safeImgUrl}', 'image')" onerror="this.style.display='none'">`;
                 }
             }
             
@@ -204,8 +224,10 @@ async function fetchChannelMessages(id) {
                     <span style="font-size: 9px; color: var(--text-secondary);">${dateStr}${pinIcon}</span>
                 </div>
                 ${replySnippet}
+
+                ${mediaHtml}
+
                 <div class="chat-title mt-1">${parseMarkdownToHtml(m.title)}</div>
-                ${imgHtml}
                 <div class="chat-body" style="font-size: 13px; color: #333; line-height: 1.5;">${formattedBodyHtml}</div>
                 ${linkHtml}
             </div>`;
