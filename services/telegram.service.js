@@ -3,6 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const crypto = require('crypto');
+const webpush = require('web-push');
+const pushRoutes = require('../routes/push.routes');
 require('dotenv').config();
 
 // Enable polling to listen to incoming TG messages
@@ -44,9 +46,10 @@ function initTelegramChannelsSync(pool, io) {
     bot.on('message', async (msg) => {
         try {
             const chat_id = msg.chat.id.toString();
-            const { rows: channels } = await pool.query("SELECT id FROM channels WHERE telegram_chat_id = $1", [chat_id]);
+            const { rows: channels } = await pool.query("SELECT id, name, access_level FROM channels WHERE telegram_chat_id = $1", [chat_id]);
             if (channels.length === 0) return; // Unlinked channel
-            const channelId = channels[0].id;
+            const channel = channels[0];
+            const channelId = channel.id;
 
             // Detect Pin Event
             if (msg.pinned_message) {
@@ -79,12 +82,36 @@ function initTelegramChannelsSync(pool, io) {
                 image_url = await downloadTgImage(fileId);
             }
 
+            // Insert into Database
             await pool.query(
                 "INSERT INTO channel_messages (channel_id, sender_email, title, body, telegram_msg_id, reply_to_id, image_url) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
                 [channelId, 'Telegram', title, body, msg.message_id, reply_to_id, image_url]
             );
 
+            // Update real-time UI
             io.emit('new_channel_msg', { channel_id: channelId });
+
+            // ---> NEW: TRIGGER PUSH NOTIFICATIONS TO APP USERS <---
+            let target_audience = 'logged_in';
+            if (channel.access_level === 'demo') target_audience = 'non_logged_in'; 
+            else if (channel.access_level === 'level_2_status') target_audience = 'login_with_level_2';
+            else if (channel.access_level === 'level_3_status') target_audience = 'login_with_level_3';
+            else if (channel.access_level === 'level_4_status') target_audience = 'login_with_level_4';
+            
+            const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience);
+            const targetUrl = (target_audience === 'non_logged_in') ? `/?tab=channels&id=${channelId}` : `/index.html?tab=channels&id=${channelId}`;
+            
+            const payload = { 
+                title: `${channel.name}: ${title}`, 
+                body: body, 
+                url: targetUrl, 
+                image: image_url 
+            };
+
+            uniqueSubs.forEach(sub => { 
+                try { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); } catch(e){} 
+            });
+
         } catch(e) { console.error("TG->Web Sync Error (New Msg):", e); }
     });
 
