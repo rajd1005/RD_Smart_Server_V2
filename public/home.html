@@ -177,18 +177,18 @@
             </div>
         </div>
 
-        <div id="publicChannelsContent" style="display:none; flex-direction: column; background-color: var(--bg-color); height: calc(100vh - 90px); overflow: hidden;">
-            <div class="flex-grow-1 p-2" id="publicChannelListView" style="overflow-y: auto;">
+<div id="publicChannelsContent" style="display:none; flex-direction: column; background-color: var(--bg-color); height: calc(100vh - 90px); overflow: hidden;">
+            <div class="flex-grow-1 p-2" id="publicChannelListView" style="overflow-y: auto; min-height: 0;">
                 <div class="text-center text-muted mt-3" style="font-size:12px;">Loading channels...</div>
             </div>
             
-            <div class="flex-grow-1" id="publicChannelChatView" style="display:none; flex-direction: column; overflow: hidden;">
+            <div class="flex-grow-1" id="publicChannelChatView" style="display:none; flex-direction: column; overflow: hidden; height: 100%; min-height: 0;">
                 <div class="d-flex align-items-center bg-white p-2 shadow-sm flex-shrink-0" style="z-index: 99; border-bottom: 1px solid var(--border-color);">
                     <button class="btn btn-sm btn-light me-2 p-1 d-flex align-items-center justify-content-center" onclick="showPublicChannelList()" style="height: 30px; width: 30px;"><span class="material-icons-round" style="font-size: 18px;">arrow_back</span></button>
                     <h6 class="mb-0 fw-bold text-truncate" id="publicChannelHeaderTitle" style="font-size: 15px; color: var(--blue);">Channel Name</h6>
                 </div>
                 
-                <div id="publicChannelMessages" class="p-3 flex-grow-1" style="overflow-y: auto;"></div>
+                <div id="publicChannelMessages" class="p-3 flex-grow-1" style="overflow-y: auto; height: 100%; min-height: 0;"></div>
             </div>
         </div>
         
