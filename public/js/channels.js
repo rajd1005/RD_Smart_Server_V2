@@ -173,11 +173,13 @@ if (formAddChannel) {
         const data = {
             name: document.getElementById('adminChannelName').value,
             description: document.getElementById('adminChannelDesc').value,
-            access_level: document.getElementById('adminChannelLevel').value
+            access_level: document.getElementById('adminChannelLevel').value,
+            show_on_home: document.getElementById('adminChannelShowHome').value === 'true'
         };
         await fetch('/api/channels/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), credentials: 'same-origin' });
         document.getElementById('adminChannelName').value = '';
         document.getElementById('adminChannelDesc').value = '';
+        document.getElementById('adminChannelShowHome').value = 'true';
         fetchAdminChannels();
     });
 }
