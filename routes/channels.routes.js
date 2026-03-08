@@ -14,6 +14,7 @@ const path = require('path');
 // --- PUBLIC ROUTES FOR HOME PAGE ---
 router.get('/public', async (req, res) => {
     try {
+        // Fetch ALL channels meant for the home page (we'll filter and lock non-demo ones in frontend)
         const { rows } = await pool.query("SELECT * FROM channels WHERE show_on_home = true ORDER BY display_order ASC, id ASC");
         res.json({ success: true, data: rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
@@ -21,6 +22,7 @@ router.get('/public', async (req, res) => {
 
 router.get('/public/:id/messages', async (req, res) => {
     try {
+        // Ensure channel is actually demo
         const channelCheck = await pool.query("SELECT access_level FROM channels WHERE id = $1", [req.params.id]);
         if(channelCheck.rows.length === 0 || channelCheck.rows[0].access_level !== 'demo') {
             return res.status(403).json({ success: false, msg: "Access Denied." });
@@ -38,6 +40,7 @@ router.get('/public/:id/messages', async (req, res) => {
 // 1. Get channels available to the user based on access levels
 router.get('/', authenticateToken, async (req, res) => {
     try {
+        // Send all channels to the dashboard. The frontend handles "accessible only/hidden/all" & lock icons
         const { rows } = await pool.query("SELECT * FROM channels ORDER BY display_order ASC, id ASC");
         res.json({ success: true, data: rows });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
@@ -46,6 +49,7 @@ router.get('/', authenticateToken, async (req, res) => {
 // 2. Get messages for a specific channel
 router.get('/:id/messages', authenticateToken, async (req, res) => {
     try {
+        // Access Protection
         const channelRes = await pool.query("SELECT access_level FROM channels WHERE id = $1", [req.params.id]);
         if (channelRes.rows.length > 0) {
             const level = channelRes.rows[0].access_level;
@@ -81,12 +85,15 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
         if (rows.length > 0) {
             const channel = rows[0];
             let target_audience = 'logged_in';
+            // Send exclusively to non-logged users if it's a demo channel
             if (channel.access_level === 'demo') target_audience = 'non_logged_in'; 
             else if (channel.access_level === 'level_2_status') target_audience = 'login_with_level_2';
             else if (channel.access_level === 'level_3_status') target_audience = 'login_with_level_3';
             else if (channel.access_level === 'level_4_status') target_audience = 'login_with_level_4';
             
             const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience);
+            
+            // Send public users strictly to the root URL so the Channel ID doesn't get stripped by login redirects
             const targetUrl = (target_audience === 'non_logged_in') 
                 ? `/?tab=channels&id=${channel_id}` 
                 : `/index.html?tab=channels&id=${channel_id}`;
@@ -96,7 +103,7 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
                 try { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); } catch(e){} 
             });
 
-            // Send Video OR Photo to Linked Telegram Channel
+            // Send to Linked Telegram Channel
             if (channel.telegram_chat_id) {
                 try {
                     let tgMsg = `*${toMarkdown(title)}*\n\n${toMarkdown(body)}`;
@@ -160,11 +167,10 @@ router.put('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
 // Delete a Channel completely (Admin Only)
 router.delete('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
     try {
+        // Database uses ON DELETE CASCADE to remove associated messages
         await pool.query("DELETE FROM channels WHERE id = $1", [req.params.id]);
         res.json({ success: true });
-    } catch (err) { 
-        res.status(500).json({ success: false, msg: err.message }); 
-    }
+    } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
 // Edit Message (Syncs to TG)
@@ -229,6 +235,7 @@ router.put('/messages/:msgId/pin', authenticateToken, isManagerOrAdmin, async (r
                         if (is_pinned) {
                             await bot.pinChatMessage(chanRows[0].telegram_chat_id, msgInfo.telegram_msg_id); 
                         } else {
+                            // Corrected options object for unpinning
                             await bot.unpinChatMessage(chanRows[0].telegram_chat_id, { message_id: msgInfo.telegram_msg_id });
                         }
                     } catch(e) { console.error("Web->TG Pin Failed", e.message); }
