@@ -217,27 +217,27 @@
                             <span class="material-icons-round" style="font-size:24px;">add</span>
                         </button>
 <div class="flex-grow-1 bg-light d-flex flex-column" style="border-radius: 18px; padding: 4px 12px; border: 1px solid var(--border-color);">
-    <input type="text" id="channelMsgTitle" class="form-control bg-transparent border-0 p-0 shadow-none text-dark" placeholder="Title..." style="font-size:13px; font-weight:bold; height: 24px;" required>
-    
-    <div class="d-flex align-items-center gap-2 border-bottom pb-1 mb-1 mt-1">
-        <button type="button" class="btn btn-sm btn-light p-0 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" onclick="formatChannelText('**', '**')" title="Bold"><span class="material-icons-round" style="font-size: 16px;">format_bold</span></button>
-        <button type="button" class="btn btn-sm btn-light p-0 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" onclick="formatChannelText('_', '_')" title="Italic"><span class="material-icons-round" style="font-size: 16px;">format_italic</span></button>
-        <button type="button" class="btn btn-sm btn-light p-0 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" onclick="formatChannelText('~', '~')" title="Strikethrough"><span class="material-icons-round" style="font-size: 16px;">format_strikethrough</span></button>
-        <button type="button" class="btn btn-sm btn-light p-0 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" onclick="formatChannelLink()" title="Link"><span class="material-icons-round" style="font-size: 16px;">link</span></button>
-        
-        <div class="dropup ms-auto">
-            <button type="button" class="btn btn-sm btn-light p-0 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" data-bs-toggle="dropdown" aria-expanded="false" title="Emoji">
-                <span class="material-icons-round" style="font-size: 16px; color: #f5b041;">emoji_emotions</span>
-            </button>
-            <div class="dropdown-menu dropdown-menu-end p-2 shadow-sm" style="min-width: 220px; z-index: 1050; margin-bottom: 8px;">
-                <div class="d-flex flex-wrap gap-1" id="emojiPickerGrid">
-                    </div>
-            </div>
-        </div>
-    </div>
+                            <input type="text" id="channelMsgTitle" class="form-control bg-transparent border-0 p-0 shadow-none text-dark" placeholder="Title (Optional)..." style="font-size:13px; font-weight:bold; height: 24px;">
+                            
+                            <div class="d-flex align-items-center gap-2 border-bottom pb-1 mb-1 mt-1">
+                                <button type="button" class="btn btn-sm btn-light p-0 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" onclick="formatChannelText('**', '**')" title="Bold"><span class="material-icons-round" style="font-size: 16px;">format_bold</span></button>
+                                <button type="button" class="btn btn-sm btn-light p-0 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" onclick="formatChannelText('_', '_')" title="Italic"><span class="material-icons-round" style="font-size: 16px;">format_italic</span></button>
+                                <button type="button" class="btn btn-sm btn-light p-0 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" onclick="formatChannelText('~', '~')" title="Strikethrough"><span class="material-icons-round" style="font-size: 16px;">format_strikethrough</span></button>
+                                <button type="button" class="btn btn-sm btn-light p-0 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" onclick="formatChannelLink()" title="Link"><span class="material-icons-round" style="font-size: 16px;">link</span></button>
+                                
+                                <div class="dropup ms-auto">
+                                    <button type="button" class="btn btn-sm btn-light p-0 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" data-bs-toggle="dropdown" aria-expanded="false" title="Emoji">
+                                        <span class="material-icons-round" style="font-size: 16px; color: #f5b041;">emoji_emotions</span>
+                                    </button>
+                                    <div class="dropdown-menu dropdown-menu-end p-2 shadow-sm" style="min-width: 220px; z-index: 1050; margin-bottom: 8px;">
+                                        <div class="d-flex flex-wrap gap-1" id="emojiPickerGrid">
+                                            </div>
+                                    </div>
+                                </div>
+                            </div>
 
-    <textarea id="channelMsgBody" class="form-control bg-transparent border-0 p-0 shadow-none mt-1" rows="1" placeholder="Broadcast message..." style="font-size:13px; resize:none; overflow-y:auto; min-height: 24px; max-height: 100px;" required oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
-</div>
+                            <textarea id="channelMsgBody" class="form-control bg-transparent border-0 p-0 shadow-none mt-1" rows="1" placeholder="Broadcast message..." style="font-size:13px; resize:none; overflow-y:auto; min-height: 24px; max-height: 100px;" required oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
+                        </div>
                         <button type="submit" class="btn btn-primary p-0 flex-shrink-0 d-flex align-items-center justify-content-center shadow-sm" id="btnChannelSubmit" style="width: 38px; height: 38px; border-radius: 50%;">
                             <span class="material-icons-round" style="font-size:18px; margin-left:4px;">send</span>
                         </button>
