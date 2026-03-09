@@ -70,6 +70,18 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
     const channel_id = req.params.id;
     const image_url = req.file ? `/uploads/${req.file.filename}` : null;
     
+    // HELPER: Strip markdown for Push Notifications
+    const stripMarkdown = (text) => {
+        if (!text) return '';
+        return String(text)
+            .replace(/\*\*(.*?)\*\*/g, '$1')
+            .replace(/\*(.*?)\*/g, '$1')
+            .replace(/_(.*?)_/g, '$1')
+            .replace(/~(.*?)~/g, '$1')
+            .replace(/`(.*?)`/g, '$1')
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1');
+    };
+
     try {
         const dbResult = await pool.query(
             "INSERT INTO channel_messages (channel_id, sender_email, title, body, image_url, link_url, reply_to_id) VALUES ($1, $2, null, $3, $4, $5, $6) RETURNING id",
@@ -91,7 +103,10 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
                 ? `/?tab=channels&id=${channel_id}` 
                 : `/index.html?tab=channels&id=${channel_id}`;
                 
-            const payload = { title: `${channel.name}: New Message`, body, url: targetUrl, image: image_url };
+            // Clean the body text before sending push
+            const cleanBody = stripMarkdown(body);
+            const payload = { title: `${channel.name}: New Message`, body: cleanBody.substring(0, 200), url: targetUrl, image: image_url };
+            
             uniqueSubs.forEach(sub => { 
                 try { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); } catch(e){} 
             });
