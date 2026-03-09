@@ -314,6 +314,25 @@
         let progressInterval = null; 
         let tempSetupToken = null;
         let tempResetEmail = null;
+
+        // Converts standard Markdown and URLs into clickable HTML
+        function parseMarkdownToHtml(text) {
+            if (!text || text === 'null' || text === 'undefined') return '';
+            let html = String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            
+            html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" style="color:var(--blue); text-decoration:underline; font-weight:600;">$1</a>');
+            html = html.replace(/(^|\s)(https?:\/\/[^\s]+)/g, '$1<a href="$2" target="_blank" style="color:var(--blue); text-decoration:underline; font-weight:600;">$2</a>');
+
+            html = html.replace(/\*\*([^\*]+)\*\*/g, '<b>$1</b>'); 
+            html = html.replace(/\*([^\*]+)\*/g, '<b>$1</b>');     
+            html = html.replace(/_([^_]+)_/g, '<i>$1</i>');
+            html = html.replace(/~([^~]+)~/g, '<s>$1</s>');
+            html = html.replace(/`([^`]+)`/g, '<code style="background:#f1f1f1; padding:2px 4px; border-radius:4px; color:#d63384;">$1</code>');
+            
+            html = html.replace(/\n/g, '<br>');
+            return html;
+        }
+
         // --- CHANNEL MEDIA GALLERY LOGIC ---
         let publicChannelMediaGallery = [];
         let currentPublicGalleryIndex = 0;
@@ -359,26 +378,6 @@
             if (currentPublicGalleryIndex >= publicChannelMediaGallery.length) currentPublicGalleryIndex = 0;
             renderGalleryModal();
         };
-        // Converts standard Markdown and URLs into clickable HTML
-        function parseMarkdownToHtml(text) {
-            if (!text || text === 'null' || text === 'undefined') return '';
-            let html = String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            
-            // Markdown Links and URLs
-            html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" style="color:var(--blue); text-decoration:underline; font-weight:600;">$1</a>');
-            html = html.replace(/(^|\s)(https?:\/\/[^\s]+)/g, '$1<a href="$2" target="_blank" style="color:var(--blue); text-decoration:underline; font-weight:600;">$2</a>');
-
-            // Telegram Formatting
-            html = html.replace(/\*\*([^\*]+)\*\*/g, '<b>$1</b>'); 
-            html = html.replace(/\*([^\*]+)\*/g, '<b>$1</b>');     
-            html = html.replace(/_([^_]+)_/g, '<i>$1</i>');
-            html = html.replace(/~([^~]+)~/g, '<s>$1</s>');
-            html = html.replace(/`([^`]+)`/g, '<code style="background:#f1f1f1; padding:2px 4px; border-radius:4px; color:#d63384;">$1</code>');
-            
-            // Line Breaks
-            html = html.replace(/\n/g, '<br>');
-            return html;
-        }
 
         document.getElementById('videoPlayerContainer').addEventListener('contextmenu', e => e.preventDefault());
 
@@ -481,7 +480,7 @@
             fetchPublicChannelMessages(id);
         }
 
-async function fetchPublicChannelMessages(id) {
+        async function fetchPublicChannelMessages(id) {
             try {
                 const res = await fetch(`/api/channels/public/${id}/messages`);
                 const data = await res.json();
@@ -535,7 +534,8 @@ async function fetchPublicChannelMessages(id) {
                 scrollContainer.scrollTop = scrollContainer.scrollHeight;
             } catch(e) {}
         }
-window.appSettings = {}; // Global reference
+
+        window.appSettings = {}; // Global reference
 
         socket.on('new_channel_msg', (data) => {
             // Block notification sound/update if channels are disabled
@@ -1099,7 +1099,7 @@ window.appSettings = {}; // Global reference
             wmEl.style.left = Math.floor(Math.random() * (maxX - minX + 1)) + minX + 'px'; wmEl.style.top = Math.floor(Math.random() * (maxY - minY + 1)) + minY + 'px';
         }
 
-async function fetchSystemSettings() {
+        async function fetchSystemSettings() {
             try {
                 const settingsRes = await fetch('/api/settings');
                 const settings = await settingsRes.json();
