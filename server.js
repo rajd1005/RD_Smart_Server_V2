@@ -252,3 +252,35 @@ initDb().then(async () => {
 
     server.listen(PORT, () => console.log(`🚀 RD Broker Server running on ${PORT}`)); 
 });
+// === WEEKLY CHANNEL MESSAGES CLEANUP (KEEPS ONLY LAST 7 DAYS) ===
+cron.schedule('0 3 * * *', async () => { // Runs every day at 3:00 AM IST
+    try {
+        console.log("🧹 Running 7-day channel message cleanup...");
+        
+        // 1. Find old messages that have media attachments (images/videos)
+        const { rows } = await pool.query("SELECT image_url FROM channel_messages WHERE created_at < NOW() - INTERVAL '7 days' AND image_url IS NOT NULL");
+        
+        // 2. Delete the physical media files from the 'uploads' folder
+        for (const row of rows) {
+            if (row.image_url) {
+                const filename = row.image_url.split('/').pop(); // Extract filename from URL
+                if (filename) {
+                    const filePath = path.join(__dirname, 'uploads', filename);
+                    if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath); // Delete file from server
+                    }
+                }
+            }
+        }
+
+        // 3. Delete the actual message records from the database
+        const deleteResult = await pool.query("DELETE FROM channel_messages WHERE created_at < NOW() - INTERVAL '7 days'");
+        
+        console.log(`✅ Channel Cleanup Complete: Deleted ${deleteResult.rowCount} messages older than 7 days and their media.`);
+    } catch (err) {
+        console.error("❌ Error during channel message cleanup:", err);
+    }
+}, {
+    scheduled: true,
+    timezone: "Asia/Kolkata"
+});
