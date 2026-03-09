@@ -517,3 +517,67 @@ if (formEditChannel) {
         } catch(e) {}
     });
 }
+// --- TEXT FORMATTING & EMOJIS FOR CHANNEL MESSAGES ---
+
+window.formatChannelText = function(prefix, suffix) {
+    const textarea = document.getElementById('channelMsgBody');
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const selectedText = text.substring(start, end);
+
+    const before = text.substring(0, start);
+    const after = text.substring(end, text.length);
+
+    // Wrap the selected text with the styling markers
+    textarea.value = before + prefix + selectedText + suffix + after;
+
+    // Reset selection and focus back inside
+    textarea.selectionStart = start + prefix.length;
+    textarea.selectionEnd = end + prefix.length;
+    textarea.focus();
+    
+    // Trigger input event to auto-resize textarea
+    textarea.dispatchEvent(new Event('input')); 
+};
+
+window.formatChannelLink = function() {
+    const url = prompt("Enter the URL link:");
+    if (!url) return;
+    window.formatChannelText('[', `](${url})`);
+};
+
+window.insertChannelEmoji = function(emoji) {
+    const textarea = document.getElementById('channelMsgBody');
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+
+    textarea.value = text.substring(0, start) + emoji + text.substring(end, text.length);
+
+    textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+    textarea.focus();
+    textarea.dispatchEvent(new Event('input'));
+};
+
+function initEmojiPicker() {
+    const grid = document.getElementById('emojiPickerGrid');
+    if (grid) {
+        // Essential trading and chatting emojis
+        const emojis = ['👍', '❤️', '🔥', '🚀', '✅', '❌', '⚠️', '📈', '📉', '💰', '💎', '🎉', '🚨', '👀', '🟢', '🔴', '🤔', '😅', '🙌', '💯', '💸', '🏆', '🎯', '⏳'];
+        grid.innerHTML = emojis.map(e => 
+            `<button type="button" class="btn btn-light btn-sm border-0" style="font-size: 18px; padding: 4px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;" onclick="insertChannelEmoji('${e}')">${e}</button>`
+        ).join('');
+    }
+}
+
+// Initialize picker
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initEmojiPicker);
+} else {
+    initEmojiPicker();
+}
