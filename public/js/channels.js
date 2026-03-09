@@ -3,7 +3,7 @@ window.appSettings = {};
 let channelMediaGallery = [];
 let currentGalleryIndex = 0;
 
-// Converts standard Markdown and URLs into clickable HTML (Bulletproofed)
+// Converts standard Markdown and URLs into clickable HTML
 function parseMarkdownToHtml(text) {
     if (!text || text === 'null' || text === 'undefined') return '';
     let html = String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -241,15 +241,21 @@ async function fetchChannelMessages(id) {
 
             let optionsMenu = '';
             if (isAdminRole) {
+                // Check if the message originated from Telegram
+                const isFromTelegram = (m.sender_email === 'Telegram');
+
+                // If it's from Telegram, hide the Edit and Delete buttons
+                let editOption = isFromTelegram ? '' : `<li><a class="dropdown-item" href="#" onclick="editChannelMsgInit(${m.id}, '${safeBody}', '${safeLink}')"><span class="material-icons-round align-middle me-2" style="font-size:16px;">edit</span>Edit</a></li>`;
+                let deleteOption = isFromTelegram ? '' : `<li><hr class="dropdown-divider"></li><li><a class="dropdown-item text-danger" href="#" onclick="deleteChannelMsg(${m.id})"><span class="material-icons-round align-middle me-2" style="font-size:16px;">delete</span>Delete</a></li>`;
+
                 optionsMenu = `
                 <div class="dropdown float-end z-3">
                     <span class="material-icons-round text-muted" style="font-size: 18px; cursor: pointer; padding: 2px;" data-bs-toggle="dropdown">more_vert</span>
                     <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 12px; min-width: 120px;">
                         <li><a class="dropdown-item" href="#" onclick="replyChannelMsg(${m.id}, '${safeBody.substring(0,30)}')"><span class="material-icons-round align-middle me-2" style="font-size:16px;">reply</span>Reply</a></li>
-                        <li><a class="dropdown-item" href="#" onclick="editChannelMsgInit(${m.id}, '${safeBody}', '${safeLink}')"><span class="material-icons-round align-middle me-2" style="font-size:16px;">edit</span>Edit</a></li>
+                        ${editOption}
                         <li><a class="dropdown-item" href="#" onclick="togglePinChannelMsg(${m.id}, ${!m.is_pinned})"><span class="material-icons-round align-middle me-2" style="font-size:16px;">${m.is_pinned ? 'push_pin' : 'push_pin'}</span>${m.is_pinned ? 'Unpin' : 'Pin'}</a></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item text-danger" href="#" onclick="deleteChannelMsg(${m.id})"><span class="material-icons-round align-middle me-2" style="font-size:16px;">delete</span>Delete</a></li>
+                        ${deleteOption}
                     </ul>
                 </div>`;
             }
@@ -258,7 +264,7 @@ async function fetchChannelMessages(id) {
             <div id="msg-${m.id}" class="chat-bubble mb-3 w-100 shadow-sm" style="background-color: #fff; max-width: 90%; align-self: flex-start; border: 1px solid var(--border-color); border-radius: 12px; border-bottom-left-radius: 0; padding: 10px 14px; position:relative;">
                 ${optionsMenu}
                 <div class="d-flex justify-content-between mb-1 border-bottom pb-1 ${isAdminRole ? 'pe-4' : ''}">
-                    <span style="font-size: 10px; font-weight: 900; color: var(--blue); text-transform: uppercase;"><span class="material-icons-round" style="font-size: 12px; vertical-align: text-top; margin-right: 2px;">verified</span>RDA ADMIN</span>
+                    <span style="font-size: 10px; font-weight: 900; color: var(--blue); text-transform: uppercase;"><span class="material-icons-round" style="font-size: 12px; vertical-align: text-top; margin-right: 2px;">verified</span>ADMIN</span>
                     <span style="font-size: 9px; color: var(--text-secondary);">${dateStr}${pinIcon}</span>
                 </div>
                 ${replySnippet}
