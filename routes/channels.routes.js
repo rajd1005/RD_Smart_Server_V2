@@ -216,16 +216,18 @@ router.put('/messages/:msgId', authenticateToken, isManagerOrAdmin, upload.singl
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// Delete Message (Syncs to TG)
+// Delete Message (Syncs to TG ONLY if sent from Web)
 router.delete('/messages/:msgId', authenticateToken, isManagerOrAdmin, async (req, res) => {
     try {
-        const { rows: msgRows } = await pool.query("SELECT channel_id, telegram_msg_id FROM channel_messages WHERE id = $1", [req.params.msgId]);
+        // Fetch sender_email along with the IDs
+        const { rows: msgRows } = await pool.query("SELECT channel_id, telegram_msg_id, sender_email FROM channel_messages WHERE id = $1", [req.params.msgId]);
         const { rows } = await pool.query("DELETE FROM channel_messages WHERE id = $1 RETURNING channel_id", [req.params.msgId]);
         
         if (rows.length > 0) {
             req.app.get('io').emit('channel_msg_update', { channel_id: rows[0].channel_id });
             
-            if (msgRows.length > 0 && msgRows[0].telegram_msg_id) {
+            // Check if it HAS a telegram ID, AND that it was NOT originally sent from Telegram
+            if (msgRows.length > 0 && msgRows[0].telegram_msg_id && msgRows[0].sender_email !== 'Telegram') {
                 const { rows: chanRows } = await pool.query("SELECT telegram_chat_id FROM channels WHERE id = $1", [msgRows[0].channel_id]);
                 if (chanRows.length > 0 && chanRows[0].telegram_chat_id) {
                     try { await bot.deleteMessage(chanRows[0].telegram_chat_id, msgRows[0].telegram_msg_id); } catch(e) {}
