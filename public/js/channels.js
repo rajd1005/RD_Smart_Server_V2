@@ -171,7 +171,6 @@ async function fetchChannelMessages(id) {
         const res = await fetch(`/api/channels/${id}/messages`, { credentials: 'same-origin' });
         const data = await res.json();
         
-        // Reset and populate the global media gallery list for swiping
         channelMediaGallery = data.data
             .filter(m => m.image_url && m.image_url !== 'null' && m.image_url !== 'undefined')
             .map(m => ({ url: m.image_url, id: m.id }));
@@ -209,7 +208,6 @@ async function fetchChannelMessages(id) {
         data.data.forEach(m => {
             const dateStr = new Date(m.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
             
-            // --- MEDIA RENDERING FIRST ---
             let mediaHtml = '';
             if (m.image_url && m.image_url !== 'null' && m.image_url !== 'undefined') {
                 const safeImgUrl = String(m.image_url);
@@ -230,10 +228,22 @@ async function fetchChannelMessages(id) {
             
             const formattedBodyHtml = parseMarkdownToHtml(m.body);
 
+            // FIX: Smartly determine reply snippet text based on actual row existence and content
+            let replySnippetText = 'Deleted';
+            if (m.reply_actual_id) {
+                if (m.reply_body_snippet && String(m.reply_body_snippet).trim() !== '') {
+                    replySnippetText = String(m.reply_body_snippet).replace(/[\*\_~`]/g, '');
+                } else if (m.reply_image_url && m.reply_image_url !== 'null') {
+                    replySnippetText = '📷 Media Attachment';
+                } else {
+                    replySnippetText = '🔗 Link / Attachment';
+                }
+            }
+
             const replySnippet = m.reply_to_id ? `
                 <div style="border-left: 3px solid var(--blue); background: rgba(0,0,0,0.04); padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; font-size: 11px; cursor: pointer;" onclick="const t = document.getElementById('msg-${m.reply_to_id}'); if(t) t.scrollIntoView({behavior:'smooth', block:'center'});">
                     <div style="font-weight:bold; color:var(--blue);">Reply</div>
-                    <div style="color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${m.reply_body_snippet ? String(m.reply_body_snippet).replace(/[\*\_~`]/g, '') : 'Deleted'}</div>
+                    <div style="color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${replySnippetText}</div>
                 </div>
             ` : '';
 
@@ -241,19 +251,19 @@ async function fetchChannelMessages(id) {
 
             let optionsMenu = '';
             if (isAdminRole) {
-                // Check if the message originated from Telegram
                 const isFromTelegram = (m.sender_email === 'Telegram');
 
-
-// Telegram auto-syncs EDITS to the web, so we can hide the Edit button.
-                // However, Telegram DOES NOT sync DELETIONS, so we MUST show the Delete button for everything!
                 let editOption = isFromTelegram ? '' : `<li><a class="dropdown-item" href="#" onclick="editChannelMsgInit(${m.id}, '${safeBody}', '${safeLink}')"><span class="material-icons-round align-middle me-2" style="font-size:16px;">edit</span>Edit</a></li>`;
                 let deleteOption = `<li><hr class="dropdown-divider"></li><li><a class="dropdown-item text-danger" href="#" onclick="deleteChannelMsg(${m.id})"><span class="material-icons-round align-middle me-2" style="font-size:16px;">delete</span>Delete</a></li>`;
+                
+                // Smart snippet for the Reply "Preview" box that pops up
+                let replyActionSnippet = m.body && String(m.body).trim() !== '' ? safeBody.substring(0,30) : (m.image_url && m.image_url !== 'null' ? '📷 Media Attachment' : 'Message');
+
                 optionsMenu = `
                 <div class="dropdown float-end z-3">
                     <span class="material-icons-round text-muted" style="font-size: 18px; cursor: pointer; padding: 2px;" data-bs-toggle="dropdown">more_vert</span>
                     <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 12px; min-width: 120px;">
-                        <li><a class="dropdown-item" href="#" onclick="replyChannelMsg(${m.id}, '${safeBody.substring(0,30)}')"><span class="material-icons-round align-middle me-2" style="font-size:16px;">reply</span>Reply</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="replyChannelMsg(${m.id}, '${replyActionSnippet}')"><span class="material-icons-round align-middle me-2" style="font-size:16px;">reply</span>Reply</a></li>
                         ${editOption}
                         <li><a class="dropdown-item" href="#" onclick="togglePinChannelMsg(${m.id}, ${!m.is_pinned})"><span class="material-icons-round align-middle me-2" style="font-size:16px;">${m.is_pinned ? 'push_pin' : 'push_pin'}</span>${m.is_pinned ? 'Unpin' : 'Pin'}</a></li>
                         ${deleteOption}
@@ -380,7 +390,7 @@ if (formChannelMsg) {
             if (imageEl && imageEl.files[0]) formData.append('image', imageEl.files[0]);
 
             if (editId) {
-                // EDIT EXISTING MESSAGE (With potential new media)
+                // EDIT EXISTING MESSAGE
                 await fetch(`/api/channels/messages/${editId}`, {
                     method: 'PUT',
                     body: formData,
