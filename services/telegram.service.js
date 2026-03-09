@@ -69,7 +69,7 @@ function initTelegramChannelsSync(pool, io) {
             const link = await bot.getFileLink(fileId);
             const ext = path.extname(link) || '.jpg';
             const filename = crypto.randomUUID() + ext;
-            const dest = path.join(__dirname, '..', 'uploads', filename); 
+            const dest = path.join(__dirname, '..', 'public', 'hls', 'uploads', filename);
             
             return new Promise((resolve, reject) => {
                 const file = fs.createWriteStream(dest);
