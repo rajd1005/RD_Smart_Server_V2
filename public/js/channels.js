@@ -258,7 +258,7 @@ async function fetchChannelMessages(id) {
             <div id="msg-${m.id}" class="chat-bubble mb-3 w-100 shadow-sm" style="background-color: #fff; max-width: 90%; align-self: flex-start; border: 1px solid var(--border-color); border-radius: 12px; border-bottom-left-radius: 0; padding: 10px 14px; position:relative;">
                 ${optionsMenu}
                 <div class="d-flex justify-content-between mb-1 border-bottom pb-1 ${isAdminRole ? 'pe-4' : ''}">
-                    <span style="font-size: 10px; font-weight: 900; color: var(--blue); text-transform: uppercase;">${(m.sender_email||'').split('@')[0]}</span>
+                    <span style="font-size: 10px; font-weight: 900; color: var(--blue); text-transform: uppercase;"><span class="material-icons-round" style="font-size: 12px; vertical-align: text-top; margin-right: 2px;">verified</span>ADMIN</span>
                     <span style="font-size: 9px; color: var(--text-secondary);">${dateStr}${pinIcon}</span>
                 </div>
                 ${replySnippet}
