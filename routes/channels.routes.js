@@ -66,14 +66,14 @@ router.get('/:id/messages', authenticateToken, async (req, res) => {
 
 // 3. Post a message to a channel (Manager/Admin Only) & Send Push!
 router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single('image'), async (req, res) => {
-    const { title, body, link_url, reply_to_id } = req.body;
+    const { body, link_url, reply_to_id } = req.body;
     const channel_id = req.params.id;
     const image_url = req.file ? `/uploads/${req.file.filename}` : null;
     
     try {
         const dbResult = await pool.query(
-            "INSERT INTO channel_messages (channel_id, sender_email, title, body, image_url, link_url, reply_to_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-            [channel_id, req.user.email, title, body, image_url, link_url, reply_to_id || null]
+            "INSERT INTO channel_messages (channel_id, sender_email, title, body, image_url, link_url, reply_to_id) VALUES ($1, $2, null, $3, $4, $5, $6) RETURNING id",
+            [channel_id, req.user.email, body, image_url, link_url, reply_to_id || null]
         );
         const msgId = dbResult.rows[0].id;
 
@@ -91,16 +91,15 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
                 ? `/?tab=channels&id=${channel_id}` 
                 : `/index.html?tab=channels&id=${channel_id}`;
                 
-            const payloadTitle = title ? `${channel.name}: ${title}` : `${channel.name}: New Message`;
-const payload = { title: payloadTitle, body, url: targetUrl, image: image_url };
+            const payload = { title: `${channel.name}: New Message`, body, url: targetUrl, image: image_url };
             uniqueSubs.forEach(sub => { 
                 try { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); } catch(e){} 
             });
 
-// Send to Linked Telegram Channel
+            // Send to Linked Telegram Channel
             if (channel.telegram_chat_id) {
                 try {
-                    let tgMsg = title ? `*${toMarkdown(title)}*\n\n${toMarkdown(body)}` : `${toMarkdown(body)}`;
+                    let tgMsg = `${toMarkdown(body)}`;
                     if (link_url) tgMsg += `\n\n🔗 [Link](${toMarkdown(link_url)})`;
                     
                     let opts = { parse_mode: 'Markdown' };
@@ -168,17 +167,17 @@ router.delete('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
 
 // Edit Message (Supports Media and TG Sync)
 router.put('/messages/:msgId', authenticateToken, isManagerOrAdmin, upload.single('image'), async (req, res) => {
-    const { title, body, link_url } = req.body;
+    const { body, link_url } = req.body;
     const image_url = req.file ? `/uploads/${req.file.filename}` : null;
     try {
-        let query = "UPDATE channel_messages SET title = $1, body = $2, link_url = $3";
-        let params = [title, body, link_url, req.params.msgId];
+        let query = "UPDATE channel_messages SET title = null, body = $1, link_url = $2";
+        let params = [body, link_url, req.params.msgId];
 
         if (image_url) {
-            query += ", image_url = $4 WHERE id = $5";
-            params = [title, body, link_url, image_url, req.params.msgId];
+            query += ", image_url = $3 WHERE id = $4";
+            params = [body, link_url, image_url, req.params.msgId];
         } else {
-            query += " WHERE id = $4";
+            query += " WHERE id = $3";
         }
 
         const { rows } = await pool.query(query + " RETURNING channel_id, telegram_msg_id", params);
@@ -191,8 +190,8 @@ router.put('/messages/:msgId', authenticateToken, isManagerOrAdmin, upload.singl
                 const { rows: chanRows } = await pool.query("SELECT telegram_chat_id FROM channels WHERE id = $1", [msgInfo.channel_id]);
                 if (chanRows.length > 0 && chanRows[0].telegram_chat_id) {
                     try {
-let tgMsg = title ? `*${toMarkdown(title)}*\n\n${toMarkdown(body)}` : `${toMarkdown(body)}`;
-if (link_url) tgMsg += `\n\n🔗 [Link](${toMarkdown(link_url)})`;
+                        let tgMsg = `${toMarkdown(body)}`;
+                        if (link_url) tgMsg += `\n\n🔗 [Link](${toMarkdown(link_url)})`;
                         await bot.editMessageText(tgMsg, { chat_id: chanRows[0].telegram_chat_id, message_id: msgInfo.telegram_msg_id, parse_mode: 'Markdown' });
                     } catch(e) { console.error("Web->TG Edit Failed", e.message); }
                 }
