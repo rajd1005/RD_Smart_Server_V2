@@ -42,11 +42,12 @@ function parseTelegramEntitiesToMarkdown(text, entities) {
         result += text.substring(lastIndex, entity.offset);
         const entityText = text.substring(entity.offset, entity.offset + entity.length);
 
-        if (entity.type === 'bold') result += `*${entityText}*`;
+        if (entity.type === 'bold') result += `**${entityText}**`;
         else if (entity.type === 'italic') result += `_${entityText}_`;
         else if (entity.type === 'strikethrough') result += `~${entityText}~`;
         else if (entity.type === 'code' || entity.type === 'pre') result += `\`${entityText}\``;
         else if (entity.type === 'text_link') result += `[${entityText}](${entity.url})`;
+        else if (entity.type === 'url') result += `[${entityText}](${entityText})`; // Forces raw URLs to become clickable
         else result += entityText;
 
         lastIndex = entity.offset + entity.length;
@@ -100,23 +101,9 @@ function initTelegramChannelsSync(pool, io) {
             let rawText = msg.text || msg.caption || '';
             let formattedText = parseTelegramEntitiesToMarkdown(rawText, msg.entities || msg.caption_entities);
             
-            let title = 'Telegram Update';
+            // Fix: Put everything inside 'body' and leave 'title' null.
+            let title = null;
             let body = formattedText;
-            
-            if (formattedText.includes('\n')) {
-                const parts = formattedText.split('\n');
-                title = parts[0].replace(/[\*\_~`]/g, '').trim(); 
-                body = parts.slice(1).join('\n').trim();
-            } else if (formattedText) {
-                title = rawText.length > 35 ? rawText.substring(0, 35).replace(/[\*\_~`]/g, '') + '...' : rawText.replace(/[\*\_~`]/g, '');
-                body = formattedText;
-            } else if (msg.photo) {
-                title = 'New Image Alert';
-                body = '📷 Attached image';
-            } else if (msg.video) {
-                title = 'New Video Alert';
-                body = '🎥 Attached video';
-            }
 
             let reply_to_id = null;
             if (msg.reply_to_message) {
@@ -148,7 +135,7 @@ function initTelegramChannelsSync(pool, io) {
             const targetUrl = (target_audience === 'non_logged_in') ? `/?tab=channels&id=${channelId}` : `/index.html?tab=channels&id=${channelId}`;
             
             const payload = { 
-                title: `${channel.name}: ${title}`.substring(0, 60), 
+                title: `${channel.name}: New Message`, 
                 body: body.substring(0, 200), 
                 url: targetUrl, 
                 image: image_url 
@@ -168,16 +155,10 @@ function initTelegramChannelsSync(pool, io) {
         try {
             let rawText = msg.text || msg.caption || '';
             let formattedText = parseTelegramEntitiesToMarkdown(rawText, msg.entities || msg.caption_entities);
-            let title = 'Telegram Update';
-            let body = formattedText;
             
-            if (formattedText.includes('\n')) {
-                const parts = formattedText.split('\n');
-                title = parts[0].replace(/[\*\_~`]/g, '').trim();
-                body = parts.slice(1).join('\n').trim();
-            } else if (formattedText) {
-                title = rawText.length > 35 ? rawText.substring(0, 35).replace(/[\*\_~`]/g, '') + '...' : rawText.replace(/[\*\_~`]/g, '');
-            }
+            // Fix: Also updated for Edited messages
+            let title = null;
+            let body = formattedText;
 
             const { rows } = await pool.query("UPDATE channel_messages SET title = $1, body = $2 WHERE telegram_msg_id = $3 RETURNING channel_id", [title, body, msg.message_id]);
             if (rows.length > 0) io.emit('channel_msg_update', { channel_id: rows[0].channel_id });
