@@ -314,6 +314,26 @@
         let progressInterval = null; 
         let tempSetupToken = null;
         let tempResetEmail = null;
+        // Converts standard Markdown and URLs into clickable HTML
+        function parseMarkdownToHtml(text) {
+            if (!text || text === 'null' || text === 'undefined') return '';
+            let html = String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            
+            // Markdown Links and URLs
+            html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" style="color:var(--blue); text-decoration:underline; font-weight:600;">$1</a>');
+            html = html.replace(/(^|\s)(https?:\/\/[^\s]+)/g, '$1<a href="$2" target="_blank" style="color:var(--blue); text-decoration:underline; font-weight:600;">$2</a>');
+
+            // Telegram Formatting
+            html = html.replace(/\*\*([^\*]+)\*\*/g, '<b>$1</b>'); 
+            html = html.replace(/\*([^\*]+)\*/g, '<b>$1</b>');     
+            html = html.replace(/_([^_]+)_/g, '<i>$1</i>');
+            html = html.replace(/~([^~]+)~/g, '<s>$1</s>');
+            html = html.replace(/`([^`]+)`/g, '<code style="background:#f1f1f1; padding:2px 4px; border-radius:4px; color:#d63384;">$1</code>');
+            
+            // Line Breaks
+            html = html.replace(/\n/g, '<br>');
+            return html;
+        }
 
         document.getElementById('videoPlayerContainer').addEventListener('contextmenu', e => e.preventDefault());
 
@@ -416,7 +436,7 @@
             fetchPublicChannelMessages(id);
         }
 
-        async function fetchPublicChannelMessages(id) {
+async function fetchPublicChannelMessages(id) {
             try {
                 const res = await fetch(`/api/channels/public/${id}/messages`);
                 const data = await res.json();
@@ -430,18 +450,29 @@
                 let html = '';
                 data.data.forEach(m => {
                     const dateStr = new Date(m.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-                    let imgHtml = m.image_url ? `<img src="${m.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;">` : '';
+                    
+                    let mediaHtml = '';
+                    if (m.image_url && m.image_url !== 'null' && m.image_url !== 'undefined') {
+                        const isVideo = String(m.image_url).match(/\.(mp4|mov|webm|ogg)$/i);
+                        if (isVideo) {
+                            mediaHtml = `<video src="${m.image_url}" controls style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;"></video>`;
+                        } else {
+                            mediaHtml = `<img src="${m.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;">`;
+                        }
+                    }
+
                     let linkHtml = m.link_url ? `<a href="${m.link_url}" target="_blank" class="chat-link mt-2" style="font-size:11px;">${m.link_url}</a>` : '';
+                    
+                    const formattedBodyHtml = parseMarkdownToHtml(m.body);
 
                     html += `
                     <div class="chat-bubble mb-3 w-100 shadow-sm" style="background-color: #fff; max-width: 90%; align-self: flex-start; border: 1px solid var(--border-color); border-radius: 12px; border-bottom-left-radius: 0; padding: 10px 14px;">
                         <div class="d-flex justify-content-between mb-1 border-bottom pb-1">
-                            <span style="font-size: 10px; font-weight: 900; color: var(--blue); text-transform: uppercase;">ADMIN</span>
+                            <span style="font-size: 10px; font-weight: 900; color: var(--blue); text-transform: uppercase;"><span class="material-icons-round" style="font-size: 12px; vertical-align: text-top; margin-right: 2px;">verified</span>ADMIN</span>
                             <span style="font-size: 9px; color: var(--text-secondary);">${dateStr}</span>
                         </div>
-                        <div class="chat-title mt-1">${m.title}</div>
-                        ${imgHtml}
-                        <div class="chat-body" style="font-size: 13px; color: #333;">${m.body}</div>
+                        ${mediaHtml}
+                        <div class="chat-body mt-1" style="font-size: 13px; color: #333; line-height: 1.5;">${formattedBodyHtml}</div>
                         ${linkHtml}
                     </div>`;
                 });
@@ -450,7 +481,6 @@
                 scrollContainer.scrollTop = scrollContainer.scrollHeight;
             } catch(e) {}
         }
-
 window.appSettings = {}; // Global reference
 
         socket.on('new_channel_msg', (data) => {
