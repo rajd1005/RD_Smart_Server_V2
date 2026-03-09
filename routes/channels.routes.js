@@ -26,7 +26,7 @@ router.get('/public/:id/messages', async (req, res) => {
             return res.status(403).json({ success: false, msg: "Access Denied." });
         }
         const { rows } = await pool.query(`
-            SELECT m.*, r.title as reply_title, SUBSTRING(r.body, 1, 60) as reply_body_snippet 
+            SELECT m.*, r.title as reply_title, SUBSTRING(r.body, 1, 60) as reply_body_snippet, r.image_url as reply_image_url, r.id as reply_actual_id 
             FROM channel_messages m 
             LEFT JOIN channel_messages r ON m.reply_to_id = r.id 
             WHERE m.channel_id = $1 ORDER BY m.created_at ASC
@@ -55,7 +55,7 @@ router.get('/:id/messages', authenticateToken, async (req, res) => {
             }
         }
         const { rows } = await pool.query(`
-            SELECT m.*, r.title as reply_title, SUBSTRING(r.body, 1, 60) as reply_body_snippet 
+            SELECT m.*, r.title as reply_title, SUBSTRING(r.body, 1, 60) as reply_body_snippet, r.image_url as reply_image_url, r.id as reply_actual_id 
             FROM channel_messages m 
             LEFT JOIN channel_messages r ON m.reply_to_id = r.id 
             WHERE m.channel_id = $1 ORDER BY m.created_at ASC
