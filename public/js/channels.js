@@ -225,7 +225,7 @@ async function fetchChannelMessages(id) {
             
             let linkHtml = m.link_url ? `<a href="${m.link_url}" target="_blank" class="chat-link mt-2" style="font-size:11px;">${m.link_url}</a>` : '';
 
-            const safeTitle = String(m.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            ${m.title ? `${m.title ? `<div class="chat-title mt-1">${parseMarkdownToHtml(m.title)}</div>` : ''}` : ''}
             const safeBody = String(m.body || '').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n');
             const safeLink = String(m.link_url || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             
