@@ -97,11 +97,11 @@ const payload = { title: payloadTitle, body, url: targetUrl, image: image_url };
                 try { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); } catch(e){} 
             });
 
-            // Send to Linked Telegram Channel
+// Send to Linked Telegram Channel
             if (channel.telegram_chat_id) {
                 try {
- = title ? `*${toMarkdown(title)}*\n\n${toMarkdown(body)}` : `${toMarkdown(body)}`;
-if (link_url) tgMsg += `\n\n🔗 [Link](${toMarkdown(link_url)})`;
+                    let tgMsg = title ? `*${toMarkdown(title)}*\n\n${toMarkdown(body)}` : `${toMarkdown(body)}`;
+                    if (link_url) tgMsg += `\n\n🔗 [Link](${toMarkdown(link_url)})`;
                     
                     let opts = { parse_mode: 'Markdown' };
 
