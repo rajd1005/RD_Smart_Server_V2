@@ -7,10 +7,10 @@ const webpush = require('web-push');
 const pushRoutes = require('../routes/push.routes');
 require('dotenv').config();
 
-// Enable polling and disable the deprecation warning by setting filepath to false
+// Enable polling and disable the deprecation warning
 const bot = new TelegramBot(process.env.TG_BOT_TOKEN, { 
     polling: true,
-    filepath: false // This line resolves the (node:49) DeprecationWarning
+    filepath: false 
 });
 
 const CHAT_ID = process.env.TG_CHAT_ID;
@@ -47,38 +47,64 @@ function parseTelegramEntitiesToMarkdown(text, entities) {
         else if (entity.type === 'strikethrough') result += `~${entityText}~`;
         else if (entity.type === 'code' || entity.type === 'pre') result += `\`${entityText}\``;
         else if (entity.type === 'text_link') result += `[${entityText}](${entity.url})`;
-        else if (entity.type === 'url') result += `[${entityText}](${entityText})`; // Forces raw URLs to become clickable
+        else if (entity.type === 'url') result += `[${entityText}](${entityText})`; 
         else result += entityText;
 
         lastIndex = entity.offset + entity.length;
     }
 
-    if (lastIndex < text.length) {
-        result += text.substring(lastIndex);
-    }
-
+    if (lastIndex < text.length) result += text.substring(lastIndex);
     return result;
 }
 
 // TG -> Web Sync Setup
 function initTelegramChannelsSync(pool, io) {
     
-    // Function to download TG images/videos
+    // Function to safely download TG images/videos
     async function downloadTgImage(fileId) {
         try {
+            console.log("⬇️ Downloading file from Telegram...");
             const link = await bot.getFileLink(fileId);
             const ext = path.extname(link) || '.jpg';
             const filename = crypto.randomUUID() + ext;
-            const dest = path.join(__dirname, '..', 'public', 'hls', 'uploads', filename);
+            
+            // 1. SAFELY ENSURE THE FOLDER EXISTS FIRST
+            const uploadDir = path.join(__dirname, '..', 'public', 'hls', 'uploads');
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir, { recursive: true });
+            }
+            
+            const dest = path.join(uploadDir, filename); 
             
             return new Promise((resolve, reject) => {
                 const file = fs.createWriteStream(dest);
+                file.on('error', (err) => {
+                    console.error("❌ File Write Error:", err.message);
+                    reject(err);
+                });
+
                 https.get(link, (response) => {
+                    if (response.statusCode !== 200) {
+                        console.error(`❌ Download failed. Status Code: ${response.statusCode}`);
+                        reject(new Error(`Failed to get file: ${response.statusCode}`));
+                        return;
+                    }
                     response.pipe(file);
-                    file.on('finish', () => { file.close(); resolve(`/uploads/${filename}`); });
-                }).on('error', (err) => { fs.unlink(dest, ()=>{}); reject(err); });
+                    file.on('finish', () => { 
+                        file.close(); 
+                        console.log("✅ File saved successfully!");
+                        resolve(`/uploads/${filename}`); 
+                    });
+                }).on('error', (err) => { 
+                    fs.unlink(dest, ()=>{}); 
+                    console.error("❌ HTTPS Get Error:", err.message);
+                    reject(err); 
+                });
             });
-        } catch(e) { return null; }
+        } catch(e) { 
+            console.error("❌ Telegram API limits or File too large:", e.message); 
+            return null; 
+        }
     }
 
     // 1. Shared logic for incoming messages
@@ -96,12 +122,11 @@ function initTelegramChannelsSync(pool, io) {
                  return;
             }
 
-            if (!msg.text && !msg.caption && !msg.photo && !msg.video) return;
+            if (!msg.text && !msg.caption && !msg.photo && !msg.video && !msg.document) return;
             
             let rawText = msg.text || msg.caption || '';
             let formattedText = parseTelegramEntitiesToMarkdown(rawText, msg.entities || msg.caption_entities);
             
-            // Fix: Put everything inside 'body' and leave 'title' null.
             let title = null;
             let body = formattedText;
 
@@ -112,7 +137,14 @@ function initTelegramChannelsSync(pool, io) {
             }
 
             let image_url = null;
-            let fileIdToDownload = (msg.photo && msg.photo.length > 0) ? msg.photo[msg.photo.length - 1].file_id : (msg.video ? msg.video.file_id : null);
+            let fileIdToDownload = null;
+            
+            // 2. SUPPORT ALL ATTACHMENT TYPES (Standard & Uncompressed Documents)
+            if (msg.photo && msg.photo.length > 0) fileIdToDownload = msg.photo[msg.photo.length - 1].file_id;
+            else if (msg.video) fileIdToDownload = msg.video.file_id;
+            else if (msg.document && msg.document.mime_type && (msg.document.mime_type.startsWith('image/') || msg.document.mime_type.startsWith('video/'))) {
+                fileIdToDownload = msg.document.file_id;
+            }
             
             if (fileIdToDownload) {
                 image_url = await downloadTgImage(fileIdToDownload);
@@ -142,9 +174,7 @@ function initTelegramChannelsSync(pool, io) {
             };
 
             uniqueSubs.forEach(async (sub) => { 
-                try { 
-                    await webpush.sendNotification(sub, JSON.stringify(payload));
-                } catch(e) {} 
+                try { await webpush.sendNotification(sub, JSON.stringify(payload)); } catch(e) {} 
             });
 
         } catch(e) { console.error("TG->Web Sync Error (New Msg):", e); }
@@ -155,8 +185,6 @@ function initTelegramChannelsSync(pool, io) {
         try {
             let rawText = msg.text || msg.caption || '';
             let formattedText = parseTelegramEntitiesToMarkdown(rawText, msg.entities || msg.caption_entities);
-            
-            // Fix: Also updated for Edited messages
             let title = null;
             let body = formattedText;
 
@@ -169,9 +197,7 @@ function initTelegramChannelsSync(pool, io) {
     const handleDeletedMessage = async (msg) => {
         try {
             const { rows } = await pool.query("DELETE FROM channel_messages WHERE telegram_msg_id = $1 RETURNING channel_id", [msg.message_id]);
-            if (rows.length > 0) {
-                io.emit('channel_msg_update', { channel_id: rows[0].channel_id });
-            }
+            if (rows.length > 0) io.emit('channel_msg_update', { channel_id: rows[0].channel_id });
         } catch(e) { console.error("TG->Web Delete Error:", e); }
     };
 
