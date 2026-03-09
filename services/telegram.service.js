@@ -68,9 +68,8 @@ function initTelegramChannelsSync(pool, io) {
             const ext = path.extname(link) || '.jpg';
             const filename = crypto.randomUUID() + ext;
             
-            // 1. SAFELY ENSURE THE FOLDER EXISTS FIRST
-            // Use path.resolve to get the absolute path from the project root
-const uploadDir = path.resolve(__dirname, '../public/hls/uploads');
+            // 1. SAFELY ENSURE THE FOLDER EXISTS FIRST USING RESOLVE
+            const uploadDir = path.resolve(__dirname, '../public/hls/uploads');
             if (!fs.existsSync(uploadDir)) {
                 fs.mkdirSync(uploadDir, { recursive: true });
             }
