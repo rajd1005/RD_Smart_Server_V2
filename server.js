@@ -70,7 +70,8 @@ app.use(async (req, res, next) => {
 
 // === STATIC FILES ===
 app.use(express.static(path.join(__dirname, 'public'))); 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Resolve the absolute path explicitly to ensure Express serves it correctly
+app.use('/uploads', express.static(path.resolve(__dirname, 'public/hls/uploads')));
 
 // === SERVER & SOCKET IO SETUP ===
 const server = http.createServer(app);
