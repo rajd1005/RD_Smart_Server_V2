@@ -518,10 +518,22 @@
                     
                     const formattedBodyHtml = parseMarkdownToHtml(m.body);
 
+                    // FIX: Smartly determine reply snippet text based on actual row existence and content
+                    let replySnippetText = 'Deleted';
+                    if (m.reply_actual_id) {
+                        if (m.reply_body_snippet && String(m.reply_body_snippet).trim() !== '') {
+                            replySnippetText = String(m.reply_body_snippet).replace(/[\*\_~`]/g, '');
+                        } else if (m.reply_image_url && m.reply_image_url !== 'null') {
+                            replySnippetText = '📷 Media Attachment';
+                        } else {
+                            replySnippetText = '🔗 Link / Attachment';
+                        }
+                    }
+
                     const replySnippet = m.reply_to_id ? `
                         <div style="border-left: 3px solid var(--blue); background: rgba(0,0,0,0.04); padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; font-size: 11px; cursor: pointer;" onclick="const t = document.getElementById('msg-${m.reply_to_id}'); if(t) t.scrollIntoView({behavior:'smooth', block:'center'});">
                             <div style="font-weight:bold; color:var(--blue);">Reply</div>
-                            <div style="color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${m.reply_body_snippet ? String(m.reply_body_snippet).replace(/[\\*\\_~\\\`]/g, '') : 'Deleted'}</div>
+                            <div style="color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${replySnippetText}</div>
                         </div>
                     ` : '';
 
