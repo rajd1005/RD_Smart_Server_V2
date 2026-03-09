@@ -314,6 +314,51 @@
         let progressInterval = null; 
         let tempSetupToken = null;
         let tempResetEmail = null;
+        // --- CHANNEL MEDIA GALLERY LOGIC ---
+        let publicChannelMediaGallery = [];
+        let currentPublicGalleryIndex = 0;
+
+        window.openSwipeGallery = function(index) {
+            currentPublicGalleryIndex = index;
+            renderGalleryModal();
+        };
+
+        function renderGalleryModal() {
+            const existing = document.getElementById('mediaPopupModal');
+            if (existing) existing.remove();
+
+            const item = publicChannelMediaGallery[currentPublicGalleryIndex];
+            if (!item) return;
+            const isVideo = item.url.match(/\.(mp4|mov|webm|ogg)$/i);
+
+            const modalHtml = `
+                <div id="mediaPopupModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:9999; display:flex; align-items:center; justify-content:center;">
+                    <span class="material-icons-round" style="position:absolute; top:20px; right:20px; color:#fff; font-size:32px; cursor:pointer; z-index:10001;" onclick="document.getElementById('mediaPopupModal').remove()">close</span>
+                    
+                    <button onclick="changeGalleryItem(-1)" style="position:absolute; left:10px; background:none; border:none; color:white; z-index:10001;"><span class="material-icons-round" style="font-size:48px;">chevron_left</span></button>
+                    <button onclick="changeGalleryItem(1)" style="position:absolute; right:10px; background:none; border:none; color:white; z-index:10001;"><span class="material-icons-round" style="font-size:48px;">chevron_right</span></button>
+
+                    <div id="galleryContent" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
+                        ${isVideo ? 
+                            `<video src="${item.url}" controls autoplay style="max-width:95%; max-height:90vh;"></video>` : 
+                            `<img src="${item.url}" style="max-width:95%; max-height:90vh; object-fit:contain; border-radius:4px;">`
+                        }
+                    </div>
+                    
+                    <div style="position:absolute; bottom:20px; color:white; font-size:12px; font-weight:bold;">
+                        ${currentPublicGalleryIndex + 1} / ${publicChannelMediaGallery.length}
+                    </div>
+                </div>`;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+
+        window.changeGalleryItem = function(direction) {
+            currentPublicGalleryIndex += direction;
+            if (currentPublicGalleryIndex < 0) currentPublicGalleryIndex = publicChannelMediaGallery.length - 1;
+            if (currentPublicGalleryIndex >= publicChannelMediaGallery.length) currentPublicGalleryIndex = 0;
+            renderGalleryModal();
+        };
         // Converts standard Markdown and URLs into clickable HTML
         function parseMarkdownToHtml(text) {
             if (!text || text === 'null' || text === 'undefined') return '';
@@ -440,6 +485,12 @@ async function fetchPublicChannelMessages(id) {
             try {
                 const res = await fetch(`/api/channels/public/${id}/messages`);
                 const data = await res.json();
+                
+                // POPULATE THE GALLERY ARRAY FOR SWIPING
+                publicChannelMediaGallery = data.data
+                    .filter(m => m.image_url && m.image_url !== 'null' && m.image_url !== 'undefined')
+                    .map(m => ({ url: m.image_url, id: m.id }));
+
                 const chatObj = document.getElementById('publicChannelMessages');
                 
                 if (data.data.length === 0) {
@@ -453,11 +504,14 @@ async function fetchPublicChannelMessages(id) {
                     
                     let mediaHtml = '';
                     if (m.image_url && m.image_url !== 'null' && m.image_url !== 'undefined') {
+                        // FIND THE INDEX TO BIND TO THE ONCLICK EVENT
+                        const galleryIndex = publicChannelMediaGallery.findIndex(item => item.id === m.id);
                         const isVideo = String(m.image_url).match(/\.(mp4|mov|webm|ogg)$/i);
+                        
                         if (isVideo) {
-                            mediaHtml = `<video src="${m.image_url}" controls style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;"></video>`;
+                            mediaHtml = `<video src="${m.image_url}" controls style="max-width: 100%; border-radius: 8px; margin-bottom: 6px; cursor: pointer;" onclick="openSwipeGallery(${galleryIndex})"></video>`;
                         } else {
-                            mediaHtml = `<img src="${m.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 6px;">`;
+                            mediaHtml = `<img src="${m.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 6px; cursor: pointer;" onclick="openSwipeGallery(${galleryIndex})">`;
                         }
                     }
 
@@ -468,7 +522,7 @@ async function fetchPublicChannelMessages(id) {
                     html += `
                     <div class="chat-bubble mb-3 w-100 shadow-sm" style="background-color: #fff; max-width: 90%; align-self: flex-start; border: 1px solid var(--border-color); border-radius: 12px; border-bottom-left-radius: 0; padding: 10px 14px;">
                         <div class="d-flex justify-content-between mb-1 border-bottom pb-1">
-                            <span style="font-size: 10px; font-weight: 900; color: var(--blue); text-transform: uppercase;"><span class="material-icons-round" style="font-size: 12px; vertical-align: text-top; margin-right: 2px;">verified</span>RDA ADMIN</span>
+                            <span style="font-size: 10px; font-weight: 900; color: var(--blue); text-transform: uppercase;"><span class="material-icons-round" style="font-size: 12px; vertical-align: text-top; margin-right: 2px;">verified</span>ADMIN</span>
                             <span style="font-size: 9px; color: var(--text-secondary);">${dateStr}</span>
                         </div>
                         ${mediaHtml}
