@@ -192,7 +192,7 @@ async function fetchChannelMessages(id) {
         
         if (latestPinned && pinnedBar) {
             pinnedBar.style.display = 'block';
-            const pinnedTitleSafe = latestPinned.title ? String(latestPinned.title).replace(/[\*\_~`]/g, '') : '';
+            const pinnedTitleSafe = latestPinned.body ? String(latestPinned.body).substring(0, 40).replace(/[\*\_~`]/g, '') + '...' : 'Pinned Message';
             const pinnedText = document.getElementById('channelPinnedMsgText');
             if (pinnedText) pinnedText.innerText = pinnedTitleSafe;
             pinnedBar.onclick = () => {
@@ -223,10 +223,8 @@ async function fetchChannelMessages(id) {
                 }
             }
             
-           let linkHtml = m.link_url ? `<a href="${m.link_url}" target="_blank" class="chat-link mt-2" style="font-size:11px;">${m.link_url}</a>` : '';
+            let linkHtml = m.link_url ? `<a href="${m.link_url}" target="_blank" class="chat-link mt-2" style="font-size:11px;">${m.link_url}</a>` : '';
 
-            // Restored safeTitle variable
-            const safeTitle = String(m.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             const safeBody = String(m.body || '').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n');
             const safeLink = String(m.link_url || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             
@@ -234,7 +232,7 @@ async function fetchChannelMessages(id) {
 
             const replySnippet = m.reply_to_id ? `
                 <div style="border-left: 3px solid var(--blue); background: rgba(0,0,0,0.04); padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; font-size: 11px; cursor: pointer;" onclick="const t = document.getElementById('msg-${m.reply_to_id}'); if(t) t.scrollIntoView({behavior:'smooth', block:'center'});">
-                    <div style="font-weight:bold; color:var(--blue);">${m.reply_title ? String(m.reply_title).replace(/[\*\_~`]/g, '') : 'Message'}</div>
+                    <div style="font-weight:bold; color:var(--blue);">Reply</div>
                     <div style="color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${m.reply_body_snippet ? String(m.reply_body_snippet).replace(/[\*\_~`]/g, '') : 'Deleted'}</div>
                 </div>
             ` : '';
@@ -247,8 +245,8 @@ async function fetchChannelMessages(id) {
                 <div class="dropdown float-end z-3">
                     <span class="material-icons-round text-muted" style="font-size: 18px; cursor: pointer; padding: 2px;" data-bs-toggle="dropdown">more_vert</span>
                     <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 12px; min-width: 120px;">
-                        <li><a class="dropdown-item" href="#" onclick="replyChannelMsg(${m.id}, '${safeTitle}', '${safeBody.substring(0,30)}')"><span class="material-icons-round align-middle me-2" style="font-size:16px;">reply</span>Reply</a></li>
-                        <li><a class="dropdown-item" href="#" onclick="editChannelMsgInit(${m.id}, '${safeTitle}', '${safeBody}', '${safeLink}')"><span class="material-icons-round align-middle me-2" style="font-size:16px;">edit</span>Edit</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="replyChannelMsg(${m.id}, '${safeBody.substring(0,30)}')"><span class="material-icons-round align-middle me-2" style="font-size:16px;">reply</span>Reply</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="editChannelMsgInit(${m.id}, '${safeBody}', '${safeLink}')"><span class="material-icons-round align-middle me-2" style="font-size:16px;">edit</span>Edit</a></li>
                         <li><a class="dropdown-item" href="#" onclick="togglePinChannelMsg(${m.id}, ${!m.is_pinned})"><span class="material-icons-round align-middle me-2" style="font-size:16px;">${m.is_pinned ? 'push_pin' : 'push_pin'}</span>${m.is_pinned ? 'Unpin' : 'Pin'}</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item text-danger" href="#" onclick="deleteChannelMsg(${m.id})"><span class="material-icons-round align-middle me-2" style="font-size:16px;">delete</span>Delete</a></li>
@@ -267,8 +265,7 @@ async function fetchChannelMessages(id) {
 
                 ${mediaHtml}
 
-                ${m.title ? `<div class="chat-title mt-1">${parseMarkdownToHtml(m.title)}</div>` : ''}
-                <div class="chat-body" style="font-size: 13px; color: #333; line-height: 1.5;">${formattedBodyHtml}</div>
+                <div class="chat-body mt-1" style="font-size: 13px; color: #333; line-height: 1.5;">${formattedBodyHtml}</div>
                 ${linkHtml}
             </div>`;
         });
@@ -278,14 +275,14 @@ async function fetchChannelMessages(id) {
     } catch(e) { console.log(e) }
 }
 
-window.replyChannelMsg = function(id, title, snippet) {
+window.replyChannelMsg = function(id, snippet) {
     const preview = document.getElementById('channelReplyPreview');
     if (preview) {
         preview.style.display = 'block';
         preview.style.backgroundColor = '#e3f2fd';
         preview.style.borderLeftColor = 'var(--blue)';
         document.getElementById('channelReplyModeText').innerHTML = 'Replying to... <span class="material-icons-round float-end text-muted" style="font-size:14px; cursor:pointer;" onclick="cancelChannelReplyEdit()">close</span>';
-        document.getElementById('channelReplyText').innerText = String(title).replace(/[\*\_~`]/g, '') + ' - ' + String(snippet).replace(/[\*\_~`]/g, '');
+        document.getElementById('channelReplyText').innerText = String(snippet).replace(/[\*\_~`]/g, '') + '...';
     }
 
     const replyIdEl = document.getElementById('activeReplyId');
@@ -298,14 +295,14 @@ window.replyChannelMsg = function(id, title, snippet) {
     if(bodyEl) bodyEl.focus();
 };
 
-window.editChannelMsgInit = function(id, title, body, url) {
+window.editChannelMsgInit = function(id, body, url) {
     const preview = document.getElementById('channelReplyPreview');
     if (preview) {
         preview.style.display = 'block';
         preview.style.backgroundColor = '#fff3cd';
         preview.style.borderLeftColor = '#ffc107';
         document.getElementById('channelReplyModeText').innerHTML = 'Editing message... <span class="material-icons-round float-end text-muted" style="font-size:14px; cursor:pointer;" onclick="cancelChannelReplyEdit()">close</span>';
-        document.getElementById('channelReplyText').innerText = String(title).replace(/[\*\_~`]/g, '');
+        document.getElementById('channelReplyText').innerText = String(body).substring(0,40).replace(/[\*\_~`]/g, '') + '...';
     }
 
     const editIdEl = document.getElementById('activeEditMsgId');
@@ -314,7 +311,6 @@ window.editChannelMsgInit = function(id, title, body, url) {
     const replyIdEl = document.getElementById('activeReplyId');
     if(replyIdEl) replyIdEl.value = '';
     
-    document.getElementById('channelMsgTitle').value = title;
     document.getElementById('channelMsgBody').value = body;
     
     const urlEl = document.getElementById('channelMsgUrl');
@@ -370,7 +366,6 @@ if (formChannelMsg) {
 
         try {
             const formData = new FormData();
-            formData.append('title', document.getElementById('channelMsgTitle').value);
             formData.append('body', document.getElementById('channelMsgBody').value);
             formData.append('link_url', document.getElementById('channelMsgUrl').value);
             
@@ -518,6 +513,7 @@ if (formEditChannel) {
         } catch(e) {}
     });
 }
+
 // --- TEXT FORMATTING & EMOJIS FOR CHANNEL MESSAGES ---
 
 window.formatChannelText = function(prefix, suffix) {
