@@ -91,7 +91,8 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
                 ? `/?tab=channels&id=${channel_id}` 
                 : `/index.html?tab=channels&id=${channel_id}`;
                 
-            const payload = { title: `${channel.name}: ${title}`, body, url: targetUrl, image: image_url };
+            const payloadTitle = title ? `${channel.name}: ${title}` : `${channel.name}: New Message`;
+const payload = { title: payloadTitle, body, url: targetUrl, image: image_url };
             uniqueSubs.forEach(sub => { 
                 try { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); } catch(e){} 
             });
@@ -99,8 +100,8 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
             // Send to Linked Telegram Channel
             if (channel.telegram_chat_id) {
                 try {
-                    let tgMsg = `*${toMarkdown(title)}*\n\n${toMarkdown(body)}`;
-                    if (link_url) tgMsg += `\n\n🔗 [Link](${toMarkdown(link_url)})`;
+ = title ? `*${toMarkdown(title)}*\n\n${toMarkdown(body)}` : `${toMarkdown(body)}`;
+if (link_url) tgMsg += `\n\n🔗 [Link](${toMarkdown(link_url)})`;
                     
                     let opts = { parse_mode: 'Markdown' };
 
@@ -190,8 +191,8 @@ router.put('/messages/:msgId', authenticateToken, isManagerOrAdmin, upload.singl
                 const { rows: chanRows } = await pool.query("SELECT telegram_chat_id FROM channels WHERE id = $1", [msgInfo.channel_id]);
                 if (chanRows.length > 0 && chanRows[0].telegram_chat_id) {
                     try {
-                        let tgMsg = `*${toMarkdown(title)}*\n\n${toMarkdown(body)}`;
-                        if (link_url) tgMsg += `\n\n🔗 [Link](${toMarkdown(link_url)})`;
+let tgMsg = title ? `*${toMarkdown(title)}*\n\n${toMarkdown(body)}` : `${toMarkdown(body)}`;
+if (link_url) tgMsg += `\n\n🔗 [Link](${toMarkdown(link_url)})`;
                         await bot.editMessageText(tgMsg, { chat_id: chanRows[0].telegram_chat_id, message_id: msgInfo.telegram_msg_id, parse_mode: 'Markdown' });
                     } catch(e) { console.error("Web->TG Edit Failed", e.message); }
                 }
