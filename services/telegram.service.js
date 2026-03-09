@@ -166,9 +166,23 @@ function initTelegramChannelsSync(pool, io) {
             const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience);
             const targetUrl = (target_audience === 'non_logged_in') ? `/?tab=channels&id=${channelId}` : `/index.html?tab=channels&id=${channelId}`;
             
+            // HELPER: Strip markdown for Push Notifications
+            const stripMarkdown = (text) => {
+                if (!text) return '';
+                return String(text)
+                    .replace(/\*\*(.*?)\*\*/g, '$1')
+                    .replace(/\*(.*?)\*/g, '$1')
+                    .replace(/_(.*?)_/g, '$1')
+                    .replace(/~(.*?)~/g, '$1')
+                    .replace(/`(.*?)`/g, '$1')
+                    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1');
+            };
+
+            const cleanBody = stripMarkdown(body);
+
             const payload = { 
                 title: `${channel.name}: New Message`, 
-                body: body.substring(0, 200), 
+                body: cleanBody.substring(0, 200), 
                 url: targetUrl, 
                 image: image_url 
             };
