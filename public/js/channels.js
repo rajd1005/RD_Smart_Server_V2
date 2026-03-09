@@ -244,10 +244,11 @@ async function fetchChannelMessages(id) {
                 // Check if the message originated from Telegram
                 const isFromTelegram = (m.sender_email === 'Telegram');
 
-                // If it's from Telegram, hide the Edit and Delete buttons
-                let editOption = isFromTelegram ? '' : `<li><a class="dropdown-item" href="#" onclick="editChannelMsgInit(${m.id}, '${safeBody}', '${safeLink}')"><span class="material-icons-round align-middle me-2" style="font-size:16px;">edit</span>Edit</a></li>`;
-                let deleteOption = isFromTelegram ? '' : `<li><hr class="dropdown-divider"></li><li><a class="dropdown-item text-danger" href="#" onclick="deleteChannelMsg(${m.id})"><span class="material-icons-round align-middle me-2" style="font-size:16px;">delete</span>Delete</a></li>`;
 
+// Telegram auto-syncs EDITS to the web, so we can hide the Edit button.
+                // However, Telegram DOES NOT sync DELETIONS, so we MUST show the Delete button for everything!
+                let editOption = isFromTelegram ? '' : `<li><a class="dropdown-item" href="#" onclick="editChannelMsgInit(${m.id}, '${safeBody}', '${safeLink}')"><span class="material-icons-round align-middle me-2" style="font-size:16px;">edit</span>Edit</a></li>`;
+                let deleteOption = `<li><hr class="dropdown-divider"></li><li><a class="dropdown-item text-danger" href="#" onclick="deleteChannelMsg(${m.id})"><span class="material-icons-round align-middle me-2" style="font-size:16px;">delete</span>Delete</a></li>`;
                 optionsMenu = `
                 <div class="dropdown float-end z-3">
                     <span class="material-icons-round text-muted" style="font-size: 18px; cursor: pointer; padding: 2px;" data-bs-toggle="dropdown">more_vert</span>
