@@ -3,7 +3,7 @@ const router = express.Router();
 const { pool } = require('../config/database');
 const { authenticateToken, isManagerOrAdmin, isAdmin } = require('../middlewares/auth.middleware');
 const multer = require('multer');
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({ dest: 'public/hls/uploads/' });
 const pushRoutes = require('./push.routes');
 const webpush = require('web-push');
 
@@ -113,7 +113,7 @@ router.post('/:id/messages', authenticateToken, isManagerOrAdmin, upload.single(
 
                     let sentTgMsg;
                     if (image_url && req.file) {
-                        const mediaPath = path.join(__dirname, '..', 'uploads', req.file.filename);
+                        const mediaPath = path.join(__dirname, '..', 'public', 'hls', 'uploads', req.file.filename);
                         if (req.file.mimetype.startsWith('video/')) {
                             sentTgMsg = await bot.sendVideo(channel.telegram_chat_id, mediaPath, { ...opts, caption: tgMsg });
                         } else {
