@@ -480,7 +480,70 @@
             fetchPublicChannelMessages(id);
         }
 
-async function fetchPublicChannelMessages(id) {
+        async function fetchPublicChannelMessages(id) {
+            try {
+                const res = await fetch(`/api/channels/public/${id}/messages`);
+                const data = await res.json();
+                
+                // POPULATE THE GALLERY ARRAY FOR SWIPING
+                publicChannelMediaGallery = data.data
+                    .filter(m => m.image_url && m.image_url !== 'null' && m.image_url !== 'undefined')
+                    .map(m => ({ url: m.image_url, id: m.id }));
+
+                const chatObj = document.getElementById('publicChannelMessages');
+                
+                if (data.data.length === 0) {
+                    chatObj.innerHTML = '<div class="text-center text-muted mt-4" style="font-size:12px;">No messages yet.</div>';
+                    return;
+                }
+
+                let html = '';
+                data.data.forEach(m => {
+                    const dateStr = new Date(m.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+                    
+                    let mediaHtml = '';
+                    if (m.image_url && m.image_url !== 'null' && m.image_url !== 'undefined') {
+                        // FIND THE INDEX TO BIND TO THE ONCLICK EVENT
+                        const galleryIndex = publicChannelMediaGallery.findIndex(item => item.id === m.id);
+                        const isVideo = String(m.image_url).match(/\.(mp4|mov|webm|ogg)$/i);
+                        
+                        if (isVideo) {
+                            mediaHtml = `<video src="${m.image_url}" controls style="max-width: 100%; border-radius: 8px; margin-bottom: 6px; cursor: pointer;" onclick="openSwipeGallery(${galleryIndex})"></video>`;
+                        } else {
+                            mediaHtml = `<img src="${m.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 6px; cursor: pointer;" onclick="openSwipeGallery(${galleryIndex})">`;
+                        }
+                    }
+
+                    let linkHtml = m.link_url ? `<a href="${m.link_url}" target="_blank" class="chat-link mt-2" style="font-size:11px;">${m.link_url}</a>` : '';
+                    
+                    const formattedBodyHtml = parseMarkdownToHtml(m.body);
+
+                    const replySnippet = m.reply_to_id ? `
+                        <div style="border-left: 3px solid var(--blue); background: rgba(0,0,0,0.04); padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; font-size: 11px; cursor: pointer;" onclick="const t = document.getElementById('msg-${m.reply_to_id}'); if(t) t.scrollIntoView({behavior:'smooth', block:'center'});">
+                            <div style="font-weight:bold; color:var(--blue);">Reply</div>
+                            <div style="color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${m.reply_body_snippet ? String(m.reply_body_snippet).replace(/[\\*\\_~\\\`]/g, '') : 'Deleted'}</div>
+                        </div>
+                    ` : '';
+
+                    const pinIcon = m.is_pinned ? `<span class="material-icons-round text-primary ms-2" style="font-size: 14px; vertical-align: middle;">push_pin</span>` : '';
+
+                    html += `
+                    <div id="msg-${m.id}" class="chat-bubble mb-3 w-100 shadow-sm" style="background-color: #fff; max-width: 90%; align-self: flex-start; border: 1px solid var(--border-color); border-radius: 12px; border-bottom-left-radius: 0; padding: 10px 14px; position:relative;">
+                        <div class="d-flex justify-content-between mb-1 border-bottom pb-1">
+                            <span style="font-size: 10px; font-weight: 900; color: var(--blue); text-transform: uppercase;"><span class="material-icons-round" style="font-size: 12px; vertical-align: text-top; margin-right: 2px;">verified</span>RDA ADMIN</span>
+                            <span style="font-size: 9px; color: var(--text-secondary);">${dateStr}${pinIcon}</span>
+                        </div>
+                        ${replySnippet}
+                        ${mediaHtml}
+                        <div class="chat-body mt-1" style="font-size: 13px; color: #333; line-height: 1.5;">${formattedBodyHtml}</div>
+                        ${linkHtml}
+                    </div>`;
+                });
+                chatObj.innerHTML = html;
+                const scrollContainer = document.getElementById('publicChannelMessages');
+                scrollContainer.scrollTop = scrollContainer.scrollHeight;
+            } catch(e) {}
+        }
 
         window.appSettings = {}; // Global reference
 
