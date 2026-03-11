@@ -1,4 +1,5 @@
 const express = require('express');
+const compression = require('compression');
 const http = require('http'); 
 const { Server } = require('socket.io'); 
 const cors = require('cors');
@@ -20,6 +21,7 @@ const { initTelegramChannelsSync } = require('./services/telegram.service');
 
 // === INITIALIZE EXPRESS APP ===
 const app = express();
+app.use(compression());
 app.set('trust proxy', true); 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
