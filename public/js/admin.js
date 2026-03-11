@@ -21,22 +21,19 @@ function applyRoleRestrictions() {
         const adminAccordionControls = document.getElementById('adminAccordionControls');
         if (adminAccordionControls && role === 'admin') adminAccordionControls.style.display = 'block';
 
-        // --- NEW RESTRICTION: Managers can ONLY see the Users Tab ---
+        // Managers can ONLY see the Users Tab
         if (role === 'manager') {
             const tabsToHide = ['tab-module', 'tab-lesson', 'tab-settings', 'tab-progress', 'tab-symbols', 'tab-channels'];
             tabsToHide.forEach(tabId => {
                 const el = document.getElementById(tabId);
-                if (el && el.parentElement) el.parentElement.style.display = 'none'; // Hide the <li> wrapper
+                if (el && el.parentElement) el.parentElement.style.display = 'none'; 
             });
             
-            // Force the 'Users' tab to be active by default for Managers
             const tabUsers = document.getElementById('tab-users');
             if (tabUsers) {
-                // Remove active classes from all tabs and panes
                 document.querySelectorAll('#adminTabs .nav-link').forEach(n => n.classList.remove('active'));
                 document.querySelectorAll('#adminTabsContent .tab-pane').forEach(p => p.classList.remove('show', 'active'));
                 
-                // Activate the Users tab
                 tabUsers.classList.add('active');
                 const paneUsers = document.getElementById('pane-users');
                 if (paneUsers) paneUsers.classList.add('show', 'active');
@@ -352,7 +349,7 @@ window.deleteModule = async function(e, id) {
 window.fetchLocalUsers = async function() {
     const tbody = document.getElementById('localUsersTableBody');
     if(!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="3" class="text-center py-2">Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-2">Loading...</td></tr>';
     try {
         const res = await fetch('/api/admin/users');
         const json = await res.json();
@@ -368,14 +365,18 @@ window.fetchLocalUsers = async function() {
                     <td class="text-break">${u.email}</td>
                     <td>${levels.length > 0 ? levels.join(', ') : 'L1'}</td>
                     <td>${status}</td>
+                    <td class="text-center">
+                        <button class="admin-edit-btn" onclick="openEditUser(${u.id}, '${u.email}', '${u.level_2_status}', '${u.level_3_status}', '${u.level_4_status}', ${u.validity_days}, ${u.is_lifetime}, ${u.is_blocked})"><span class="material-icons-round" style="font-size:14px;">edit</span></button>
+                        <button class="admin-del-btn" onclick="deleteUser(${u.id})"><span class="material-icons-round" style="font-size:14px;">delete</span></button>
+                    </td>
                 </tr>
                 `;
             }).join('');
         } else {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-2">No users found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-2">No users found.</td></tr>';
         }
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-2">Error loading users.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-2">Error loading users.</td></tr>';
     }
 }
 
@@ -413,4 +414,62 @@ if(formAdminUsers) {
         } catch(err) { alert("Network error saving user."); }
         finally { btn.innerText = "Save User"; btn.disabled = false; }
     });
+}
+
+// User Edit and Delete functions
+window.openEditUser = function(id, email, l2, l3, l4, validity, lifetime, blocked) {
+    document.getElementById('editUserId').value = id;
+    document.getElementById('editUserEmail').value = email;
+    document.getElementById('editUserLvl2').checked = l2 === 'Yes';
+    document.getElementById('editUserLvl3').checked = l3 === 'Yes';
+    document.getElementById('editUserLvl4').checked = l4 === 'Yes';
+    document.getElementById('editUserValidity').value = validity || 30;
+    document.getElementById('editUserLifetime').checked = lifetime;
+    document.getElementById('editUserBlock').checked = blocked;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('editUserModal')).show();
+}
+
+const formEditUser = document.getElementById('formEditUser');
+if(formEditUser) {
+    formEditUser.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
+        const id = document.getElementById('editUserId').value;
+        try {
+            const bodyData = { 
+                level_2_status: document.getElementById('editUserLvl2').checked ? 'Yes' : 'No',
+                level_3_status: document.getElementById('editUserLvl3').checked ? 'Yes' : 'No',
+                level_4_status: document.getElementById('editUserLvl4').checked ? 'Yes' : 'No',
+                validity_days: document.getElementById('editUserValidity').value,
+                is_lifetime: document.getElementById('editUserLifetime').checked,
+                is_blocked: document.getElementById('editUserBlock').checked
+            };
+            const res = await fetch(`/api/admin/users/${id}`, { 
+                method: 'PUT', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify(bodyData) 
+            });
+            const json = await res.json();
+            if(json.success) { 
+                bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+                if(typeof fetchLocalUsers === 'function') fetchLocalUsers();
+            } else {
+                alert("Error: " + json.msg);
+            }
+        } catch(err) { alert("Network error saving user."); }
+        finally { btn.innerText = "Save Changes"; btn.disabled = false; }
+    });
+}
+
+window.deleteUser = async function(id) {
+    if(!confirm("Are you sure you want to delete this user? This action cannot be undone and revokes their local access.")) return;
+    try {
+        const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+        const json = await res.json();
+        if(json.success) {
+            if(typeof fetchLocalUsers === 'function') fetchLocalUsers();
+        } else {
+            alert("Error deleting user: " + json.msg);
+        }
+    } catch(e) { alert("Network error deleting user."); }
 }
