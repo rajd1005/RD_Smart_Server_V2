@@ -11,6 +11,7 @@ const cron = require('node-cron');
 const webpush = require('web-push');
 const mysql = require('mysql2/promise');
 const { Queue } = require('bullmq');
+const userRoutes = require('./routes/user.routes');
 
 require('dotenv').config();
 
@@ -26,6 +27,7 @@ app.set('trust proxy', true);
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
+app.use('/api/user', userRoutes);
 
 // === DIRECTORY SETUP ===
 const uploadDir = path.join(__dirname, 'uploads');
