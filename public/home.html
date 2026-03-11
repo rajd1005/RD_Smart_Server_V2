@@ -510,7 +510,7 @@
                         if (isVideo) {
                             mediaHtml = `<video src="${m.image_url}" controls style="max-width: 100%; border-radius: 8px; margin-bottom: 6px; cursor: pointer;" onclick="openSwipeGallery(${galleryIndex})"></video>`;
                         } else {
-                            mediaHtml = `<img src="${m.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 6px; cursor: pointer;" onclick="openSwipeGallery(${galleryIndex})">`;
+                            mediaHtml = `<img src="${m.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 6px; cursor: pointer;" onclick="openSwipeGallery(${galleryIndex})" loading="lazy">`;
                         }
                     }
 
@@ -750,9 +750,10 @@
                             } catch(e) {}
                         }
 
-                        html += `<div class="carousel-item ${activeClass}">
-                                    <div class="position-relative w-100 h-100">
-                                        <img src="${img.image_url}" class="d-block w-100" alt="Performance Gallery" draggable="false">
+// To this (add loading="lazy"):
+html += `<div class="carousel-item ${activeClass}">
+            <div class="position-relative w-100 h-100">
+                <img src="${img.image_url}" class="d-block w-100" alt="Performance Gallery" draggable="false" loading="lazy">
                                         <div class="gallery-overlay">
                                             <div class="gallery-date">${formattedDate}</div>
                                             <div class="gallery-brand">RDALGO.IN</div>
