@@ -462,7 +462,7 @@
                     </div>`;
                 });
                 html += '<div style="height: 80px; width: 100%; flex-shrink: 0; clear: both;"></div>';
-
+                listObj.innerHTML = html;
                 if (window.pendingChannelId) {
                     const targetChannel = data.data.find(c => c.id == window.pendingChannelId);
                     if (targetChannel && targetChannel.access_level === 'demo') openPublicChannel(targetChannel.id, targetChannel.name);
