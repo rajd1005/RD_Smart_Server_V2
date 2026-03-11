@@ -834,10 +834,11 @@
                                             <th>Email</th>
                                             <th>Levels</th>
                                             <th>Status</th>
+                                            <th>Action</th>
                                         </tr>
                                     </thead>
                                     <tbody id="localUsersTableBody">
-                                        <tr><td colspan="3" class="text-center text-muted py-2">Loading...</td></tr>
+                                        <tr><td colspan="4" class="text-center text-muted py-2">Loading...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -1001,6 +1002,62 @@
                             </div>
                         </div>
                         <button type="submit" class="btn btn-sm btn-primary w-100" style="padding:8px; border-radius:4px;">Save Changes</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editUserModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 320px;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title mb-0">Edit User</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size: 10px;"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formEditUser">
+                        <input type="hidden" id="editUserId">
+                        <div class="mb-2">
+                            <label class="form-label fw-bold mb-1" style="font-size: 9px;">Email ID</label>
+                            <input type="email" id="editUserEmail" class="form-control" disabled>
+                        </div>
+                        
+                        <label class="form-label fw-bold mb-1 mt-2" style="font-size: 9px;">Access Levels</label>
+                        <div class="d-flex gap-3 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="editUserLvl2" value="Yes">
+                                <label class="form-check-label" style="font-size: 11px;">Level 2</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="editUserLvl3" value="Yes">
+                                <label class="form-check-label" style="font-size: 11px;">Level 3</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="editUserLvl4" value="Yes">
+                                <label class="form-check-label" style="font-size: 11px;">Level 4</label>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label fw-bold mb-1" style="font-size: 9px;">Validity (Days)</label>
+                                <input type="number" id="editUserValidity" class="form-control">
+                            </div>
+                            <div class="col-6 d-flex align-items-end">
+                                <div class="form-check mb-1">
+                                    <input class="form-check-input" type="checkbox" id="editUserLifetime" value="true">
+                                    <label class="form-check-label text-success fw-bold" style="font-size: 11px;">Lifetime Access</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-check mb-3 mt-2 border rounded p-2 bg-light">
+                            <input class="form-check-input ms-1" type="checkbox" id="editUserBlock" value="true">
+                            <label class="form-check-label ms-2 fw-bold text-danger" style="font-size: 11px;">Block User</label>
+                        </div>
+
+                        <button type="submit" class="btn btn-sm btn-primary w-100 fw-bold" style="padding:8px; border-radius:4px;">Save Changes</button>
                     </form>
                 </div>
             </div>
