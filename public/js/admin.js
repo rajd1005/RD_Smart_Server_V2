@@ -14,9 +14,9 @@ function applyRoleRestrictions() {
         const navPushBtn = document.getElementById('navPushBtn');
         if (navPushBtn) navPushBtn.style.display = 'flex';
 
-        // ONLY ADMIN gets the Course Manager / Settings Gear icon
+        // ADMIN AND MANAGER gets the Course Manager / Settings Gear icon
         const btnAdminCourseManager = document.getElementById('btnAdminCourseManager');
-        if (btnAdminCourseManager && role === 'admin') btnAdminCourseManager.style.display = 'flex';
+        if (btnAdminCourseManager) btnAdminCourseManager.style.display = 'flex';
 
         const adminAccordionControls = document.getElementById('adminAccordionControls');
         if (adminAccordionControls && role === 'admin') adminAccordionControls.style.display = 'block';
@@ -32,12 +32,12 @@ if (formAdminSettings) {
         e.preventDefault();
         const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
         
-const state = document.getElementById('adminAccordionState')?.value || 'first';
+        const state = document.getElementById('adminAccordionState')?.value || 'first';
         const hideTrade = document.getElementById('adminHideTradeTab')?.checked ? 'true' : 'false';
         const push_trade_alerts = document.getElementById('adminPushTradeAlerts')?.checked ? 'true' : 'false';
         const showGallery = document.getElementById('adminShowGallery')?.checked ? 'true' : 'false';
         const showCallWidget = document.getElementById('adminShowCallWidget')?.checked ? 'true' : 'false';
-        const showChannelTab = document.getElementById('adminShowChannelTab')?.checked ? 'true' : 'false'; // <-- ADDED THIS
+        const showChannelTab = document.getElementById('adminShowChannelTab')?.checked ? 'true' : 'false';
 
         const showStickyFooter = document.getElementById('adminShowStickyFooter')?.checked ? 'true' : 'false';
         const sticky_btn1_text = document.getElementById('adminBtn1Text')?.value || '';
@@ -49,7 +49,7 @@ const state = document.getElementById('adminAccordionState')?.value || 'first';
         
         const showDisclaimer = document.getElementById('adminShowDisclaimer')?.checked ? 'true' : 'false';
         const register_link = document.getElementById('adminRegisterLink')?.value || '';
-        const manager_emails = document.getElementById('adminManagerEmails')?.value || ''; // NEW LINE
+        const manager_emails = document.getElementById('adminManagerEmails')?.value || '';
         
         let homepage_layout = undefined;
         const layoutList = document.querySelectorAll('#homepageLayoutDraggable li');
@@ -75,7 +75,7 @@ const state = document.getElementById('adminAccordionState')?.value || 'first';
                 sticky_btn2_link: sticky_btn2_link,
                 show_disclaimer: showDisclaimer,
                 register_link: register_link,
-                manager_emails: manager_emails // NEW LINE
+                manager_emails: manager_emails
             };
             if (homepage_layout) bodyData.homepage_layout = homepage_layout;
 
@@ -324,4 +324,70 @@ window.deleteModule = async function(e, id) {
         if(res.ok && data.success) fetchCourses(); 
         else alert(data.msg || "Error deleting module");
     } catch(e) { console.error(e); }
+}
+
+window.fetchLocalUsers = async function() {
+    const tbody = document.getElementById('localUsersTableBody');
+    if(!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="3" class="text-center py-2">Loading...</td></tr>';
+    try {
+        const res = await fetch('/api/admin/users');
+        const json = await res.json();
+        if(json.success && json.data.length > 0) {
+            tbody.innerHTML = json.data.map(u => {
+                let status = u.is_blocked ? '<span class="text-danger fw-bold">Blocked</span>' : (u.is_lifetime ? '<span class="text-success">Lifetime</span>' : 'Active');
+                let levels = [];
+                if(u.level_2_status === 'Yes') levels.push('L2');
+                if(u.level_3_status === 'Yes') levels.push('L3');
+                if(u.level_4_status === 'Yes') levels.push('L4');
+                return `
+                <tr>
+                    <td class="text-break">${u.email}</td>
+                    <td>${levels.length > 0 ? levels.join(', ') : 'L1'}</td>
+                    <td>${status}</td>
+                </tr>
+                `;
+            }).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-2">No users found.</td></tr>';
+        }
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-2">Error loading users.</td></tr>';
+    }
+}
+
+const formAdminUsers = document.getElementById('formAdminUsers');
+if(formAdminUsers) {
+    formAdminUsers.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
+        
+        try {
+            const bodyData = { 
+                email: document.getElementById('adminUserEmail').value,
+                phone: document.getElementById('adminUserPhone').value,
+                level_2_status: document.getElementById('adminUserLvl2').checked ? 'Yes' : 'No',
+                level_3_status: document.getElementById('adminUserLvl3').checked ? 'Yes' : 'No',
+                level_4_status: document.getElementById('adminUserLvl4').checked ? 'Yes' : 'No',
+                validity_days: document.getElementById('adminUserValidity').value,
+                is_lifetime: document.getElementById('adminUserLifetime').checked,
+                is_blocked: document.getElementById('adminUserBlock').checked
+            };
+
+            const res = await fetch('/api/admin/users', { 
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify(bodyData) 
+            });
+            const json = await res.json();
+            if(json.success) { 
+                alert("User saved successfully!");
+                formAdminUsers.reset();
+                if(typeof fetchLocalUsers === 'function') fetchLocalUsers();
+            } else { 
+                alert("Error: " + json.msg);
+            }
+        } catch(err) { alert("Network error saving user."); }
+        finally { btn.innerText = "Save User"; btn.disabled = false; }
+    });
 }
