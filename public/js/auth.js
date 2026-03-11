@@ -106,6 +106,7 @@ async function registerServiceWorker() {
         console.log('Service Worker or Push Notification registration failed:', error);
     }
 }
+
 async function checkDisclaimer() {
     if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
         try {
@@ -174,12 +175,128 @@ async function logout() {
     } catch (err) {}
 }
 
-socket.on('force_logout', (data) => {
-    const currentEmail = localStorage.getItem('userEmail');
-    const currentSessionId = localStorage.getItem('sessionId');
+// Ensure socket is available (socket.io is loaded in index.html)
+if (typeof socket !== 'undefined') {
+    socket.on('force_logout', (data) => {
+        const currentEmail = localStorage.getItem('userEmail');
+        const currentSessionId = localStorage.getItem('sessionId');
+        
+        if (currentEmail === data.email && currentSessionId !== data.newSessionId) {
+            alert("Logged in from another device. Your current session has expired.");
+            logout(); 
+        }
+    });
+}
+
+// ==========================================
+// --- NEW USER ACCOUNT / PROFILE LOGIC ---
+// ==========================================
+
+async function openProfileModal() {
+    // Get or Create the Modal Instance
+    let modalEl = document.getElementById('userProfileModal');
+    if (!modalEl) {
+        console.error("Profile modal HTML is missing.");
+        return;
+    }
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    // Reset Form State
+    document.getElementById('otpSection').style.display = 'none';
+    document.getElementById('btnSaveProfile').style.display = 'none';
+    document.getElementById('btnRequestOtp').style.display = 'block';
+    document.getElementById('profOtp').value = '';
+
+    try {
+        const res = await fetch('/api/user/profile');
+        const data = await res.json();
+        
+        if (data.success) {
+            document.getElementById('profName').value = data.profile.name || '';
+            document.getElementById('profEmail').value = data.profile.email || '';
+            document.getElementById('profPhone').value = data.profile.phone || '';
+            
+            // Format Access Levels String
+            let levels = [];
+            if(data.profile.accessLevels.level_2_status === 'Yes') levels.push('Level 2');
+            if(data.profile.accessLevels.level_3_status === 'Yes') levels.push('Level 3');
+            if(data.profile.accessLevels.level_4_status === 'Yes') levels.push('Level 4');
+            
+            document.getElementById('profileAccessLevels').innerText = levels.length > 0 ? levels.join(', ') : 'Basic Access';
+            document.getElementById('profileExpiryDate').innerText = data.profile.expiryDate;
+        }
+    } catch (err) {
+        console.error('Failed to load profile details.');
+    }
+}
+
+async function requestProfileOtp() {
+    const btn = document.getElementById('btnRequestOtp');
+    btn.disabled = true;
+    btn.innerText = "Sending...";
+
+    try {
+        const res = await fetch('/api/user/send-update-otp', { method: 'POST' });
+        const data = await res.json();
+        
+        if (data.success) {
+            document.getElementById('otpSection').style.display = 'block';
+            document.getElementById('btnSaveProfile').style.display = 'block';
+            btn.style.display = 'none';
+            alert("OTP sent to your registered email address.");
+        } else {
+            alert(data.msg);
+        }
+    } catch (err) {
+        alert("Network error fetching OTP.");
+    }
     
-    if (currentEmail === data.email && currentSessionId !== data.newSessionId) {
-        alert("Logged in from another device. Your current session has expired.");
-        logout(); 
+    btn.disabled = false;
+    btn.innerText = "Request OTP to Update";
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const profileForm = document.getElementById('formUpdateProfile');
+    if (profileForm) {
+        profileForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btnSaveProfile');
+            btn.disabled = true;
+            btn.innerText = "Saving...";
+
+            const payload = {
+                otp: document.getElementById('profOtp').value,
+                newName: document.getElementById('profName').value,
+                newEmail: document.getElementById('profEmail').value,
+                newPhone: document.getElementById('profPhone').value,
+                newPassword: document.getElementById('profPassword').value
+            };
+
+            try {
+                const res = await fetch('/api/user/update-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    alert(data.msg);
+                    if (data.emailChanged || data.passChanged) {
+                        logout(); // Force login again if critical credentials changed
+                    } else {
+                        bootstrap.Modal.getInstance(document.getElementById('userProfileModal')).hide();
+                    }
+                } else {
+                    alert(data.msg);
+                }
+            } catch (err) {
+                alert("Failed to update profile.");
+            }
+
+            btn.disabled = false;
+            btn.innerText = "Confirm & Save Changes";
+        });
     }
 });
