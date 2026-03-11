@@ -26,7 +26,6 @@ app.set('trust proxy', true);
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
-app.use('/api/user', userRoutes);
 
 // === DIRECTORY SETUP ===
 const uploadDir = path.join(__dirname, 'uploads');
