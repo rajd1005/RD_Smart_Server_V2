@@ -11,7 +11,6 @@ const cron = require('node-cron');
 const webpush = require('web-push');
 const mysql = require('mysql2/promise');
 const { Queue } = require('bullmq');
-const userRoutes = require('./routes/user.routes');
 
 require('dotenv').config();
 
@@ -105,8 +104,9 @@ const tradeRoutes = require('./routes/trades.routes');
 const courseRoutes = require('./routes/courses.routes');
 const adminRoutes = require('./routes/admin.routes');
 const pushRoutes = require('./routes/push.routes');
-const { authenticateToken } = require('./middlewares/auth.middleware');
 const channelRoutes = require('./routes/channels.routes');
+const userRoutes = require('./routes/user.routes'); // <--- ADD THIS LINE
+const { authenticateToken } = require('./middlewares/auth.middleware');
 
 // === MOUNT MODULAR ROUTES ===
 app.use('/api', authRoutes);
@@ -116,6 +116,7 @@ app.use('/api', courseRoutes); // Map for public courses backward compatibility
 app.use('/api/admin', adminRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/channels', channelRoutes);
+app.use('/api/user', userRoutes); // <--- ADD THIS LINE
 
 // === REMAINING PUBLIC / EXTERNAL INTEGRATION APIs ===
 app.get('/api/public/call-report', async (req, res) => {
