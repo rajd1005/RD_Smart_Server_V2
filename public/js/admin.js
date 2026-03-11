@@ -20,6 +20,29 @@ function applyRoleRestrictions() {
 
         const adminAccordionControls = document.getElementById('adminAccordionControls');
         if (adminAccordionControls && role === 'admin') adminAccordionControls.style.display = 'block';
+
+        // --- NEW RESTRICTION: Managers can ONLY see the Users Tab ---
+        if (role === 'manager') {
+            const tabsToHide = ['tab-module', 'tab-lesson', 'tab-settings', 'tab-progress', 'tab-symbols', 'tab-channels'];
+            tabsToHide.forEach(tabId => {
+                const el = document.getElementById(tabId);
+                if (el && el.parentElement) el.parentElement.style.display = 'none'; // Hide the <li> wrapper
+            });
+            
+            // Force the 'Users' tab to be active by default for Managers
+            const tabUsers = document.getElementById('tab-users');
+            if (tabUsers) {
+                // Remove active classes from all tabs and panes
+                document.querySelectorAll('#adminTabs .nav-link').forEach(n => n.classList.remove('active'));
+                document.querySelectorAll('#adminTabsContent .tab-pane').forEach(p => p.classList.remove('show', 'active'));
+                
+                // Activate the Users tab
+                tabUsers.classList.add('active');
+                const paneUsers = document.getElementById('pane-users');
+                if (paneUsers) paneUsers.classList.add('show', 'active');
+            }
+        }
+
     } else {
         if (statPoints) statPoints.style.display = 'none';
         if (statWinRate) statWinRate.style.display = 'none';
