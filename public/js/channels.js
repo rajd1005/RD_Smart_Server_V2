@@ -217,7 +217,7 @@ async function fetchChannelMessages(id) {
                 if (isVideo) {
                     mediaHtml = `<video src="${safeImgUrl}" controls style="max-width: 100%; border-radius: 8px; margin-bottom: 8px; cursor: pointer;" onclick="openSwipeGallery(${galleryIndex})"></video>`;
                 } else {
-                    mediaHtml = `<img src="${safeImgUrl}" style="max-width: 100%; border-radius: 8px; margin-bottom: 8px; cursor: pointer;" onclick="openSwipeGallery(${galleryIndex})" onerror="this.style.display='none'">`;
+                    mediaHtml = `<img src="${safeImgUrl}" style="max-width: 100%; border-radius: 8px; margin-bottom: 8px; cursor: pointer;" onclick="openSwipeGallery(${galleryIndex})" onerror="this.style.display='none'" loading="lazy">`;
                 }
             }
             
