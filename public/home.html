@@ -179,26 +179,24 @@
 
 <div id="publicChannelsContent" style="display:none; flex-direction: column; position: fixed; top: 88px; bottom: 0; left: 0; right: 0; max-width: 800px; margin: 0 auto; background-color: var(--bg-color); z-index: 50;">
             
-<div id="publicChannelsContent" style="display:none; flex-direction: column; position: fixed; top: 88px; bottom: 0; left: 0; right: 0; max-width: 800px; margin: 0 auto; background-color: var(--bg-color); z-index: 50;">
-            
-    <div class="flex-grow-1 p-2" id="publicChannelListView" style="overflow-y: auto; padding-bottom: 80px;">
-        <div class="text-center text-muted mt-3" style="font-size:12px;">Loading channels...</div>
-    </div>
+            <div class="flex-grow-1 p-2" id="publicChannelListView" style="overflow-y: auto;">
+                <div class="text-center text-muted mt-3" style="font-size:12px;">Loading channels...</div>
+            </div>
 
-    <div class="footer mt-auto flex-shrink-0" id="publicChannelFooter" style="display:none; padding-bottom: 80px;">
-        &copy; 2026 RD Algo Trading.<br>
-        All rights reserved.
-    </div>
-    
-    <div id="publicChannelChatView" class="w-100 h-100" style="display:none; flex-direction: column;">
-        <div class="d-flex align-items-center bg-white p-2 shadow-sm flex-shrink-0 z-1" style="border-bottom: 1px solid var(--border-color);">
-            <button class="btn btn-sm btn-light me-2 p-1 d-flex align-items-center justify-content-center" onclick="showPublicChannelList()" style="height: 30px; width: 30px;"><span class="material-icons-round" style="font-size: 18px;">arrow_back</span></button>
-            <h6 class="mb-0 fw-bold text-truncate" id="publicChannelHeaderTitle" style="font-size: 15px; color: var(--blue);">Channel Name</h6>
+            <div class="footer mt-auto flex-shrink-0" id="publicChannelFooter" style="display:none;">
+                &copy; 2026 RD Algo Trading.<br>
+                All rights reserved.
+            </div>
+            
+            <div id="publicChannelChatView" class="w-100 h-100" style="display:none; flex-direction: column;">
+                <div class="d-flex align-items-center bg-white p-2 shadow-sm flex-shrink-0 z-1" style="border-bottom: 1px solid var(--border-color);">
+                    <button class="btn btn-sm btn-light me-2 p-1 d-flex align-items-center justify-content-center" onclick="showPublicChannelList()" style="height: 30px; width: 30px;"><span class="material-icons-round" style="font-size: 18px;">arrow_back</span></button>
+                    <h6 class="mb-0 fw-bold text-truncate" id="publicChannelHeaderTitle" style="font-size: 15px; color: var(--blue);">Channel Name</h6>
+                </div>
+                
+                <div id="publicChannelMessages" class="p-3 flex-grow-1" style="overflow-y: auto; background-color: var(--bg-color);"></div>
+            </div>
         </div>
-        
-        <div id="publicChannelMessages" class="p-3 flex-grow-1" style="overflow-y: auto; background-color: var(--bg-color); padding-bottom: 80px;"></div>
-    </div>
-</div>
         
         <div id="stickyFooterWrapper" class="sticky-footer-wrapper" style="display:none;"></div>
     </div>
