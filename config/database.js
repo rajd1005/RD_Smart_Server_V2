@@ -129,6 +129,21 @@ const initDb = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`;
 
+    const queryLocalStudents = `
+    CREATE TABLE IF NOT EXISTS local_students (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        phone VARCHAR(50),
+        level_2_status VARCHAR(10) DEFAULT 'No',
+        level_3_status VARCHAR(10) DEFAULT 'No',
+        level_4_status VARCHAR(10) DEFAULT 'No',
+        validity_days INT DEFAULT 0,
+        is_lifetime BOOLEAN DEFAULT false,
+        is_blocked BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expiry_date TIMESTAMP
+    );`;
+
     try {
         await pool.query(queryTrades);
         await pool.query(queryLogs); 
@@ -142,6 +157,7 @@ const initDb = async () => {
         await pool.query(queryScheduledNotifications);
         await pool.query(queryChannels);
         await pool.query(queryChannelMessages);
+        await pool.query(queryLocalStudents);
         await pool.query(populateDefaultSettings);
 
         // Run ALTER statements safely to update existing tables
@@ -164,7 +180,7 @@ const initDb = async () => {
         try { await pool.query(`ALTER TABLE channel_messages ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE;`); } catch(e){}
         try { await pool.query(`ALTER TABLE channel_messages ADD COLUMN IF NOT EXISTS telegram_msg_id BIGINT;`); } catch(e){}
 
-        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push + Notifications + Channels)");
+        console.log("✅ Database Tables Verified/Created (Trades + LMS + Auth + Settings + Calls + Progress + Push + Notifications + Channels + Local Users)");
     } catch (err) {
         console.error("❌ Database Error:", err);
     }
