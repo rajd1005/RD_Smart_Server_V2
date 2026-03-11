@@ -303,7 +303,6 @@ router.post('/notifications', authenticateToken, isManagerOrAdmin, upload.single
     }
 });
 
-// Replace the top line of the route:
 router.put('/notifications/:id', authenticateToken, isManagerOrAdmin, upload.single('push_image'), async (req, res) => {
     const { title, body, url, schedule_time, target_audience, recurrence, silent_edit } = req.body;
     let newImagePath = req.file ? `/uploads/${req.file.filename}` : null;
@@ -333,7 +332,6 @@ router.put('/notifications/:id', authenticateToken, isManagerOrAdmin, upload.sin
         const jobs = await pushQueue.getDelayed();
         for (let job of jobs) if (job.data.notificationId === parseInt(req.params.id)) await job.remove();
 
-        // Replace the else block at the end of the PUT route with this:
         if (parsedScheduleTime) {
             const delay = new Date(parsedScheduleTime).getTime() - Date.now();
             await pushQueue.add('send-push', { notificationId: parseInt(req.params.id) }, { delay: Math.max(delay, 0), jobId: `push_${req.params.id}_${Date.now()}` });
@@ -341,7 +339,6 @@ router.put('/notifications/:id', authenticateToken, isManagerOrAdmin, upload.sin
             const { rows } = await pool.query("SELECT image_path FROM scheduled_notifications WHERE id = $1", [req.params.id]);
             const currentImagePath = rows.length > 0 ? rows[0].image_path : null;
 
-            // Only resend the push to users if it's NOT a silent edit
             if (silent_edit !== 'true') {
                 const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience || 'both');
                 const payload = { title, body, url: url || '/', image: currentImagePath };
@@ -349,7 +346,6 @@ router.put('/notifications/:id', authenticateToken, isManagerOrAdmin, upload.sin
                     try { webpush.sendNotification(sub, JSON.stringify(payload)).catch(e=>{}); } catch(e){} 
                 });
                 
-                // Clear the image path after physical send, as per original logic
                 if (currentImagePath) {
                     const filePath = path.join(__dirname, '..', currentImagePath.replace(/^\//, ''));
                     try {
@@ -359,7 +355,6 @@ router.put('/notifications/:id', authenticateToken, isManagerOrAdmin, upload.sin
                 }
             }
             
-            // This emits to socket.io instantly updating the UI for everyone without a reload
             req.app.get('io').emit('new_notification');
         }
         res.json({ success: true });
@@ -378,17 +373,15 @@ router.delete('/notifications/:id', authenticateToken, isManagerOrAdmin, async (
         const jobs = await pushQueue.getDelayed();
         for (let job of jobs) if (job.data.notificationId === parseInt(req.params.id)) await job.remove();
 
-        // --- NEW: Emit to everyone that a notification was deleted ---
         req.app.get('io').emit('new_notification');
 
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// --- NEW: QUICK TEMPLATES ROUTES ---
+// --- QUICK TEMPLATES ROUTES ---
 router.get('/push-templates', authenticateToken, isManagerOrAdmin, async (req, res) => {
     try {
-        // We save templates per user email so each manager gets their own list
         const result = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = $1", [`templates_${req.user.email}`]);
         let templates = [];
         if (result.rows.length > 0) {
@@ -410,6 +403,62 @@ router.post('/push-templates', authenticateToken, isManagerOrAdmin, async (req, 
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ success: false, msg: err.message });
+    }
+});
+
+// --- USERS MANAGEMENT (Local Database) ---
+router.post('/users', authenticateToken, isManagerOrAdmin, async (req, res) => {
+    const { email, phone, level_2_status, level_3_status, level_4_status, validity_days, is_lifetime, is_blocked } = req.body;
+    try {
+        // Create table dynamically if it doesn't exist
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS local_students (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                phone VARCHAR(50),
+                level_2_status VARCHAR(10) DEFAULT 'No',
+                level_3_status VARCHAR(10) DEFAULT 'No',
+                level_4_status VARCHAR(10) DEFAULT 'No',
+                validity_days INT DEFAULT 0,
+                is_lifetime BOOLEAN DEFAULT false,
+                is_blocked BOOLEAN DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expiry_date TIMESTAMP
+            )
+        `);
+
+        let expiry_date = null;
+        if (!is_lifetime && validity_days) {
+            expiry_date = new Date();
+            expiry_date.setDate(expiry_date.getDate() + parseInt(validity_days));
+        }
+
+        await pool.query(`
+            INSERT INTO local_students (email, phone, level_2_status, level_3_status, level_4_status, validity_days, is_lifetime, is_blocked, expiry_date)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (email) DO UPDATE SET
+                phone = EXCLUDED.phone,
+                level_2_status = EXCLUDED.level_2_status,
+                level_3_status = EXCLUDED.level_3_status,
+                level_4_status = EXCLUDED.level_4_status,
+                validity_days = EXCLUDED.validity_days,
+                is_lifetime = EXCLUDED.is_lifetime,
+                is_blocked = EXCLUDED.is_blocked,
+                expiry_date = EXCLUDED.expiry_date
+        `, [email.toLowerCase().trim(), phone, level_2_status, level_3_status, level_4_status, validity_days || 0, is_lifetime, is_blocked, expiry_date]);
+
+        res.json({ success: true, msg: "User saved successfully" });
+    } catch (err) {
+        res.status(500).json({ success: false, msg: err.message });
+    }
+});
+
+router.get('/users', authenticateToken, isManagerOrAdmin, async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM local_students ORDER BY created_at DESC LIMIT 50");
+        res.json({ success: true, data: result.rows });
+    } catch (err) {
+        res.json({ success: true, data: [] }); // Table might not exist yet
     }
 });
 
