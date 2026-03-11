@@ -27,7 +27,7 @@ router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
         show_sticky_footer, sticky_btn1_text, sticky_btn1_link, sticky_btn1_icon,
         sticky_btn2_text, sticky_btn2_link, sticky_btn2_icon,
         show_disclaimer, register_link, push_trade_alerts, manager_emails,
-        show_channel_tab // <--- NEW
+        show_channel_tab
     } = req.body;
     
     try {
@@ -46,8 +46,6 @@ router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('sticky_btn2_icon', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [sticky_btn2_icon || 'send']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_disclaimer', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_disclaimer || 'true']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('register_link', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [register_link || '']);
-        
-        // --- NEW: THIS IS THE FIX! Correctly saves manager emails to the database ---
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('manager_emails', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [manager_emails || '']);
         
         if (homepage_layout) await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('homepage_layout', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [homepage_layout]);
@@ -225,16 +223,13 @@ router.get('/notifications', authenticateToken, isManagerOrAdmin, async (req, re
         const limit = parseInt(req.query.limit) || 15;
         const offset = parseInt(req.query.offset) || 0;
         
-        // --- NEW LOGIC: Filter Admin Push History ---
         const settingRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'push_trade_alerts'");
         const pushTradeAlerts = settingRes.rows.length > 0 ? settingRes.rows[0].setting_value : 'true';
 
         let query = "SELECT * FROM scheduled_notifications";
-        
         if (pushTradeAlerts === 'false' || pushTradeAlerts === '0') {
             query += " WHERE title NOT LIKE '✅ SETUP%' AND title NOT LIKE '⚡ %'";
         }
-        
         query += " ORDER BY COALESCE(scheduled_for, created_at) DESC LIMIT $1 OFFSET $2";
 
         const result = await pool.query(query, [limit, offset]);
@@ -275,7 +270,6 @@ router.post('/notifications', authenticateToken, isManagerOrAdmin, upload.single
             const uniqueSubs = await pushRoutes.getValidPushSubscribers(target_audience || 'both');
             const payload = { title, body, url: url || '/', image: imagePath };
             
-            // 🔥 FAIL-SAFE ADDED: Try/Catch wrapper to prevent sync crash on bad subs
             uniqueSubs.forEach(sub => { 
                 try {
                     webpush.sendNotification(sub, JSON.stringify(payload)).catch(e => {
@@ -285,7 +279,6 @@ router.post('/notifications', authenticateToken, isManagerOrAdmin, upload.single
             });
             req.app.get('io').emit('new_notification');
 
-            // 🔥 FAIL-SAFE ADDED: Safe file deletion 
             if (absoluteImagePath && fs.existsSync(absoluteImagePath)) {
                 try {
                     fs.unlinkSync(absoluteImagePath);
@@ -298,7 +291,6 @@ router.post('/notifications', authenticateToken, isManagerOrAdmin, upload.single
         }
         res.json({ success: true, msg: "Notification saved!" });
     } catch (err) { 
-        console.error("Push Error:", err);
         res.status(500).json({ success: false, msg: err.message }); 
     }
 });
@@ -354,7 +346,6 @@ router.put('/notifications/:id', authenticateToken, isManagerOrAdmin, upload.sin
                     } catch(e) {}
                 }
             }
-            
             req.app.get('io').emit('new_notification');
         }
         res.json({ success: true });
@@ -374,12 +365,10 @@ router.delete('/notifications/:id', authenticateToken, isManagerOrAdmin, async (
         for (let job of jobs) if (job.data.notificationId === parseInt(req.params.id)) await job.remove();
 
         req.app.get('io').emit('new_notification');
-
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, msg: err.message }); }
 });
 
-// --- QUICK TEMPLATES ROUTES ---
 router.get('/push-templates', authenticateToken, isManagerOrAdmin, async (req, res) => {
     try {
         const result = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = $1", [`templates_${req.user.email}`]);
@@ -410,7 +399,6 @@ router.post('/push-templates', authenticateToken, isManagerOrAdmin, async (req, 
 router.post('/users', authenticateToken, isManagerOrAdmin, async (req, res) => {
     const { email, phone, level_2_status, level_3_status, level_4_status, validity_days, is_lifetime, is_blocked } = req.body;
     try {
-        // Create table dynamically if it doesn't exist
         await pool.query(`
             CREATE TABLE IF NOT EXISTS local_students (
                 id SERIAL PRIMARY KEY,
@@ -458,7 +446,39 @@ router.get('/users', authenticateToken, isManagerOrAdmin, async (req, res) => {
         const result = await pool.query("SELECT * FROM local_students ORDER BY created_at DESC LIMIT 50");
         res.json({ success: true, data: result.rows });
     } catch (err) {
-        res.json({ success: true, data: [] }); // Table might not exist yet
+        res.json({ success: true, data: [] });
+    }
+});
+
+// Update User (Edit)
+router.put('/users/:id', authenticateToken, isManagerOrAdmin, async (req, res) => {
+    const { level_2_status, level_3_status, level_4_status, validity_days, is_lifetime, is_blocked } = req.body;
+    try {
+        let expiry_date = null;
+        if (!is_lifetime && validity_days) {
+            expiry_date = new Date();
+            expiry_date.setDate(expiry_date.getDate() + parseInt(validity_days));
+        }
+        await pool.query(`
+            UPDATE local_students 
+            SET level_2_status = $1, level_3_status = $2, level_4_status = $3, 
+                validity_days = $4, is_lifetime = $5, is_blocked = $6, expiry_date = $7
+            WHERE id = $8
+        `, [level_2_status, level_3_status, level_4_status, validity_days || 0, is_lifetime, is_blocked, expiry_date, req.params.id]);
+        
+        res.json({ success: true, msg: "User updated successfully" });
+    } catch (err) {
+        res.status(500).json({ success: false, msg: err.message });
+    }
+});
+
+// Delete User
+router.delete('/users/:id', authenticateToken, isManagerOrAdmin, async (req, res) => {
+    try {
+        await pool.query("DELETE FROM local_students WHERE id = $1", [req.params.id]);
+        res.json({ success: true, msg: "User deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ success: false, msg: err.message });
     }
 });
 
