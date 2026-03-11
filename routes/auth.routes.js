@@ -45,6 +45,20 @@ router.post('/login', async (req, res) => {
         const managerEmails = managerEmailsStr.split(',').map(e => e.trim().toLowerCase()).filter(e => e);
         const isManager = managerEmails.includes(email);
 
+        // --- FETCH LOCAL STUDENT (IF EXISTS) TO CHECK BLOCKS OR MANUALLY ADDED USERS ---
+        let isLocalUser = false;
+        let localUserRecord = null;
+        try {
+            const localCheck = await pool.query("SELECT * FROM local_students WHERE email = $1", [email]);
+            if (localCheck.rows.length > 0) {
+                isLocalUser = true;
+                localUserRecord = localCheck.rows[0];
+                if (localUserRecord.is_blocked) {
+                    return res.status(403).json({ success: false, msg: "Your account has been blocked. Contact Admin." });
+                }
+            }
+        } catch (e) { /* table might not exist yet */ }
+
         if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
             userEmail = ADMIN_EMAIL; userRole = "admin"; userPhone = "Admin";
             accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
@@ -70,18 +84,24 @@ router.post('/login', async (req, res) => {
                     userRole = "manager";
                     userPhone = "Manager";
                     accessLevels = { level_1_status: 'Yes', level_2_status: 'Yes', level_3_status: 'Yes', level_4_status: 'Yes' };
+                } else if (isLocalUser) {
+                    // Locally added user bypasses WP DB entirely
+                    if (!localUserRecord.is_lifetime && localUserRecord.expiry_date) {
+                        if (new Date(localUserRecord.expiry_date) < new Date()) {
+                            return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." });
+                        }
+                    }
+                    userEmail = email;
+                    userPhone = localUserRecord.phone;
+                    accessLevels = { level_1_status: 'Yes', level_2_status: localUserRecord.level_2_status, level_3_status: localUserRecord.level_3_status, level_4_status: localUserRecord.level_4_status };
                 } else {
                     // Regular Student WP Verification
-                    const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
+                    const [rows] = await authPool.query("SELECT student_email, student_phone, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
                     if (rows.length === 0) return res.status(401).json({ success: false, msg: "Account not found in registry." });
                     
-                    const studentRecord = rows[0];
-                    const expiryDate = new Date(studentRecord.student_expiry_date);
-                    const getISTDate = () => { const d = new Date(); const utc = d.getTime() + (d.getTimezoneOffset() * 60000); return new Date(utc + (3600000 * 5.5)); };
-                    if (!isNaN(expiryDate.getTime()) && expiryDate < getISTDate()) { 
-                        return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." }); 
-                    }
+                    // LIFETIME ACCESS ENFORCED: WordPress expiry check has been removed here.
                     
+                    const studentRecord = rows[0];
                     userEmail = String(studentRecord.student_email).toLowerCase().trim();
                     userPhone = studentRecord.student_phone; 
                     accessLevels = { level_1_status: 'Yes', level_2_status: studentRecord.level_2_status || 'No', level_3_status: studentRecord.level_3_status || 'No', level_4_status: studentRecord.level_4_status || 'No' };
@@ -94,10 +114,24 @@ router.post('/login', async (req, res) => {
                     
                     const setupToken = jwt.sign({ email: email, phone: "Manager" }, JWT_SECRET, { expiresIn: '15m' });
                     return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "Manager login detected. Please create a secure password." });
+                } else if (isLocalUser) {
+                    // New user added via admin panel logging in for the first time
+                    if (password !== localUserRecord.phone) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
+
+                    if (!localUserRecord.is_lifetime && localUserRecord.expiry_date) {
+                        if (new Date(localUserRecord.expiry_date) < new Date()) {
+                            return res.status(403).json({ success: false, msg: "Account Expired. Please contact admin." });
+                        }
+                    }
+
+                    const setupToken = jwt.sign({ email: email, phone: localUserRecord.phone }, JWT_SECRET, { expiresIn: '15m' });
+                    return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
                 } else {
                     // Student default password flow (Checks WP DB for phone number match)
-                    const [rows] = await authPool.query("SELECT student_email, student_phone, student_expiry_date, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?", [email, password]);
+                    const [rows] = await authPool.query("SELECT student_email, student_phone, level_2_status, level_3_status, level_4_status FROM wp_gf_student_registrations WHERE student_email = ? AND student_phone = ?", [email, password]);
                     if (rows.length === 0) return res.status(401).json({ success: false, msg: "Invalid Email or Password" });
+                    
+                    // LIFETIME ACCESS ENFORCED: WordPress expiry check has been removed here.
                     
                     const setupToken = jwt.sign({ email: rows[0].student_email, phone: rows[0].student_phone }, JWT_SECRET, { expiresIn: '15m' });
                     return res.json({ success: true, requires_setup: true, setupToken: setupToken, msg: "First login detected. Please create a secure password." });
@@ -139,13 +173,20 @@ router.post('/forgot_password', async (req, res) => {
         const isDemoEmail = DEMO_USERS.some(user => user.email === email);
         if (email === ADMIN_EMAIL || isDemoEmail) return res.status(400).json({ success: false, msg: "This account password cannot be reset here." });
         
-        // CHECK IF USER IS A MANAGER (WITH NULL PROTECTION)
+        // CHECK IF USER IS A MANAGER
         const settingsRes = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'manager_emails'");
         const managerEmailsStr = (settingsRes.rows.length > 0 && settingsRes.rows[0].setting_value) ? String(settingsRes.rows[0].setting_value) : '';
         const isManager = managerEmailsStr.split(',').map(e => e.trim().toLowerCase()).filter(e => e).includes(email);
 
-        // ONLY CHECK WP DB IF NOT A MANAGER
-        if (!isManager) {
+        // CHECK IF LOCAL USER
+        let isLocalUser = false;
+        try {
+            const localCheck = await pool.query("SELECT email FROM local_students WHERE email = $1", [email]);
+            if (localCheck.rows.length > 0) isLocalUser = true;
+        } catch (e) { /* table might not exist yet */ }
+
+        // ONLY CHECK WP DB IF NOT A MANAGER AND NOT A LOCAL USER
+        if (!isManager && !isLocalUser) {
             const [rows] = await authPool.query("SELECT student_email FROM wp_gf_student_registrations WHERE student_email = ?", [email]);
             if (rows.length === 0) return res.status(404).json({ success: false, msg: "Email not found in registry." });
         }
