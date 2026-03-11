@@ -177,10 +177,15 @@
             </div>
         </div>
 
-        <div id="publicChannelsContent" style="display:none; flex-direction: column; position: fixed; top: 88px; bottom: 0; left: 0; right: 0; max-width: 800px; margin: 0 auto; background-color: var(--bg-color); z-index: 50;">
+<div id="publicChannelsContent" style="display:none; flex-direction: column; position: fixed; top: 88px; bottom: 0; left: 0; right: 0; max-width: 800px; margin: 0 auto; background-color: var(--bg-color); z-index: 50;">
             
             <div class="flex-grow-1 p-2" id="publicChannelListView" style="overflow-y: auto;">
                 <div class="text-center text-muted mt-3" style="font-size:12px;">Loading channels...</div>
+            </div>
+
+            <div class="footer mt-auto flex-shrink-0" id="publicChannelFooter" style="display:none;">
+                &copy; 2026 RD Algo Trading.<br>
+                All rights reserved.
             </div>
             
             <div id="publicChannelChatView" class="w-100 h-100" style="display:none; flex-direction: column;">
@@ -466,15 +471,17 @@
             } catch(e) {}
         }
 
-        function showPublicChannelList() {
+function showPublicChannelList() {
             currentPublicChannelId = null;
             document.getElementById('publicChannelListView').style.display = 'block';
+            document.getElementById('publicChannelFooter').style.display = 'block'; // Show footer
             document.getElementById('publicChannelChatView').style.display = 'none';
         }
 
-        async function openPublicChannel(id, name) {
+async function openPublicChannel(id, name) {
             currentPublicChannelId = id;
             document.getElementById('publicChannelListView').style.display = 'none';
+            document.getElementById('publicChannelFooter').style.display = 'none'; // Hide footer
             document.getElementById('publicChannelChatView').style.display = 'flex';
             document.getElementById('publicChannelHeaderTitle').innerText = name;
             fetchPublicChannelMessages(id);
