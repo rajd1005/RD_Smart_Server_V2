@@ -512,6 +512,9 @@
                         <li class="nav-item" role="presentation">
                             <button class="nav-link fw-bold text-uppercase" id="tab-channels" data-bs-toggle="tab" data-bs-target="#pane-channels" type="button" role="tab" style="font-size: 10px;">6. Channels</button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-uppercase" id="tab-users" data-bs-toggle="tab" data-bs-target="#pane-users" type="button" role="tab" style="font-size: 10px;" onclick="fetchLocalUsers()">7. Users</button>
+                        </li>
                     </ul>
 
                     <div class="tab-content p-3" id="adminTabsContent">
@@ -772,6 +775,73 @@
                             </form>
                             <hr class="my-3">
                             <div id="adminChannelList" style="max-height: 200px; overflow-y: auto;"></div>
+                        </div>
+
+                        <div class="tab-pane fade" id="pane-users" role="tabpanel">
+                            <h6 class="fw-bold mb-2" style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary);">Manage Students</h6>
+                            <form id="formAdminUsers">
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px;">Email ID</label>
+                                    <input type="email" id="adminUserEmail" class="form-control" required>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px;">Phone Number (Used as default password)</label>
+                                    <input type="text" id="adminUserPhone" class="form-control" required>
+                                </div>
+                                
+                                <label class="form-label fw-bold mb-1 mt-2" style="font-size: 9px;">Access Levels</label>
+                                <div class="d-flex gap-3 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="adminUserLvl2" value="Yes">
+                                        <label class="form-check-label" style="font-size: 11px;">Level 2</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="adminUserLvl3" value="Yes">
+                                        <label class="form-check-label" style="font-size: 11px;">Level 3</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="adminUserLvl4" value="Yes">
+                                        <label class="form-check-label" style="font-size: 11px;">Level 4</label>
+                                    </div>
+                                </div>
+                                
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label class="form-label fw-bold mb-1" style="font-size: 9px;">Validity (Days)</label>
+                                        <input type="number" id="adminUserValidity" class="form-control" value="30">
+                                    </div>
+                                    <div class="col-6 d-flex align-items-end">
+                                        <div class="form-check mb-1">
+                                            <input class="form-check-input" type="checkbox" id="adminUserLifetime" value="true">
+                                            <label class="form-check-label text-success fw-bold" style="font-size: 11px;">Lifetime Access</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-check mb-3 mt-2 border rounded p-2 bg-light">
+                                    <input class="form-check-input ms-1" type="checkbox" id="adminUserBlock" value="true">
+                                    <label class="form-check-label ms-2 fw-bold text-danger" style="font-size: 11px;" for="adminUserBlock">Block User (Revoke Access)</label>
+                                </div>
+
+                                <button type="submit" class="btn btn-sm btn-primary w-100 fw-bold" style="padding:8px; border-radius:4px;">Save User</button>
+                            </form>
+                            <hr class="my-3">
+                            <h6 class="fw-bold mb-2" style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary);">Recent Local Users</h6>
+                            <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                                <table class="table table-sm table-bordered table-striped" style="font-size: 10px;">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th>Email</th>
+                                            <th>Levels</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="localUsersTableBody">
+                                        <tr><td colspan="3" class="text-center text-muted py-2">Loading...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary w-100 mt-2 fw-bold" onclick="fetchLocalUsers()" style="padding:4px; border-radius:4px; font-size: 10px;">↻ Refresh Users</button>
                         </div>
 
                     </div>
