@@ -46,6 +46,19 @@ function applyRoleRestrictions() {
     }
 }
 
+// Ensure data loads automatically when the Modal is opened (especially for Managers)
+document.addEventListener('DOMContentLoaded', () => {
+    const adminModal = document.getElementById('adminCourseModal');
+    if (adminModal) {
+        adminModal.addEventListener('shown.bs.modal', () => {
+            const tabUsers = document.getElementById('tab-users');
+            if (tabUsers && tabUsers.classList.contains('active')) {
+                if (typeof window.fetchLocalUsers === 'function') window.fetchLocalUsers();
+            }
+        });
+    }
+});
+
 const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
     formAdminSettings.addEventListener('submit', async (e) => {
@@ -346,36 +359,54 @@ window.deleteModule = async function(e, id) {
     } catch(e) { console.error(e); }
 }
 
+// Ensure fetchLocalUsers has fallback safeguards for older DB records
 window.fetchLocalUsers = async function() {
     const tbody = document.getElementById('localUsersTableBody');
     if(!tbody) return;
     tbody.innerHTML = '<tr><td colspan="4" class="text-center py-2">Loading...</td></tr>';
+    
     try {
         const res = await fetch('/api/admin/users');
         const json = await res.json();
-        if(json.success && json.data.length > 0) {
-            tbody.innerHTML = json.data.map(u => {
+        
+        if (json.success && json.data && json.data.length > 0) {
+            let html = '';
+            
+            json.data.forEach(u => {
                 let status = u.is_blocked ? '<span class="text-danger fw-bold">Blocked</span>' : (u.is_lifetime ? '<span class="text-success">Lifetime</span>' : 'Active');
                 let levels = [];
                 if(u.level_2_status === 'Yes') levels.push('L2');
                 if(u.level_3_status === 'Yes') levels.push('L3');
                 if(u.level_4_status === 'Yes') levels.push('L4');
-                return `
+                
+                // Safe Variable fallback to prevent JS crashes on older records
+                let safeEmail = (u.email || '').replace(/'/g, "\\'");
+                let l2 = u.level_2_status || 'No';
+                let l3 = u.level_3_status || 'No';
+                let l4 = u.level_4_status || 'No';
+                let valDays = u.validity_days || 0;
+                let isLt = u.is_lifetime ? 'true' : 'false';
+                let isBlk = u.is_blocked ? 'true' : 'false';
+
+                html += `
                 <tr>
                     <td class="text-break">${u.email}</td>
                     <td>${levels.length > 0 ? levels.join(', ') : 'L1'}</td>
                     <td>${status}</td>
                     <td class="text-center">
-                        <button class="admin-edit-btn" onclick="openEditUser(${u.id}, '${u.email}', '${u.level_2_status}', '${u.level_3_status}', '${u.level_4_status}', ${u.validity_days}, ${u.is_lifetime}, ${u.is_blocked})"><span class="material-icons-round" style="font-size:14px;">edit</span></button>
+                        <button class="admin-edit-btn" onclick="openEditUser(${u.id}, '${safeEmail}', '${l2}', '${l3}', '${l4}', ${valDays}, ${isLt}, ${isBlk})"><span class="material-icons-round" style="font-size:14px;">edit</span></button>
                         <button class="admin-del-btn" onclick="deleteUser(${u.id})"><span class="material-icons-round" style="font-size:14px;">delete</span></button>
                     </td>
                 </tr>
                 `;
-            }).join('');
+            });
+            
+            tbody.innerHTML = html;
         } else {
             tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-2">No users found.</td></tr>';
         }
     } catch (e) {
+        console.error("Fetch Users Error:", e);
         tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-2">Error loading users.</td></tr>';
     }
 }
@@ -407,7 +438,7 @@ if(formAdminUsers) {
             if(json.success) { 
                 alert("User saved successfully!");
                 formAdminUsers.reset();
-                if(typeof fetchLocalUsers === 'function') fetchLocalUsers();
+                if(typeof window.fetchLocalUsers === 'function') window.fetchLocalUsers();
             } else { 
                 alert("Error: " + json.msg);
             }
@@ -452,7 +483,7 @@ if(formEditUser) {
             const json = await res.json();
             if(json.success) { 
                 bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
-                if(typeof fetchLocalUsers === 'function') fetchLocalUsers();
+                if(typeof window.fetchLocalUsers === 'function') window.fetchLocalUsers();
             } else {
                 alert("Error: " + json.msg);
             }
@@ -467,7 +498,7 @@ window.deleteUser = async function(id) {
         const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
         const json = await res.json();
         if(json.success) {
-            if(typeof fetchLocalUsers === 'function') fetchLocalUsers();
+            if(typeof window.fetchLocalUsers === 'function') window.fetchLocalUsers();
         } else {
             alert("Error deleting user: " + json.msg);
         }
