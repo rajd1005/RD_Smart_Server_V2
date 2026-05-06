@@ -31,6 +31,22 @@ router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
     } = req.body;
     
     try {
+        // --- NEW: Detect removed managers and wipe their passwords/sessions ---
+        const oldSettings = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'manager_emails'");
+        const oldManagerStr = oldSettings.rows.length > 0 ? oldSettings.rows[0].setting_value : '';
+        const oldManagers = oldManagerStr.split(',').map(e => e.trim().toLowerCase()).filter(e => e);
+        const newManagers = (manager_emails || '').split(',').map(e => e.trim().toLowerCase()).filter(e => e);
+
+        const removedManagers = oldManagers.filter(email => !newManagers.includes(email));
+
+        if (removedManagers.length > 0) {
+            // Delete their custom passwords so they are treated as brand new if re-added
+            await pool.query("DELETE FROM user_credentials WHERE email = ANY($1)", [removedManagers]);
+            // Instantly force logout any active sessions for the removed managers
+            await pool.query("DELETE FROM login_logs WHERE email = ANY($1)", [removedManagers]);
+        }
+        // ----------------------------------------------------------------------
+
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_channel_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_channel_tab || 'true']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state || 'first']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('hide_trade_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [hide_trade_tab || 'false']);
