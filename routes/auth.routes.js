@@ -194,7 +194,7 @@ router.post('/forgot_password', async (req, res) => {
         const otp = Math.floor(100000 + Math.random() * 900000).toString(); 
         await pool.query("INSERT INTO password_resets (email, otp, expires_at) VALUES ($1, $2, NOW() + INTERVAL '15 minutes') ON CONFLICT (email) DO UPDATE SET otp = EXCLUDED.otp, expires_at = EXCLUDED.expires_at", [email, otp]);
 
-        cconst mailOptions = {
+        const mailOptions = {
             from: `"RD Algo Security" <${process.env.SMTP_USER}>`,
             to: email,
             subject: `Password Reset OTP - RD Algo`,
