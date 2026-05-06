@@ -108,6 +108,11 @@ async function registerServiceWorker() {
 }
 
 async function checkDisclaimer() {
+    // --- NEW: Skip Disclaimer entirely for Admin and Manager ---
+    if (typeof userData !== 'undefined' && (userData.role === 'admin' || userData.role === 'manager')) {
+        return; 
+    }
+
     if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
         try {
             const settingsRes = await fetch('/api/settings');
