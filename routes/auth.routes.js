@@ -194,7 +194,7 @@ router.post('/forgot_password', async (req, res) => {
         const otp = Math.floor(100000 + Math.random() * 900000).toString(); 
         await pool.query("INSERT INTO password_resets (email, otp, expires_at) VALUES ($1, $2, NOW() + INTERVAL '15 minutes') ON CONFLICT (email) DO UPDATE SET otp = EXCLUDED.otp, expires_at = EXCLUDED.expires_at", [email, otp]);
 
-        const mailOptions = {
+        cconst mailOptions = {
             from: `"RD Algo Security" <${process.env.SMTP_USER}>`,
             to: email,
             subject: `Password Reset OTP - RD Algo`,
@@ -204,9 +204,15 @@ router.post('/forgot_password', async (req, res) => {
                     <div style="font-size: 24px; font-weight: bold; background: #f8f9fa; padding: 15px; text-align: center; letter-spacing: 5px; color: #000; border-radius: 8px;">${otp}</div>
                    </div>`
         };
-        transporter.sendMail(mailOptions).catch(e => console.error(e));
+        
+        // FIX: Added 'await' so it catches SMTP rejection errors instead of failing silently
+        await transporter.sendMail(mailOptions);
+        
         res.json({ success: true, msg: "OTP sent to your email." });
-    } catch (err) { res.status(500).json({ success: false, msg: "Server error generating OTP." }); }
+    } catch (err) { 
+        console.error("OTP Email Error:", err);
+        res.status(500).json({ success: false, msg: "Failed to send email. Check your SMTP settings or Spam folder." }); 
+    }
 });
 
 router.post('/reset_password', async (req, res) => {
