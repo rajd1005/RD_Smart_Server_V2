@@ -627,7 +627,6 @@ window.showUpgradeMarketingModal = function(levelKey) {
                         <a href="${levelData.button_link}" target="_blank" class="btn w-100 fw-bold text-white shadow-sm mb-2" style="background: linear-gradient(135deg, #ff9900, #ff5500); border-radius: 6px; padding: 10px 0; font-size: 14px;">
                             ${levelData.button_text}
                         </a>
-                        <button type="button" class="btn btn-light w-100 fw-bold text-muted" style="border-radius: 6px; padding: 8px 0; font-size: 13px;" data-bs-dismiss="modal">Maybe Later</button>
                     </div>
                 </div>
             </div>
