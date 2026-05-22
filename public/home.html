@@ -231,7 +231,7 @@
                         <span id="mktPreLoginBtnText">Upgrade Access Now</span>
                     </a>
                     
-                    <button type="button" class="btn btn-outline-primary w-100 fw-bold mb-2" style="border-radius: 6px; padding: 8px 0; font-size: 13px;" onclick="proceedToLogin()">
+                    <button type="button" id="mktPreLoginBtnLogin" class="btn btn-outline-primary w-100 fw-bold mb-2" style="border-radius: 6px; padding: 8px 0; font-size: 13px;" onclick="proceedToLogin()">
                         <span class="material-icons-round align-middle me-1" style="font-size:16px;">login</span> Login to Dashboard
                     </button>
                 </div>
@@ -826,39 +826,46 @@ html += `<div class="carousel-item ${activeClass}">
             else { input.type = "password"; iconEl.innerText = "visibility_off"; }
         }
 
-        function openLoginModal() {
+        function openLoginModal(hideLoginBtn = false) {
             // Check if Admin has enabled the Pre-Login Marketing Popup
             if (window.appSettings && window.appSettings.login_popup_show === 'true') {
                 document.getElementById('mktPreLoginTitle').innerText = window.appSettings.login_popup_title || 'Join Premium';
 
-// --- NEW IST SALES BADGE LOGIC ---
-let badgeHtml = '';
-if (window.appSettings.daily_sales_labels) {
-    try {
-        let labels = JSON.parse(window.appSettings.daily_sales_labels);
-        // Redirect to nested format for Pre-login
-        if (labels.prelogin) {
-            labels = labels.prelogin;
-        }
+                // --- HIDE/SHOW LOGIN BUTTON BASED ON TRIGGER ---
+                const loginBtn = document.getElementById('mktPreLoginBtnLogin');
+                if (loginBtn) {
+                    loginBtn.style.display = hideLoginBtn ? 'none' : 'block';
+                }
+                // -----------------------------------------------
 
-        // FIX: Cross-browser safe IST Date Calculation
-        const now = new Date();
-        const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
-        const istOffset = 5.5 * 60 * 60 * 1000; // +5:30
-        const istDate = new Date(utcTime + istOffset);
-        
-        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-        const currentISTDay = days[istDate.getDay()];
-        const todayLabel = labels[currentISTDay] || '';
+                // --- NEW IST SALES BADGE LOGIC ---
+                let badgeHtml = '';
+                if (window.appSettings.daily_sales_labels) {
+                    try {
+                        let labels = JSON.parse(window.appSettings.daily_sales_labels);
+                        // Redirect to nested format for Pre-login
+                        if (labels.prelogin) {
+                            labels = labels.prelogin;
+                        }
 
-        if (todayLabel.trim() !== '') {
-            badgeHtml = `<div class="badge bg-danger text-white mb-2 p-2 px-3 w-100 shadow-sm" style="font-size: 13px; border-radius: 6px; animation: pulse 2s infinite;">🔥 ${todayLabel}</div>`;
-        }
-    } catch(e) {}
-}
-const badgeContainer = document.getElementById('mktPreLoginSalesBadge');
-if (badgeContainer) badgeContainer.innerHTML = badgeHtml;
-// ---------------------------------
+                        // FIX: Cross-browser safe IST Date Calculation
+                        const now = new Date();
+                        const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+                        const istOffset = 5.5 * 60 * 60 * 1000; // +5:30
+                        const istDate = new Date(utcTime + istOffset);
+                        
+                        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+                        const currentISTDay = days[istDate.getDay()];
+                        const todayLabel = labels[currentISTDay] || '';
+
+                        if (todayLabel.trim() !== '') {
+                            badgeHtml = `<div class="badge bg-danger text-white mb-2 p-2 px-3 w-100 shadow-sm" style="font-size: 13px; border-radius: 6px; animation: pulse 2s infinite;">🔥 ${todayLabel}</div>`;
+                        }
+                    } catch(e) {}
+                }
+                const badgeContainer = document.getElementById('mktPreLoginSalesBadge');
+                if (badgeContainer) badgeContainer.innerHTML = badgeHtml;
+                // ---------------------------------
 
                 // Format description as bullet points exactly like Level Upgrade Modal
                 const descText = window.appSettings.login_popup_desc || 'Unlock exclusive premium channels.\nGet advanced real-time market insights.\nJoin VIP strategy discussions.';
@@ -1189,7 +1196,7 @@ if (badgeContainer) badgeContainer.innerHTML = badgeHtml;
             } catch(err) { alert("🚨 Error loading video stream."); }
         }
 
-function closeVideoPlayer() {
+        function closeVideoPlayer() {
             if (progressInterval) clearInterval(progressInterval);
             if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
             if (screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch (e) {} }
@@ -1203,7 +1210,7 @@ function closeVideoPlayer() {
                 const sessionId = localStorage.getItem('sessionId');
                 
                 if (!sessionId) {
-                    if (typeof openLoginModal === 'function') openLoginModal();
+                    if (typeof openLoginModal === 'function') openLoginModal(true);
                 } else {
                     const role = localStorage.getItem('userRole');
                     if (role === 'admin' || role === 'manager') return;
