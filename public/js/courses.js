@@ -110,11 +110,10 @@ async function fetchCourses() {
                     
                     let mediaHtml = '';
                     let onClickAction = '';
-                    let pointerEv = isLocked ? 'not-allowed' : 'auto';
+                    let pointerEv = 'pointer'; // Ensure it is clickable so the modal can trigger
 
                     if (hasVideo) {
-                        onClickAction = isLocked ? '' : `onclick="openSecureVideo(${l.id})"`;
-                        pointerEv = isLocked ? 'not-allowed' : 'pointer';
+                        onClickAction = isLocked ? `onclick="if(typeof window.showUpgradeMarketingModal === 'function') { window.showUpgradeMarketingModal('${mod.required_level}'); } else { alert('⚠️ Locked. Please upgrade your access level.'); }"` : `onclick="openSecureVideo(${l.id})"`;
                         
                         const thumbIconColor = isLocked ? '#ccc' : '#fff';
                         const thumbnailImg = l.thumbnail_url 
