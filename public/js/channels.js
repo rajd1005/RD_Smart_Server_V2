@@ -599,10 +599,9 @@ window.showUpgradeMarketingModal = function(levelKey) {
         display_name: levelKey.replace(/_/g, ' ').toUpperCase(),
         benefits: 'Unlock exclusive premium channels.\nGet advanced real-time market insights.\nJoin VIP strategy discussions.',
         button_text: 'Upgrade Access Now',
-        button_link: window.appSettings.sticky_btn1_link || 'https://wa.me/' 
+        button_link: '' 
     };
 
-    // --- NEW: Fetch Automated Sales Label specific to this Level ---
     let todaySaleText = '';
     if (typeof window.getTodaySalesLabel === 'function') {
         todaySaleText = window.getTodaySalesLabel(window.appSettings, levelKey);
@@ -618,10 +617,31 @@ window.showUpgradeMarketingModal = function(levelKey) {
         </li>
     `).join('');
 
-    // --- NEW: Generate Badge HTML if a label exists for today ---
     let badgeHtml = '';
     if (todaySaleText && todaySaleText.trim() !== '') {
         badgeHtml = `<div class="badge bg-danger text-white mb-3 p-2 px-3 w-100 shadow-sm" style="font-size: 13px; border-radius: 6px; animation: pulse 2s infinite;">🔥 ${todaySaleText}</div>`;
+    }
+
+    // --- NEW: Dynamic Buttons Logic (Hide if no link) ---
+    let actionButtonsHtml = '';
+    
+    // 1. Primary Upgrade Button
+    if (levelData.button_link && levelData.button_link.trim() !== '' && levelData.button_link !== '#') {
+        actionButtonsHtml += `
+            <a href="${levelData.button_link}" target="_blank" class="btn w-100 fw-bold text-white shadow-sm mb-2" style="background: linear-gradient(135deg, #ff9900, #ff5500); border-radius: 6px; padding: 10px 0; font-size: 14px;">
+                ${levelData.button_text || 'Upgrade Access Now'}
+            </a>
+        `;
+    }
+
+    // 2. WhatsApp Button (Uses sticky_btn1_link setting)
+    let waLink = window.appSettings.sticky_btn1_link || '';
+    if (waLink.trim() !== '' && waLink !== '#') {
+        actionButtonsHtml += `
+            <a href="${waLink}" target="_blank" class="btn btn-success w-100 fw-bold shadow-sm mb-2" style="border-radius: 6px; padding: 10px 0; font-size: 14px;">
+                <span class="material-icons-round align-middle me-1" style="font-size:16px;">chat</span> WhatsApp Us
+            </a>
+        `;
     }
 
     const modalHtml = `
@@ -631,15 +651,15 @@ window.showUpgradeMarketingModal = function(levelKey) {
                     <div class="modal-body p-1">
                         <h6 class="fw-bold mb-1" style="color: #000; font-size: 18px;">${levelData.display_name}</h6>
                         
-                        ${badgeHtml} <p class="text-muted mb-3" style="font-size: 12px;">Upgrade your account to unlock:</p>
+                        ${badgeHtml}
+                        
+                        <p class="text-muted mb-3" style="font-size: 12px;">Upgrade your account to unlock:</p>
                         
                         <ul class="list-unstyled mb-3 mx-auto" style="max-width: 100%;">
                             ${benefitsHtml}
                         </ul>
                         
-                        <a href="${levelData.button_link}" target="_blank" class="btn w-100 fw-bold text-white shadow-sm mb-2" style="background: linear-gradient(135deg, #ff9900, #ff5500); border-radius: 6px; padding: 10px 0; font-size: 14px;">
-                            ${levelData.button_text}
-                        </a>
+                        ${actionButtonsHtml}
                     </div>
                 </div>
             </div>
