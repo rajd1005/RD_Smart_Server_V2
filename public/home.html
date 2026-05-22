@@ -835,7 +835,12 @@ html += `<div class="carousel-item ${activeClass}">
                 let badgeHtml = '';
                 if (window.appSettings.daily_sales_labels) {
                     try {
-                        const labels = JSON.parse(window.appSettings.daily_sales_labels);
+                        let labels = JSON.parse(window.appSettings.daily_sales_labels);
+                        // Redirect to nested format for Pre-login
+                        if (labels.prelogin) {
+                            labels = labels.prelogin;
+                        }
+
                         const istDate = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
                         const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
                         const currentISTDay = days[istDate.getDay()];
@@ -1031,7 +1036,7 @@ html += `<div class="carousel-item ${activeClass}">
                             let pointerEv = isLocked ? 'not-allowed' : 'auto';
 
                             if (hasVideo) {
-                                onClickAction = isLocked ? `onclick="openLoginModal()"` : `onclick="openDemoVideo(${l.id})"`;
+                                onClickAction = isLocked ? `onclick="openLoginModal()"` : `onclick="openDemoVideo(${l.id})"` ;
                                 pointerEv = isLocked ? 'not-allowed' : 'pointer';
                                 
                                 const thumbIconColor = isLocked ? '#ccc' : '#fff';
