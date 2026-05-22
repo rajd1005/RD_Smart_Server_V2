@@ -46,6 +46,58 @@ function applyRoleRestrictions() {
     }
 }
 
+// --- MARKETING CONFIGURATION MANAGEMENT ---
+window.levelMarketingData = {};
+
+window.loadMarketingConfig = function() {
+    if (window.appSettings && window.appSettings.level_marketing_config && Object.keys(window.levelMarketingData).length === 0) {
+        try { window.levelMarketingData = JSON.parse(window.appSettings.level_marketing_config); } catch(e){}
+    }
+    const levelSelect = document.getElementById('marketingLevelSelect');
+    if (!levelSelect) return;
+    
+    const level = levelSelect.value;
+    const data = window.levelMarketingData[level] || { display_name: '', benefits: '', button_text: '', button_link: '' };
+    
+    const mktDisplayName = document.getElementById('mktDisplayName');
+    if (mktDisplayName) mktDisplayName.value = data.display_name || '';
+    
+    const mktBenefits = document.getElementById('mktBenefits');
+    if (mktBenefits) mktBenefits.value = data.benefits || '';
+    
+    const mktBtnText = document.getElementById('mktBtnText');
+    if (mktBtnText) mktBtnText.value = data.button_text || '';
+    
+    const mktBtnLink = document.getElementById('mktBtnLink');
+    if (mktBtnLink) mktBtnLink.value = data.button_link || '';
+};
+
+window.saveMarketingConfigLocally = function(event) {
+    const levelSelect = document.getElementById('marketingLevelSelect');
+    if (!levelSelect) return;
+    const level = levelSelect.value;
+    
+    window.levelMarketingData[level] = {
+        display_name: document.getElementById('mktDisplayName')?.value || '',
+        benefits: document.getElementById('mktBenefits')?.value || '',
+        button_text: document.getElementById('mktBtnText')?.value || '',
+        button_link: document.getElementById('mktBtnLink')?.value || ''
+    };
+    
+    const warning = document.getElementById('mktWarning');
+    if (warning) warning.style.display = 'block';
+    
+    if (event && event.target) {
+        const btn = event.target;
+        btn.classList.replace('btn-dark', 'btn-success');
+        btn.innerText = "Saved!";
+        setTimeout(() => { 
+            btn.classList.replace('btn-success', 'btn-dark'); 
+            btn.innerText = "Save Data For This Level"; 
+        }, 1500);
+    }
+};
+
 // Ensure data loads automatically when the Modal is opened (especially for Managers)
 document.addEventListener('DOMContentLoaded', () => {
     const adminModal = document.getElementById('adminCourseModal');
@@ -55,6 +107,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (tabUsers && tabUsers.classList.contains('active')) {
                 if (typeof window.fetchLocalUsers === 'function') window.fetchLocalUsers();
             }
+            // Load marketing configuration values if the element exists
+            if (typeof window.loadMarketingConfig === 'function') window.loadMarketingConfig();
         });
     }
 });
@@ -90,6 +144,13 @@ if (formAdminSettings) {
             const layoutArray = Array.from(layoutList).map(li => li.getAttribute('data-id'));
             homepage_layout = JSON.stringify(layoutArray);
         }
+
+        let marketingConfigStr = undefined;
+        if (window.levelMarketingData && Object.keys(window.levelMarketingData).length > 0) {
+            marketingConfigStr = JSON.stringify(window.levelMarketingData);
+        } else if (window.appSettings && window.appSettings.level_marketing_config) {
+            marketingConfigStr = window.appSettings.level_marketing_config;
+        }
         
         try {
             const bodyData = { 
@@ -111,6 +172,7 @@ if (formAdminSettings) {
                 manager_emails: manager_emails
             };
             if (homepage_layout) bodyData.homepage_layout = homepage_layout;
+            if (marketingConfigStr !== undefined) bodyData.level_marketing_config = marketingConfigStr;
 
             const res = await fetch('/api/admin/settings', { 
                 method: 'PUT', 
