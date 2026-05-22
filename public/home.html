@@ -831,29 +831,34 @@ html += `<div class="carousel-item ${activeClass}">
             if (window.appSettings && window.appSettings.login_popup_show === 'true') {
                 document.getElementById('mktPreLoginTitle').innerText = window.appSettings.login_popup_title || 'Join Premium';
 
-                // --- NEW IST SALES BADGE LOGIC ---
-                let badgeHtml = '';
-                if (window.appSettings.daily_sales_labels) {
-                    try {
-                        let labels = JSON.parse(window.appSettings.daily_sales_labels);
-                        // Redirect to nested format for Pre-login
-                        if (labels.prelogin) {
-                            labels = labels.prelogin;
-                        }
+// --- NEW IST SALES BADGE LOGIC ---
+let badgeHtml = '';
+if (window.appSettings.daily_sales_labels) {
+    try {
+        let labels = JSON.parse(window.appSettings.daily_sales_labels);
+        // Redirect to nested format for Pre-login
+        if (labels.prelogin) {
+            labels = labels.prelogin;
+        }
 
-                        const istDate = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
-                        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-                        const currentISTDay = days[istDate.getDay()];
-                        const todayLabel = labels[currentISTDay] || '';
-                        
-                        if (todayLabel.trim() !== '') {
-                            badgeHtml = `<div class="badge bg-danger text-white mb-2 p-2 px-3 w-100 shadow-sm" style="font-size: 13px; border-radius: 6px; animation: pulse 2s infinite;">🔥 ${todayLabel}</div>`;
-                        }
-                    } catch(e) {}
-                }
-                const badgeContainer = document.getElementById('mktPreLoginSalesBadge');
-                if (badgeContainer) badgeContainer.innerHTML = badgeHtml;
-                // ---------------------------------
+        // FIX: Cross-browser safe IST Date Calculation
+        const now = new Date();
+        const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const istOffset = 5.5 * 60 * 60 * 1000; // +5:30
+        const istDate = new Date(utcTime + istOffset);
+        
+        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const currentISTDay = days[istDate.getDay()];
+        const todayLabel = labels[currentISTDay] || '';
+
+        if (todayLabel.trim() !== '') {
+            badgeHtml = `<div class="badge bg-danger text-white mb-2 p-2 px-3 w-100 shadow-sm" style="font-size: 13px; border-radius: 6px; animation: pulse 2s infinite;">🔥 ${todayLabel}</div>`;
+        }
+    } catch(e) {}
+}
+const badgeContainer = document.getElementById('mktPreLoginSalesBadge');
+if (badgeContainer) badgeContainer.innerHTML = badgeHtml;
+// ---------------------------------
 
                 // Format description as bullet points exactly like Level Upgrade Modal
                 const descText = window.appSettings.login_popup_desc || 'Unlock exclusive premium channels.\nGet advanced real-time market insights.\nJoin VIP strategy discussions.';
