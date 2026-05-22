@@ -207,30 +207,23 @@
         <video id="my-video" class="video-js vjs-big-play-centered" controls preload="none" disablePictureInPicture controlsList="nodownload nofullscreen noremoteplayback" playsinline webkit-playsinline></video>
     </div>
 
-    <div class="modal fade" id="preLoginMarketingModal" tabindex="-1" style="z-index: 1060;">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
-                <div class="modal-header border-0 pb-0 justify-content-center" style="position:relative; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); border-radius: 16px 16px 0 0; padding: 30px 20px;">
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="position:absolute; top:15px; right:15px; opacity: 0.8;"></button>
-                    <div class="text-center text-white">
-                        <h4 class="modal-title fw-bold m-0" id="mktPreLoginTitle" style="letter-spacing: 0.5px;">Join VIP Premium</h4>
-                    </div>
-                </div>
-                
-                <div class="modal-body p-4 pt-4 bg-white" style="border-radius: 0 0 16px 16px;">
-                    <ul class="list-unstyled mb-4 mx-auto" id="mktPreLoginDesc" style="max-width: 90%;">
+<div class="modal fade" id="preLoginMarketingModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 320px; margin: 0 auto;">
+            <div class="modal-content text-center p-3" style="border-radius: 12px; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+                <div class="modal-body p-1">
+                    <h6 class="fw-bold mb-1" id="mktPreLoginTitle" style="color: #000; font-size: 18px;">Join VIP Premium</h6>
+                    <p class="text-muted mb-3" style="font-size: 12px;">Get Instant Access</p>
+                    
+                    <ul class="list-unstyled mb-3 mx-auto" id="mktPreLoginDesc" style="max-width: 100%;">
                         </ul>
-                    <div class="text-center mt-2">
-                        <a href="#" id="mktPreLoginBtnLink" target="_blank" class="btn w-100 fw-bold text-white shadow" style="background: linear-gradient(135deg, #ff9900, #ff5500); border-radius: 8px; padding: 14px 0; font-size: 16px; transition: transform 0.2s;">
-                            <span class="material-icons-round align-middle me-2" style="font-size:20px;">rocket_launch</span><span id="mktPreLoginBtnText">Upgrade Access Now</span>
-                        </a>
-                        
-                        <hr class="my-4">
-                        <p class="text-muted mb-2" style="font-size: 13px;">Already a registered student?</p>
-                        <button type="button" class="btn btn-outline-primary w-100 fw-bold" onclick="proceedToLogin()" style="border-radius: 8px; padding: 10px 0; font-size: 15px;">
-                            <span class="material-icons-round align-middle me-2" style="font-size:18px;">login</span>Login to Dashboard
-                        </button>
-                    </div>
+                    
+                    <a href="#" id="mktPreLoginBtnLink" target="_blank" class="btn w-100 fw-bold text-white shadow-sm mb-2" style="background: linear-gradient(135deg, #ff9900, #ff5500); border-radius: 6px; padding: 10px 0; font-size: 14px;">
+                        <span id="mktPreLoginBtnText">Upgrade Access Now</span>
+                    </a>
+                    
+                    <button type="button" class="btn btn-outline-primary w-100 fw-bold mb-2" style="border-radius: 6px; padding: 8px 0; font-size: 13px;" onclick="proceedToLogin()">
+                        <span class="material-icons-round align-middle me-1" style="font-size:16px;">login</span> Login to Dashboard
+                    </button>
                 </div>
             </div>
         </div>
@@ -823,24 +816,24 @@ html += `<div class="carousel-item ${activeClass}">
             else { input.type = "password"; iconEl.innerText = "visibility_off"; }
         }
 
-        function openLoginModal() {
+function openLoginModal() {
             // Check if Admin has enabled the Pre-Login Marketing Popup
             if (window.appSettings && window.appSettings.login_popup_show === 'true') {
                 document.getElementById('mktPreLoginTitle').innerText = window.appSettings.login_popup_title || 'Join Premium';
-                
+
                 // Format description as bullet points exactly like Level Upgrade Modal
                 const descText = window.appSettings.login_popup_desc || 'Unlock exclusive premium channels.\nGet advanced real-time market insights.\nJoin VIP strategy discussions.';
                 const benefitsHtml = descText.split('\n').filter(b=>b.trim()).map(b => `
-                    <li class="mb-3 d-flex align-items-start">
-                        <span class="material-icons-round text-success me-2" style="font-size:22px;">check_circle</span>
-                        <span style="font-size:15px; color:#444; line-height: 1.4;">${b}</span>
+                    <li class="mb-2 d-flex align-items-start text-start">
+                        <span class="material-icons-round text-success me-2" style="font-size:16px; margin-top: 1px;">check_circle</span>
+                        <span style="font-size:13px; color:#333; line-height: 1.4;">${b}</span>
                     </li>
                 `).join('');
                 document.getElementById('mktPreLoginDesc').innerHTML = benefitsHtml;
-                
+
                 document.getElementById('mktPreLoginBtnText').innerText = window.appSettings.login_popup_btn_text || 'Upgrade Access Now';
                 document.getElementById('mktPreLoginBtnLink').href = window.appSettings.login_popup_btn_link || '#';
-                
+
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('preLoginMarketingModal')).show();
             } else {
                 proceedToLogin(); // Skip marketing, go straight to login
