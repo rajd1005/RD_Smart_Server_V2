@@ -27,7 +27,8 @@ router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
         show_sticky_footer, sticky_btn1_text, sticky_btn1_link, sticky_btn1_icon,
         sticky_btn2_text, sticky_btn2_link, sticky_btn2_icon,
         show_disclaimer, register_link, push_trade_alerts, manager_emails,
-        show_channel_tab
+        show_channel_tab,
+        level_marketing_config
     } = req.body;
     
     try {
@@ -46,6 +47,10 @@ router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
             await pool.query("DELETE FROM login_logs WHERE email = ANY($1)", [removedManagers]);
         }
         // ----------------------------------------------------------------------
+
+        if (level_marketing_config) {
+            await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('level_marketing_config', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [level_marketing_config]);
+        }
 
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('show_channel_tab', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [show_channel_tab || 'true']);
         await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('accordion_state', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [accordion_state || 'first']);
