@@ -28,7 +28,8 @@ router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
         sticky_btn2_text, sticky_btn2_link, sticky_btn2_icon,
         show_disclaimer, register_link, push_trade_alerts, manager_emails,
         show_channel_tab,
-        level_marketing_config
+        level_marketing_config,
+        login_popup_show, login_popup_title, login_popup_desc, login_popup_btn_text, login_popup_btn_link
     } = req.body;
     
     try {
@@ -71,6 +72,13 @@ router.put('/settings', authenticateToken, isAdmin, async (req, res) => {
         
         if (homepage_layout) await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('homepage_layout', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [homepage_layout]);
         
+        // NEW PRE-LOGIN MARKETING POPUP SETTINGS
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('login_popup_show', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [login_popup_show || 'false']);
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('login_popup_title', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [login_popup_title || '']);
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('login_popup_desc', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [login_popup_desc || '']);
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('login_popup_btn_text', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [login_popup_btn_text || '']);
+        await pool.query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('login_popup_btn_link', $1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", [login_popup_btn_link || '']);
+
         await redisClient.del('system_settings').catch(()=>{});
         req.app.get('io').emit('settings_updated');
         res.json({ success: true });
