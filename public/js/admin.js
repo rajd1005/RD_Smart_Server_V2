@@ -145,6 +145,17 @@ if (formAdminSettings) {
         const login_popup_btn_text = document.getElementById('adminLoginPopupBtnText')?.value || '';
         const login_popup_btn_link = document.getElementById('adminLoginPopupBtnLink')?.value || '';
         
+        // AUTOMATED DAILY SALES LABELS
+        const daily_sales_labels = JSON.stringify({
+            Mon: document.getElementById('adminLabelMon')?.value || '',
+            Tue: document.getElementById('adminLabelTue')?.value || '',
+            Wed: document.getElementById('adminLabelWed')?.value || '',
+            Thu: document.getElementById('adminLabelThu')?.value || '',
+            Fri: document.getElementById('adminLabelFri')?.value || '',
+            Sat: document.getElementById('adminLabelSat')?.value || '',
+            Sun: document.getElementById('adminLabelSun')?.value || ''
+        });
+
         let homepage_layout = undefined;
         const layoutList = document.querySelectorAll('#homepageLayoutDraggable li');
         if (layoutList.length > 0) {
@@ -181,7 +192,8 @@ if (formAdminSettings) {
                 login_popup_title: login_popup_title,
                 login_popup_desc: login_popup_desc,
                 login_popup_btn_text: login_popup_btn_text,
-                login_popup_btn_link: login_popup_btn_link
+                login_popup_btn_link: login_popup_btn_link,
+                daily_sales_labels: daily_sales_labels
             };
             if (homepage_layout) bodyData.homepage_layout = homepage_layout;
             if (marketingConfigStr !== undefined) bodyData.level_marketing_config = marketingConfigStr;
