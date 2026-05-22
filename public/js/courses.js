@@ -420,6 +420,36 @@ function closeVideoPlayer() {
     }
     stopWatermark();
     document.getElementById('videoPlayerContainer').style.display = 'none';
+
+    // --- NEW: AUTO-SHOW MARKETING POPUP ON CLOSE ---
+    setTimeout(() => {
+        const sessionId = localStorage.getItem('sessionId');
+        
+        if (!sessionId) {
+            // Non-logged in user: show pre-login popup (handled by openLoginModal)
+            if (typeof openLoginModal === 'function') {
+                openLoginModal();
+            }
+        } else {
+            // Logged-in user: skip for admins/managers
+            const role = localStorage.getItem('userRole');
+            if (role === 'admin' || role === 'manager') return;
+
+            // Check access levels and show the next locked level marketing popup
+            let accessLevels = {};
+            try { accessLevels = JSON.parse(localStorage.getItem('accessLevels')) || {}; } catch(e) {}
+            
+            if (typeof window.showUpgradeMarketingModal === 'function') {
+                if (accessLevels['level_2_status'] !== 'Yes') {
+                    window.showUpgradeMarketingModal('level_2_status');
+                } else if (accessLevels['level_3_status'] !== 'Yes') {
+                    window.showUpgradeMarketingModal('level_3_status');
+                } else if (accessLevels['level_4_status'] !== 'Yes') {
+                    window.showUpgradeMarketingModal('level_4_status');
+                }
+            }
+        }
+    }, 500); // 500ms delay to let the video close smoothly first
 }
 
 function startWatermark() {
