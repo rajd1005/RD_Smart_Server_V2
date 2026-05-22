@@ -74,8 +74,15 @@
         table.call-table th { text-align: left; padding: 8px 5px; background: #f8f9fa; color: var(--text-secondary); font-weight: 700; text-transform: uppercase; font-size: 9px; border-bottom: 1px solid var(--border-color); }
         table.call-table td { padding: 8px 5px; border-bottom: 1px solid var(--border-color); font-weight: 600; color: #333; }
         .zth-badge { background: #13343f; color: white; padding: 2px 5px; border-radius: 4px; font-size: 9px; margin-left: 6px; vertical-align: middle; }
+        
         .rotating { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.9; }
+            100% { transform: scale(1); opacity: 1; }
+        }
 
         .footer { text-align: center; padding: 20px; color: var(--text-secondary); font-size: 11px; margin-top: auto; border-top: 1px solid var(--border-color); background: #fff; }
 
@@ -212,6 +219,9 @@
             <div class="modal-content text-center p-3" style="border-radius: 12px; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
                 <div class="modal-body p-1">
                     <h6 class="fw-bold mb-1" id="mktPreLoginTitle" style="color: #000; font-size: 18px;">Join VIP Premium</h6>
+                    
+                    <div id="mktPreLoginSalesBadge"></div>
+
                     <p class="text-muted mb-3" style="font-size: 12px;">Get Instant Access</p>
                     
                     <ul class="list-unstyled mb-3 mx-auto" id="mktPreLoginDesc" style="max-width: 100%;">
@@ -493,14 +503,14 @@
             } catch(e) {}
         }
 
-function showPublicChannelList() {
+        function showPublicChannelList() {
             currentPublicChannelId = null;
             document.getElementById('publicChannelListView').style.display = 'block';
             document.getElementById('publicChannelFooter').style.display = 'block'; // Show footer
             document.getElementById('publicChannelChatView').style.display = 'none';
         }
 
-async function openPublicChannel(id, name) {
+        async function openPublicChannel(id, name) {
             currentPublicChannelId = id;
             document.getElementById('publicChannelListView').style.display = 'none';
             document.getElementById('publicChannelFooter').style.display = 'none'; // Hide footer
@@ -816,10 +826,29 @@ html += `<div class="carousel-item ${activeClass}">
             else { input.type = "password"; iconEl.innerText = "visibility_off"; }
         }
 
-function openLoginModal() {
+        function openLoginModal() {
             // Check if Admin has enabled the Pre-Login Marketing Popup
             if (window.appSettings && window.appSettings.login_popup_show === 'true') {
                 document.getElementById('mktPreLoginTitle').innerText = window.appSettings.login_popup_title || 'Join Premium';
+
+                // --- NEW IST SALES BADGE LOGIC ---
+                let badgeHtml = '';
+                if (window.appSettings.daily_sales_labels) {
+                    try {
+                        const labels = JSON.parse(window.appSettings.daily_sales_labels);
+                        const istDate = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+                        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+                        const currentISTDay = days[istDate.getDay()];
+                        const todayLabel = labels[currentISTDay] || '';
+                        
+                        if (todayLabel.trim() !== '') {
+                            badgeHtml = `<div class="badge bg-danger text-white mb-2 p-2 px-3 w-100 shadow-sm" style="font-size: 13px; border-radius: 6px; animation: pulse 2s infinite;">🔥 ${todayLabel}</div>`;
+                        }
+                    } catch(e) {}
+                }
+                const badgeContainer = document.getElementById('mktPreLoginSalesBadge');
+                if (badgeContainer) badgeContainer.innerHTML = badgeHtml;
+                // ---------------------------------
 
                 // Format description as bullet points exactly like Level Upgrade Modal
                 const descText = window.appSettings.login_popup_desc || 'Unlock exclusive premium channels.\nGet advanced real-time market insights.\nJoin VIP strategy discussions.';
