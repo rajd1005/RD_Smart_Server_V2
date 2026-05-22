@@ -733,6 +733,33 @@
                                     <div class="col-4"><input type="text" id="adminBtn2Link" class="form-control" placeholder="Link (URL)" style="font-size: 10px;"></div>
                                 </div>
 
+                                <hr class="my-3">
+                                <h6 class="fw-bold text-primary mb-2" style="font-size: 11px; text-transform: uppercase;">Marketing Popups (Locked Content)</h6>
+                                <div class="bg-light p-3 rounded border mb-4 shadow-sm">
+                                    <p class="text-muted mb-2" style="font-size: 10px;">Configure what students see when they click on a Channel/Course they don't have access to.</p>
+                                    
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Select Level to Edit</label>
+                                    <select id="marketingLevelSelect" class="form-select mb-2" onchange="window.loadMarketingConfig && window.loadMarketingConfig()">
+                                        <option value="level_2_status">Level 2</option>
+                                        <option value="level_3_status">Level 3</option>
+                                        <option value="level_4_status">Level 4</option>
+                                    </select>
+
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Display Name (e.g., VIP Premium)</label>
+                                    <input type="text" id="mktDisplayName" class="form-control mb-2" placeholder="Level Display Name">
+
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Benefits (One per line)</label>
+                                    <textarea id="mktBenefits" class="form-control mb-2" rows="3" placeholder="Unlock Premium Calls&#10;Get Daily Mentorship"></textarea>
+
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Button Text</label>
+                                    <input type="text" id="mktBtnText" class="form-control mb-2" placeholder="Upgrade via WhatsApp">
+
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Button Link</label>
+                                    <input type="text" id="mktBtnLink" class="form-control mb-2" placeholder="https://wa.me/...">
+
+                                    <button type="button" class="btn btn-dark btn-sm w-100 fw-bold mt-1" onclick="window.saveMarketingConfigLocally && window.saveMarketingConfigLocally(event)" style="font-size: 11px; padding: 6px;">Save Data For This Level</button>
+                                    <div class="text-danger mt-1 text-center" id="mktWarning" style="display:none; font-size: 9px; font-weight: bold;">Data held in memory. Don't forget to click the main 'Save Settings' button below!</div>
+                                </div>
                                 <button type="submit" class="btn btn-sm btn-warning w-100 fw-bold" style="padding:8px; border-radius:4px;">Save Settings</button>
                             </form>
                         </div>
