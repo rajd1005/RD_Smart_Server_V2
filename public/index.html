@@ -751,7 +751,16 @@
                                 <hr class="my-3">
                                 <h6 class="fw-bold text-primary mb-2" style="font-size: 11px; text-transform: uppercase;">Automated Daily Sales Labels (IST)</h6>
                                 <div class="bg-light p-3 rounded border mb-4 shadow-sm">
-                                    <p class="text-muted mb-2" style="font-size: 10px;">Labels change automatically based on Indian Standard Time. Leave blank for days with no sale.</p>
+                                    <p class="text-muted mb-2" style="font-size: 10px;">Labels change automatically based on Indian Standard Time. Configure different labels per popup.</p>
+                                    
+                                    <label class="form-label fw-bold mb-1" style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Select Popup to Configure</label>
+                                    <select id="salesLabelTargetSelect" class="form-select mb-2" onchange="window.loadSalesLabelsConfig && window.loadSalesLabelsConfig()">
+                                        <option value="prelogin">Pre-Login Popup</option>
+                                        <option value="level_2_status">Level 2 Upgrade Popup</option>
+                                        <option value="level_3_status">Level 3 Upgrade Popup</option>
+                                        <option value="level_4_status">Level 4 Upgrade Popup</option>
+                                    </select>
+
                                     <div class="row g-2 mb-2">
                                         <div class="col-6"><input type="text" id="adminLabelMon" class="form-control" placeholder="Monday (e.g. 40% OFF)"></div>
                                         <div class="col-6"><input type="text" id="adminLabelTue" class="form-control" placeholder="Tuesday (e.g. 50% OFF)"></div>
@@ -761,6 +770,9 @@
                                         <div class="col-6"><input type="text" id="adminLabelSat" class="form-control" placeholder="Saturday"></div>
                                         <div class="col-12"><input type="text" id="adminLabelSun" class="form-control" placeholder="Sunday"></div>
                                     </div>
+                                    
+                                    <button type="button" class="btn btn-dark btn-sm w-100 fw-bold mt-1" onclick="window.saveSalesLabelsLocally && window.saveSalesLabelsLocally(event)" style="font-size: 11px; padding: 6px;">Save Labels For This Popup</button>
+                                    <div class="text-danger mt-1 text-center" id="salesLabelWarning" style="display:none; font-size: 9px; font-weight: bold;">Data held in memory. Don't forget to click the main 'Save Settings' button below!</div>
                                 </div>
 
                                 <hr class="my-3">
