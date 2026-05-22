@@ -238,7 +238,6 @@ if (data.data.length === 0) {
             
             const formattedBodyHtml = parseMarkdownToHtml(m.body);
 
-            // FIX: Smartly determine reply snippet text based on actual row existence and content
             let replySnippetText = 'Deleted';
             if (m.reply_actual_id) {
                 if (m.reply_body_snippet && String(m.reply_body_snippet).trim() !== '') {
@@ -266,7 +265,6 @@ if (data.data.length === 0) {
                 let editOption = isFromTelegram ? '' : `<li><a class="dropdown-item" href="#" onclick="editChannelMsgInit(${m.id}, '${safeBody}', '${safeLink}')"><span class="material-icons-round align-middle me-2" style="font-size:16px;">edit</span>Edit</a></li>`;
                 let deleteOption = `<li><hr class="dropdown-divider"></li><li><a class="dropdown-item text-danger" href="#" onclick="deleteChannelMsg(${m.id})"><span class="material-icons-round align-middle me-2" style="font-size:16px;">delete</span>Delete</a></li>`;
                 
-                // Smart snippet for the Reply "Preview" box that pops up
                 let replyActionSnippet = m.body && String(m.body).trim() !== '' ? safeBody.substring(0,30) : (m.image_url && m.image_url !== 'null' ? '📷 Media Attachment' : 'Message');
 
                 optionsMenu = `
@@ -400,14 +398,12 @@ if (formChannelMsg) {
             if (imageEl && imageEl.files[0]) formData.append('image', imageEl.files[0]);
 
             if (editId) {
-                // EDIT EXISTING MESSAGE
                 await fetch(`/api/channels/messages/${editId}`, {
                     method: 'PUT',
                     body: formData,
                     credentials: 'same-origin'
                 });
             } else {
-                // NEW MESSAGE
                 if (replyId) formData.append('reply_to_id', replyId);
                 await fetch(`/api/channels/${id}/messages`, { method: 'POST', body: formData, credentials: 'same-origin' });
             }
@@ -542,28 +538,20 @@ if (formEditChannel) {
 }
 
 // --- TEXT FORMATTING & EMOJIS FOR CHANNEL MESSAGES ---
-
 window.formatChannelText = function(prefix, suffix) {
     const textarea = document.getElementById('channelMsgBody');
     if (!textarea) return;
-
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const text = textarea.value;
     const selectedText = text.substring(start, end);
-
     const before = text.substring(0, start);
     const after = text.substring(end, text.length);
 
-    // Wrap the selected text with the styling markers
     textarea.value = before + prefix + selectedText + suffix + after;
-
-    // Reset selection and focus back inside
     textarea.selectionStart = start + prefix.length;
     textarea.selectionEnd = end + prefix.length;
     textarea.focus();
-    
-    // Trigger input event to auto-resize textarea
     textarea.dispatchEvent(new Event('input')); 
 };
 
@@ -576,13 +564,10 @@ window.formatChannelLink = function() {
 window.insertChannelEmoji = function(emoji) {
     const textarea = document.getElementById('channelMsgBody');
     if (!textarea) return;
-
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const text = textarea.value;
-
     textarea.value = text.substring(0, start) + emoji + text.substring(end, text.length);
-
     textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
     textarea.focus();
     textarea.dispatchEvent(new Event('input'));
@@ -591,7 +576,6 @@ window.insertChannelEmoji = function(emoji) {
 function initEmojiPicker() {
     const grid = document.getElementById('emojiPickerGrid');
     if (grid) {
-        // Essential trading and chatting emojis
         const emojis = ['👍', '❤️', '🔥', '🚀', '✅', '❌', '⚠️', '📈', '📉', '💰', '💎', '🎉', '🚨', '👀', '🟢', '🔴', '🤔', '😅', '🙌', '💯', '💸', '🏆', '🎯', '⏳'];
         grid.innerHTML = emojis.map(e => 
             `<button type="button" class="btn btn-light btn-sm border-0" style="font-size: 18px; padding: 4px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;" onclick="insertChannelEmoji('${e}')">${e}</button>`
@@ -599,7 +583,6 @@ function initEmojiPicker() {
     }
 }
 
-// Initialize picker
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initEmojiPicker);
 } else {
@@ -612,7 +595,6 @@ window.showUpgradeMarketingModal = function(levelKey) {
     let config = {};
     try { if(configStr) config = JSON.parse(configStr); } catch(e){}
 
-    // Fallback defaults if the Admin hasn't configured this level yet
     let levelData = config[levelKey] || {
         display_name: levelKey.replace(/_/g, ' ').toUpperCase(),
         benefits: 'Unlock exclusive premium channels.\nGet advanced real-time market insights.\nJoin VIP strategy discussions.',
@@ -623,37 +605,29 @@ window.showUpgradeMarketingModal = function(levelKey) {
     const existing = document.getElementById('upgradePopupModal');
     if (existing) existing.remove();
 
-    // Convert new lines into beautiful bullet points
     const benefitsHtml = levelData.benefits.split('\n').filter(b=>b.trim()).map(b => `
-        <li class="mb-3 d-flex align-items-start">
-            <span class="material-icons-round text-success me-2" style="font-size:22px;">check_circle</span>
-            <span style="font-size:15px; color:#444; line-height: 1.4;">${b}</span>
+        <li class="mb-2 d-flex align-items-start text-start">
+            <span class="material-icons-round text-success me-2" style="font-size:16px; margin-top: 1px;">check_circle</span>
+            <span style="font-size:13px; color:#333; line-height: 1.4;">${b}</span>
         </li>
     `).join('');
 
     const modalHtml = `
-        <div class="modal fade" id="upgradePopupModal" tabindex="-1" style="z-index: 1060;">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
-                    <div class="modal-header border-0 pb-0 justify-content-center" style="position:relative; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); border-radius: 16px 16px 0 0; padding: 30px 20px;">
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="position:absolute; top:15px; right:15px; opacity: 0.8;"></button>
-                        <div class="text-center text-white">
-                            <span class="material-icons-round mb-2 text-warning" style="font-size: 55px; text-shadow: 0 4px 10px rgba(0,0,0,0.3);">workspace_premium</span>
-                            <h4 class="modal-title fw-bold m-0" style="letter-spacing: 0.5px;">${levelData.display_name} Required</h4>
-                        </div>
-                    </div>
-                    
-                    <div class="modal-body p-4 pt-4 bg-white" style="border-radius: 0 0 16px 16px;">
-                        <h6 class="fw-bold mb-4 text-center text-dark" style="font-size: 17px;">Upgrade your account to unlock:</h6>
-                        <ul class="list-unstyled mb-4 mx-auto" style="max-width: 90%;">
+        <div class="modal fade" id="upgradePopupModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+            <div class="modal-dialog modal-dialog-centered" style="max-width: 320px; margin: 0 auto;">
+                <div class="modal-content text-center p-3" style="border-radius: 12px; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+                    <div class="modal-body p-1">
+                        <h6 class="fw-bold mb-1" style="color: #000; font-size: 18px;">${levelData.display_name}</h6>
+                        <p class="text-muted mb-3" style="font-size: 12px;">Upgrade your account to unlock:</p>
+                        
+                        <ul class="list-unstyled mb-3 mx-auto" style="max-width: 100%;">
                             ${benefitsHtml}
                         </ul>
-                        <div class="text-center mt-2">
-                            <a href="${levelData.button_link}" target="_blank" class="btn w-100 fw-bold text-white shadow" style="background: linear-gradient(135deg, #ff9900, #ff5500); border-radius: 8px; padding: 14px 0; font-size: 16px; transition: transform 0.2s;">
-                                <span class="material-icons-round align-middle me-2" style="font-size:20px;">rocket_launch</span>${levelData.button_text}
-                            </a>
-                            <p class="text-muted mt-3 mb-0" style="font-size: 11px; cursor:pointer;" data-bs-dismiss="modal">Maybe later</p>
-                        </div>
+                        
+                        <a href="${levelData.button_link}" target="_blank" class="btn w-100 fw-bold text-white shadow-sm mb-2" style="background: linear-gradient(135deg, #ff9900, #ff5500); border-radius: 6px; padding: 10px 0; font-size: 14px;">
+                            ${levelData.button_text}
+                        </a>
+                        <button type="button" class="btn btn-light w-100 fw-bold text-muted" style="border-radius: 6px; padding: 8px 0; font-size: 13px;" data-bs-dismiss="modal">Maybe Later</button>
                     </div>
                 </div>
             </div>

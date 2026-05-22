@@ -37,7 +37,7 @@ const initDb = async () => {
     const querySettings = `
     CREATE TABLE IF NOT EXISTS system_settings (
         setting_key VARCHAR(50) PRIMARY KEY,
-        setting_value VARCHAR(255)
+        setting_value TEXT
     );`;
 
     const queryUserCreds = `
@@ -161,6 +161,7 @@ const initDb = async () => {
         await pool.query(populateDefaultSettings);
 
         // Run ALTER statements safely to update existing tables
+        try { await pool.query(`ALTER TABLE system_settings ALTER COLUMN setting_value TYPE TEXT;`); } catch(e){}
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS lock_notice TEXT;`); } catch(e){}
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN DEFAULT TRUE;`); } catch(e){}
         try { await pool.query(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS dashboard_visibility VARCHAR(20) DEFAULT 'all';`); } catch(e){}
