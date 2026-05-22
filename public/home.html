@@ -1189,7 +1189,7 @@ if (badgeContainer) badgeContainer.innerHTML = badgeHtml;
             } catch(err) { alert("🚨 Error loading video stream."); }
         }
 
-        function closeVideoPlayer() {
+function closeVideoPlayer() {
             if (progressInterval) clearInterval(progressInterval);
             if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
             if (screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch (e) {} }
@@ -1197,6 +1197,31 @@ if (badgeContainer) badgeContainer.innerHTML = badgeHtml;
                 if (document.exitFullscreen) { document.exitFullscreen().catch(e => {}); } else if (document.webkitExitFullscreen) { document.webkitExitFullscreen().catch(e => {}); }
             }
             stopWatermark(); document.getElementById('videoPlayerContainer').style.display = 'none';
+
+            // --- NEW: AUTO-SHOW MARKETING POPUP ON CLOSE ---
+            setTimeout(() => {
+                const sessionId = localStorage.getItem('sessionId');
+                
+                if (!sessionId) {
+                    if (typeof openLoginModal === 'function') openLoginModal();
+                } else {
+                    const role = localStorage.getItem('userRole');
+                    if (role === 'admin' || role === 'manager') return;
+
+                    let accessLevels = {};
+                    try { accessLevels = JSON.parse(localStorage.getItem('accessLevels')) || {}; } catch(e) {}
+                    
+                    if (typeof window.showUpgradeMarketingModal === 'function') {
+                        if (accessLevels['level_2_status'] !== 'Yes') {
+                            window.showUpgradeMarketingModal('level_2_status');
+                        } else if (accessLevels['level_3_status'] !== 'Yes') {
+                            window.showUpgradeMarketingModal('level_3_status');
+                        } else if (accessLevels['level_4_status'] !== 'Yes') {
+                            window.showUpgradeMarketingModal('level_4_status');
+                        }
+                    }
+                }
+            }, 500);
         }
 
         function startWatermark() {
