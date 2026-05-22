@@ -118,7 +118,7 @@ async function fetchChannels() {
                 `<div class="bg-light text-muted rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; border: 1px solid #ccc;"><span class="material-icons-round">lock</span></div>` :
                 `<div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; font-weight: bold; font-size: 18px;">${c.name.charAt(0).toUpperCase()}</div>`;
             
-            const action = isLocked ? `alert('⚠️ Locked. Please upgrade your access level.')` : `openChannel(${c.id}, '${c.name.replace(/'/g, "\\'")}')`;
+            const action = isLocked ? `showUpgradeMarketingModal('${c.access_level}')` : `openChannel(${c.id}, '${c.name.replace(/'/g, "\\'")}')`;
 
             html += `
             <div class="p-3 bg-white rounded shadow-sm mb-2 d-flex align-items-center" style="cursor:pointer; border: 1px solid var(--border-color); ${isLocked ? 'opacity: 0.7;' : ''}" onclick="${action}">
@@ -135,7 +135,11 @@ async function fetchChannels() {
             const targetChannel = data.data.find(c => c.id == window.pendingChannelId);
             if (targetChannel) {
                 const isLocked = (typeof userData !== 'undefined' && userData.role !== 'admin' && userData.role !== 'manager') && targetChannel.access_level !== 'demo' && accessLevels[targetChannel.access_level] !== 'Yes';
-                if (!isLocked) openChannel(targetChannel.id, targetChannel.name);
+                if (!isLocked) {
+                    openChannel(targetChannel.id, targetChannel.name);
+                } else {
+                    showUpgradeMarketingModal(targetChannel.access_level);
+                }
             }
             window.pendingChannelId = null;
         }
@@ -601,3 +605,61 @@ if (document.readyState === 'loading') {
 } else {
     initEmojiPicker();
 }
+
+// --- MARKETING UPGRADE MODAL ---
+window.showUpgradeMarketingModal = function(levelKey) {
+    let configStr = window.appSettings.level_marketing_config;
+    let config = {};
+    try { if(configStr) config = JSON.parse(configStr); } catch(e){}
+
+    // Fallback defaults if the Admin hasn't configured this level yet
+    let levelData = config[levelKey] || {
+        display_name: levelKey.replace(/_/g, ' ').toUpperCase(),
+        benefits: 'Unlock exclusive premium channels.\nGet advanced real-time market insights.\nJoin VIP strategy discussions.',
+        button_text: 'Upgrade Access Now',
+        button_link: window.appSettings.sticky_btn1_link || 'https://wa.me/' 
+    };
+
+    const existing = document.getElementById('upgradePopupModal');
+    if (existing) existing.remove();
+
+    // Convert new lines into beautiful bullet points
+    const benefitsHtml = levelData.benefits.split('\n').filter(b=>b.trim()).map(b => `
+        <li class="mb-3 d-flex align-items-start">
+            <span class="material-icons-round text-success me-2" style="font-size:22px;">check_circle</span>
+            <span style="font-size:15px; color:#444; line-height: 1.4;">${b}</span>
+        </li>
+    `).join('');
+
+    const modalHtml = `
+        <div class="modal fade" id="upgradePopupModal" tabindex="-1" style="z-index: 1060;">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+                    <div class="modal-header border-0 pb-0 justify-content-center" style="position:relative; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); border-radius: 16px 16px 0 0; padding: 30px 20px;">
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="position:absolute; top:15px; right:15px; opacity: 0.8;"></button>
+                        <div class="text-center text-white">
+                            <span class="material-icons-round mb-2 text-warning" style="font-size: 55px; text-shadow: 0 4px 10px rgba(0,0,0,0.3);">workspace_premium</span>
+                            <h4 class="modal-title fw-bold m-0" style="letter-spacing: 0.5px;">${levelData.display_name} Required</h4>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-body p-4 pt-4 bg-white" style="border-radius: 0 0 16px 16px;">
+                        <h6 class="fw-bold mb-4 text-center text-dark" style="font-size: 17px;">Upgrade your account to unlock:</h6>
+                        <ul class="list-unstyled mb-4 mx-auto" style="max-width: 90%;">
+                            ${benefitsHtml}
+                        </ul>
+                        <div class="text-center mt-2">
+                            <a href="${levelData.button_link}" target="_blank" class="btn w-100 fw-bold text-white shadow" style="background: linear-gradient(135deg, #ff9900, #ff5500); border-radius: 8px; padding: 14px 0; font-size: 16px; transition: transform 0.2s;">
+                                <span class="material-icons-round align-middle me-2" style="font-size:20px;">rocket_launch</span>${levelData.button_text}
+                            </a>
+                            <p class="text-muted mt-3 mb-0" style="font-size: 11px; cursor:pointer;" data-bs-dismiss="modal">Maybe later</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modal = new bootstrap.Modal(document.getElementById('upgradePopupModal'));
+    modal.show();
+};
