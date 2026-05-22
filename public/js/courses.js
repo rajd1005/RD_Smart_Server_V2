@@ -12,10 +12,15 @@ window.getTodaySalesLabel = function(settingsObj, level) {
             return '';
         }
 
-        const istDateString = new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"});
-        const istDate = new Date(istDateString);
+        // FIX: Cross-browser safe IST Date Calculation (Fixes iOS/Safari 'Invalid Date' bug)
+        const now = new Date();
+        const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const istOffset = 5.5 * 60 * 60 * 1000; // +5:30 IST
+        const istDate = new Date(utcTime + istOffset);
+        
         const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
         const currentISTDay = days[istDate.getDay()];
+        
         return labels[currentISTDay] || '';
     } catch(e) {
         return '';
