@@ -251,6 +251,17 @@ async function fetchCourses() {
             safeSetVal('adminRegisterLink', settings.register_link);
             safeSetVal('adminManagerEmails', settings.manager_emails); // NEW LINE
 
+            // --- ADD THIS TO POPULATE PRE-LOGIN MARKETING POPUP SETTINGS ---
+            const loginPopupShow = settings.login_popup_show === 'true';
+            const adminLoginPopupShowCheck = document.getElementById('adminLoginPopupShow');
+            if (adminLoginPopupShowCheck) adminLoginPopupShowCheck.checked = loginPopupShow;
+
+            safeSetVal('adminLoginPopupTitle', settings.login_popup_title);
+            safeSetVal('adminLoginPopupDesc', settings.login_popup_desc);
+            safeSetVal('adminLoginPopupBtnText', settings.login_popup_btn_text);
+            safeSetVal('adminLoginPopupBtnLink', settings.login_popup_btn_link);
+            // ---------------------------------------------------------------
+
             const catForex = settings.cat_forex_crypto || '';
             const catStock = settings.cat_stock || '';
             const catIndex = settings.cat_index || '';
