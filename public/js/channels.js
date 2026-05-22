@@ -630,6 +630,9 @@ window.showUpgradeMarketingModal = function(levelKey) {
                 <div class="modal-content text-center p-3" style="border-radius: 12px; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
                     <div class="modal-body p-1">
                         <h6 class="fw-bold mb-1" style="color: #000; font-size: 18px;">${levelData.display_name}</h6>
+                        
+                        ${badgeHtml} <p class="text-muted mb-3" style="font-size: 12px;">Upgrade your account to unlock:</p>
+                        
                         <ul class="list-unstyled mb-3 mx-auto" style="max-width: 100%;">
                             ${benefitsHtml}
                         </ul>
