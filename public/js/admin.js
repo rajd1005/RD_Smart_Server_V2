@@ -178,9 +178,16 @@ const formAdminSettings = document.getElementById('formAdminSettings');
 if (formAdminSettings) {
     formAdminSettings.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const btn = e.target.querySelector('button'); btn.innerText = "Saving..."; btn.disabled = true;
+        const btn = e.target.querySelector('button'); 
+        btn.innerText = "Saving..."; 
+        btn.disabled = true;
+        
+        // FIX: Force capture the currently typed values in the Marketing & Labels tabs
+        if (typeof window.saveMarketingConfigLocally === 'function') window.saveMarketingConfigLocally();
+        if (typeof window.saveSalesLabelsLocally === 'function') window.saveSalesLabelsLocally();
         
         const state = document.getElementById('adminAccordionState')?.value || 'first';
+        // ... rest of the existing variables
         const hideTrade = document.getElementById('adminHideTradeTab')?.checked ? 'true' : 'false';
         const push_trade_alerts = document.getElementById('adminPushTradeAlerts')?.checked ? 'true' : 'false';
         const showGallery = document.getElementById('adminShowGallery')?.checked ? 'true' : 'false';
