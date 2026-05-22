@@ -138,6 +138,13 @@ if (formAdminSettings) {
         const register_link = document.getElementById('adminRegisterLink')?.value || '';
         const manager_emails = document.getElementById('adminManagerEmails')?.value || '';
         
+        // NEW PRE-LOGIN MARKETING POPUP VARIABLES
+        const login_popup_show = document.getElementById('adminLoginPopupShow')?.checked ? 'true' : 'false';
+        const login_popup_title = document.getElementById('adminLoginPopupTitle')?.value || '';
+        const login_popup_desc = document.getElementById('adminLoginPopupDesc')?.value || '';
+        const login_popup_btn_text = document.getElementById('adminLoginPopupBtnText')?.value || '';
+        const login_popup_btn_link = document.getElementById('adminLoginPopupBtnLink')?.value || '';
+        
         let homepage_layout = undefined;
         const layoutList = document.querySelectorAll('#homepageLayoutDraggable li');
         if (layoutList.length > 0) {
@@ -169,7 +176,12 @@ if (formAdminSettings) {
                 sticky_btn2_link: sticky_btn2_link,
                 show_disclaimer: showDisclaimer,
                 register_link: register_link,
-                manager_emails: manager_emails
+                manager_emails: manager_emails,
+                login_popup_show: login_popup_show,
+                login_popup_title: login_popup_title,
+                login_popup_desc: login_popup_desc,
+                login_popup_btn_text: login_popup_btn_text,
+                login_popup_btn_link: login_popup_btn_link
             };
             if (homepage_layout) bodyData.homepage_layout = homepage_layout;
             if (marketingConfigStr !== undefined) bodyData.level_marketing_config = marketingConfigStr;
