@@ -180,8 +180,14 @@ async function fetchChannelMessages(id) {
         
         const pinnedBar = document.getElementById('channelPinnedMsgBar');
 
-        if (data.data.length === 0) {
-            chatObj.innerHTML = '<div class="text-center text-muted mt-4" style="font-size:12px;">No messages yet.</div>';
+if (data.data.length === 0) {
+            chatObj.innerHTML = `
+                <div style="text-align: center; padding: 40px 20px; color: #666; font-family: Arial, sans-serif;">
+                    <span class="material-icons-round" style="font-size: 48px; color: #0088cc; margin-bottom: 15px; display: block;">telegram</span>
+                    <h3 style="margin: 0 0 10px 0; color: #333; font-size: 18px;">No messages here yet</h3>
+                    <p style="margin: 0; font-size: 14px;"><strong>Please Check your Telegram App Directly for all Messages</strong></p>
+                </div>
+            `;
             if (pinnedBar) pinnedBar.style.display = 'none';
             return;
         }
