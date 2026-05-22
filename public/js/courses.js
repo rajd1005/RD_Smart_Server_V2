@@ -1,8 +1,17 @@
 // Helper Function for Automated Daily Sales Labels (IST)
-window.getTodaySalesLabel = function(settingsObj) {
+window.getTodaySalesLabel = function(settingsObj, level) {
     if (!settingsObj || !settingsObj.daily_sales_labels) return '';
     try {
-        const labels = JSON.parse(settingsObj.daily_sales_labels);
+        let labels = JSON.parse(settingsObj.daily_sales_labels);
+        
+        // Contextually locate label data
+        if (level && labels[level]) {
+            labels = labels[level];
+        } else if (labels.prelogin !== undefined) {
+            // New format detected, but specific level doesn't exist. Fallback empty.
+            return '';
+        }
+
         const istDateString = new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"});
         const istDate = new Date(istDateString);
         const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -282,14 +291,14 @@ async function fetchCourses() {
             // --- LOAD DAILY SALES LABELS ---
             if (settings.daily_sales_labels) {
                 try {
-                    const labels = JSON.parse(settings.daily_sales_labels);
-                    safeSetVal('adminLabelMon', labels.Mon);
-                    safeSetVal('adminLabelTue', labels.Tue);
-                    safeSetVal('adminLabelWed', labels.Wed);
-                    safeSetVal('adminLabelThu', labels.Thu);
-                    safeSetVal('adminLabelFri', labels.Fri);
-                    safeSetVal('adminLabelSat', labels.Sat);
-                    safeSetVal('adminLabelSun', labels.Sun);
+                    const parsed = JSON.parse(settings.daily_sales_labels);
+                    if (parsed.Mon !== undefined) {
+                        if(!window.salesLabelsData) window.salesLabelsData = {};
+                        window.salesLabelsData.prelogin = parsed;
+                    } else {
+                        window.salesLabelsData = { ...(window.salesLabelsData || {}), ...parsed };
+                    }
+                    if (typeof window.loadSalesLabelsConfig === 'function') window.loadSalesLabelsConfig();
                 } catch(e) {}
             }
 
@@ -461,7 +470,7 @@ window.showUpgradeMarketingModal = function(level) {
 
     let todaySaleText = '';
     if (window.getTodaySalesLabel) {
-        todaySaleText = window.getTodaySalesLabel(window.appSettings);
+        todaySaleText = window.getTodaySalesLabel(window.appSettings, level);
     }
 
     let modalEl = document.getElementById('marketingUpgradeModal');
