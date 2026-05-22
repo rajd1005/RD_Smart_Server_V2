@@ -120,6 +120,11 @@
         .chat-link { font-size: 12px; color: #0056b3; word-break: break-all; display: block; margin-bottom: 5px; text-decoration: underline; }
         .chat-meta { font-size: 10px; color: #666; text-align: right; display: flex; justify-content: flex-end; gap: 4px; align-items: center; margin-top: 5px; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 5px; }
         .chat-del-btn { color: var(--red); cursor: pointer; padding: 2px; }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.9; }
+            100% { transform: scale(1); opacity: 1; }
+        }
     </style>
 </head>
 <body>
