@@ -113,7 +113,7 @@
             <div class="navbar-brand">RD Algo Trading</div>
             <div>
                 <button id="installAppBtn" class="btn btn-sm btn-success fw-bold px-3 py-1 me-2" style="display:none; border-radius: 4px; font-size:12px;" onclick="installPWA()">Install App</button>
-                <button class="btn btn-sm btn-primary fw-bold px-3 py-1" style="border-radius: 4px; font-size:12px;" data-bs-toggle="modal" data-bs-target="#loginModal">Login</button>
+                <button class="btn btn-sm btn-primary fw-bold px-3 py-1" style="border-radius: 4px; font-size:12px;" onclick="openLoginModal()">Login</button>
             </div>
         </nav>
 
@@ -205,6 +205,37 @@
         <button class="close-video" onclick="closeVideoPlayer()"><span class="material-icons-round">close</span></button>
         <div id="dynamicWatermark"></div>
         <video id="my-video" class="video-js vjs-big-play-centered" controls preload="none" disablePictureInPicture controlsList="nodownload nofullscreen noremoteplayback" playsinline webkit-playsinline></video>
+    </div>
+
+    <div class="modal fade" id="preLoginMarketingModal" tabindex="-1" style="z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+                <div class="modal-header border-0 pb-0 justify-content-center" style="position:relative; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); border-radius: 16px 16px 0 0; padding: 30px 20px;">
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="position:absolute; top:15px; right:15px; opacity: 0.8;"></button>
+                    <div class="text-center text-white">
+                        <span class="material-icons-round mb-2 text-warning" style="font-size: 55px; text-shadow: 0 4px 10px rgba(0,0,0,0.3);">workspace_premium</span>
+                        <h4 class="modal-title fw-bold m-0" id="mktPreLoginTitle" style="letter-spacing: 0.5px;">Join VIP Premium</h4>
+                    </div>
+                </div>
+                
+                <div class="modal-body p-4 pt-4 bg-white" style="border-radius: 0 0 16px 16px;">
+                    <h6 class="fw-bold mb-4 text-center text-dark" style="font-size: 17px;">Upgrade your account to unlock:</h6>
+                    <ul class="list-unstyled mb-4 mx-auto" id="mktPreLoginDesc" style="max-width: 90%;">
+                        </ul>
+                    <div class="text-center mt-2">
+                        <a href="#" id="mktPreLoginBtnLink" target="_blank" class="btn w-100 fw-bold text-white shadow" style="background: linear-gradient(135deg, #ff9900, #ff5500); border-radius: 8px; padding: 14px 0; font-size: 16px; transition: transform 0.2s;">
+                            <span class="material-icons-round align-middle me-2" style="font-size:20px;">rocket_launch</span><span id="mktPreLoginBtnText">Upgrade Access Now</span>
+                        </a>
+                        
+                        <hr class="my-4">
+                        <p class="text-muted mb-2" style="font-size: 13px;">Already a registered student?</p>
+                        <button type="button" class="btn btn-outline-primary w-100 fw-bold" onclick="proceedToLogin()" style="border-radius: 8px; padding: 10px 0; font-size: 15px;">
+                            <span class="material-icons-round align-middle me-2" style="font-size:18px;">login</span>Login to Dashboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
@@ -795,6 +826,36 @@ html += `<div class="carousel-item ${activeClass}">
         }
 
         function openLoginModal() {
+            // Check if Admin has enabled the Pre-Login Marketing Popup
+            if (window.appSettings && window.appSettings.login_popup_show === 'true') {
+                document.getElementById('mktPreLoginTitle').innerText = window.appSettings.login_popup_title || 'Join Premium';
+                
+                // Format description as bullet points exactly like Level Upgrade Modal
+                const descText = window.appSettings.login_popup_desc || 'Unlock exclusive premium channels.\nGet advanced real-time market insights.\nJoin VIP strategy discussions.';
+                const benefitsHtml = descText.split('\n').filter(b=>b.trim()).map(b => `
+                    <li class="mb-3 d-flex align-items-start">
+                        <span class="material-icons-round text-success me-2" style="font-size:22px;">check_circle</span>
+                        <span style="font-size:15px; color:#444; line-height: 1.4;">${b}</span>
+                    </li>
+                `).join('');
+                document.getElementById('mktPreLoginDesc').innerHTML = benefitsHtml;
+                
+                document.getElementById('mktPreLoginBtnText').innerText = window.appSettings.login_popup_btn_text || 'Upgrade Access Now';
+                document.getElementById('mktPreLoginBtnLink').href = window.appSettings.login_popup_btn_link || '#';
+                
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('preLoginMarketingModal')).show();
+            } else {
+                proceedToLogin(); // Skip marketing, go straight to login
+            }
+        }
+
+        // Proceeds to standard login form
+        function proceedToLogin() {
+            const mktModalEl = document.getElementById('preLoginMarketingModal');
+            if (mktModalEl) {
+                const modalInst = bootstrap.Modal.getInstance(mktModalEl);
+                if (modalInst) modalInst.hide();
+            }
             switchAuthView('viewLogin');
             bootstrap.Modal.getOrCreateInstance(document.getElementById('loginModal')).show();
         }
