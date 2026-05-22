@@ -602,6 +602,12 @@ window.showUpgradeMarketingModal = function(levelKey) {
         button_link: window.appSettings.sticky_btn1_link || 'https://wa.me/' 
     };
 
+    // --- NEW: Fetch Automated Sales Label specific to this Level ---
+    let todaySaleText = '';
+    if (typeof window.getTodaySalesLabel === 'function') {
+        todaySaleText = window.getTodaySalesLabel(window.appSettings, levelKey);
+    }
+
     const existing = document.getElementById('upgradePopupModal');
     if (existing) existing.remove();
 
@@ -612,13 +618,20 @@ window.showUpgradeMarketingModal = function(levelKey) {
         </li>
     `).join('');
 
+    // --- NEW: Generate Badge HTML if a label exists for today ---
+    let badgeHtml = '';
+    if (todaySaleText && todaySaleText.trim() !== '') {
+        badgeHtml = `<div class="badge bg-danger text-white mb-3 p-2 px-3 w-100 shadow-sm" style="font-size: 13px; border-radius: 6px; animation: pulse 2s infinite;">🔥 ${todaySaleText}</div>`;
+    }
+
     const modalHtml = `
         <div class="modal fade" id="upgradePopupModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
             <div class="modal-dialog modal-dialog-centered" style="max-width: 320px; margin: 0 auto;">
                 <div class="modal-content text-center p-3" style="border-radius: 12px; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
                     <div class="modal-body p-1">
                         <h6 class="fw-bold mb-1" style="color: #000; font-size: 18px;">${levelData.display_name}</h6>
-                        <p class="text-muted mb-3" style="font-size: 12px;">Upgrade your account to unlock:</p>
+                        
+                        ${badgeHtml} <p class="text-muted mb-3" style="font-size: 12px;">Upgrade your account to unlock:</p>
                         
                         <ul class="list-unstyled mb-3 mx-auto" style="max-width: 100%;">
                             ${benefitsHtml}
