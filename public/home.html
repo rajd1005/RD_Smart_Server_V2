@@ -1209,40 +1209,64 @@ function openLoginModal(hideLoginBtn = false) {
             } catch(err) { alert("🚨 Error loading video stream."); }
         }
 
-        function closeVideoPlayer() {
-            if (progressInterval) clearInterval(progressInterval);
-            if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
-            if (screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch (e) {} }
-            if (document.fullscreenElement || document.webkitFullscreenElement) {
-                if (document.exitFullscreen) { document.exitFullscreen().catch(e => {}); } else if (document.webkitExitFullscreen) { document.webkitExitFullscreen().catch(e => {}); }
+function closeVideoPlayer() {
+    if (progressInterval) clearInterval(progressInterval); 
+    if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
+    
+    // Unlock orientation
+    if (screen.orientation && screen.orientation.unlock) { 
+        try { screen.orientation.unlock(); } catch (e) {} 
+    }
+    
+    // Check if we are actually in fullscreen right now
+    let isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+    
+    // Exit fullscreen
+    if (isFullscreen) {
+        if (document.exitFullscreen) { document.exitFullscreen().catch(e => {}); } 
+        else if (document.webkitExitFullscreen) { document.webkitExitFullscreen().catch(e => {}); }
+    }
+    
+    stopWatermark();
+    document.getElementById('videoPlayerContainer').style.display = 'none';
+
+    // --- NEW: DYNAMIC DELAY FIX ---
+    // If exiting fullscreen/rotation, wait 1200ms to allow browser repaint to finish. 
+    // If just closing a normal inline video, 600ms is plenty.
+    const delay = isFullscreen ? 1200 : 600;
+
+    setTimeout(() => {
+        // Double check that we aren't still in a weird fullscreen state
+        if (document.fullscreenElement) { document.exitFullscreen().catch(e=>{}); }
+
+        const sessionId = localStorage.getItem('sessionId');
+        
+        if (!sessionId) {
+            // Non-logged in user: show pre-login popup (hide login button = true)
+            if (typeof openLoginModal === 'function') {
+                openLoginModal(true);
             }
-            stopWatermark(); document.getElementById('videoPlayerContainer').style.display = 'none';
+        } else {
+            // Logged-in user: skip for admins/managers
+            const role = localStorage.getItem('userRole');
+            if (role === 'admin' || role === 'manager') return;
 
-            // --- NEW: AUTO-SHOW MARKETING POPUP ON CLOSE ---
-            setTimeout(() => {
-                const sessionId = localStorage.getItem('sessionId');
-                
-                if (!sessionId) {
-                    if (typeof openLoginModal === 'function') openLoginModal(true);
-                } else {
-                    const role = localStorage.getItem('userRole');
-                    if (role === 'admin' || role === 'manager') return;
-
-                    let accessLevels = {};
-                    try { accessLevels = JSON.parse(localStorage.getItem('accessLevels')) || {}; } catch(e) {}
-                    
-                    if (typeof window.showUpgradeMarketingModal === 'function') {
-                        if (accessLevels['level_2_status'] !== 'Yes') {
-                            window.showUpgradeMarketingModal('level_2_status');
-                        } else if (accessLevels['level_3_status'] !== 'Yes') {
-                            window.showUpgradeMarketingModal('level_3_status');
-                        } else if (accessLevels['level_4_status'] !== 'Yes') {
-                            window.showUpgradeMarketingModal('level_4_status');
-                        }
-                    }
+            // Check access levels and show the next locked level marketing popup
+            let accessLevels = {};
+            try { accessLevels = JSON.parse(localStorage.getItem('accessLevels')) || {}; } catch(e) {}
+            
+            if (typeof window.showUpgradeMarketingModal === 'function') {
+                if (accessLevels['level_2_status'] !== 'Yes') {
+                    window.showUpgradeMarketingModal('level_2_status');
+                } else if (accessLevels['level_3_status'] !== 'Yes') {
+                    window.showUpgradeMarketingModal('level_3_status');
+                } else if (accessLevels['level_4_status'] !== 'Yes') {
+                    window.showUpgradeMarketingModal('level_4_status');
                 }
-            }, 500);
+            }
         }
+    }, delay);
+}
 
         function startWatermark() {
             const wmEl = document.getElementById('dynamicWatermark');
