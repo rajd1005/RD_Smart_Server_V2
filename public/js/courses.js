@@ -413,22 +413,39 @@ async function openSecureVideo(lessonId) {
 function closeVideoPlayer() {
     if (progressInterval) clearInterval(progressInterval); 
     if (videoPlayer) { videoPlayer.pause(); videoPlayer.reset(); }
-    if (screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch (e) {} }
-    if (document.fullscreenElement || document.webkitFullscreenElement) {
+    
+    // Unlock orientation
+    if (screen.orientation && screen.orientation.unlock) { 
+        try { screen.orientation.unlock(); } catch (e) {} 
+    }
+    
+    // Check if we are actually in fullscreen right now
+    let isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+    
+    // Exit fullscreen
+    if (isFullscreen) {
         if (document.exitFullscreen) { document.exitFullscreen().catch(e => {}); } 
         else if (document.webkitExitFullscreen) { document.webkitExitFullscreen().catch(e => {}); }
     }
+    
     stopWatermark();
     document.getElementById('videoPlayerContainer').style.display = 'none';
 
-    // --- NEW: AUTO-SHOW MARKETING POPUP ON CLOSE ---
+    // --- NEW: DYNAMIC DELAY FIX ---
+    // If exiting fullscreen/rotation, wait 1200ms to allow browser repaint to finish. 
+    // If just closing a normal inline video, 600ms is plenty.
+    const delay = isFullscreen ? 1200 : 600;
+
     setTimeout(() => {
+        // Double check that we aren't still in a weird fullscreen state
+        if (document.fullscreenElement) { document.exitFullscreen().catch(e=>{}); }
+
         const sessionId = localStorage.getItem('sessionId');
         
         if (!sessionId) {
-            // Non-logged in user: show pre-login popup (handled by openLoginModal)
+            // Non-logged in user: show pre-login popup (hide login button = true)
             if (typeof openLoginModal === 'function') {
-                openLoginModal();
+                openLoginModal(true);
             }
         } else {
             // Logged-in user: skip for admins/managers
@@ -449,7 +466,7 @@ function closeVideoPlayer() {
                 }
             }
         }
-    }, 500); // 500ms delay to let the video close smoothly first
+    }, delay);
 }
 
 function startWatermark() {
